@@ -1,0 +1,16 @@
+name: Deployment scaffold
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deployment-not-configured:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain deployment status
+        run: |
+          echo "Deployment is not configured yet."
+          echo "Future work: provision EC2, choose authentication and secrets, deploy code or images, run Docker Compose, and verify service health."
