@@ -22,7 +22,24 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Current status
 
-The backend scaffold and `/api/health` endpoint are implemented, and MySQL is configured for Docker-based development with persistent storage. The frontend has not been initialized, AI functionality and the database schema have not been designed, and EC2 deployment is not active.
+The backend provides the `/api/health` endpoint and an Iteration 1 API under
+`/api/v1`. Household plans, locations, completion checks, local context,
+preparation support, and basic scenario tests run end-to-end using process-local
+storage and deterministic mock providers. MySQL is configured for Docker-based
+development but is deliberately not used by this foundation. The frontend has
+not been initialized, AI functionality and the database schema have not been
+designed, and EC2 deployment is not active.
+
+The Iteration 1 endpoints are:
+
+- `POST /api/v1/households`
+- `PUT|GET /api/v1/households/{household_id}/plan`
+- `GET /api/v1/households/{household_id}/completion`
+- `PUT /api/v1/households/{household_id}/location`
+- `GET /api/v1/households/{household_id}/local-context`
+- `GET /api/v1/households/{household_id}/preparation-support`
+- `GET /api/v1/scenarios/basic`
+- `POST /api/v1/households/{household_id}/tests`
 
 ## Local backend setup
 

@@ -1,0 +1,174 @@
+from copy import deepcopy
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.core.dependencies import get_household_repository, get_spatial_provider
+from app.main import app
+from app.repositories.households import InMemoryHouseholdRepository
+
+
+@pytest.fixture
+def api() -> tuple[TestClient, InMemoryHouseholdRepository]:
+    repository = InMemoryHouseholdRepository()
+    app.dependency_overrides[get_household_repository] = lambda: repository
+    with TestClient(app) as client:
+        yield client, repository
+    app.dependency_overrides.clear()
+
+
+def create_household(client: TestClient) -> str:
+    response = client.post("/api/v1/households")
+    assert response.status_code == 201
+    return response.json()["household_id"]
+
+
+def test_complete_household_api_flow(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, repository = api
+    household_id = create_household(client)
+
+    plan_response = client.put(
+        f"/api/v1/households/{household_id}/plan", json=complete_plan_data
+    )
+    location_response = client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "Warrandyte VIC 3113"},
+    )
+    fetched_plan = client.get(f"/api/v1/households/{household_id}/plan")
+    completion_response = client.get(
+        f"/api/v1/households/{household_id}/completion"
+    )
+    context_response = client.get(
+        f"/api/v1/households/{household_id}/local-context"
+    )
+    preparation_response = client.get(
+        f"/api/v1/households/{household_id}/preparation-support"
+    )
+    test_response = client.post(
+        f"/api/v1/households/{household_id}/tests",
+        json={"scenario_id": "vehicle_unavailable"},
+    )
+
+    assert plan_response.status_code == 200
+    assert location_response.status_code == 200
+    assert fetched_plan.json() == complete_plan_data
+    assert completion_response.json()["overall_status"] == "complete"
+    assert context_response.json()["bushfire_context"] == {
+        "is_bushfire_prone_area": True,
+        "fire_district": "Central",
+    }
+    assert preparation_response.json()["status"] == "review_recommended"
+    assert test_response.status_code == 201
+    assert test_response.json()["overall_status"] == "pass"
+    assert len(repository.get_test_results(household_id)) == 1
+
+
+def test_business_validation_returns_clean_422(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+    invalid = deepcopy(complete_plan_data)
+    invalid["transports"][0]["driver_member_ids"] = ["not_a_member"]
+
+    response = client.put(
+        f"/api/v1/households/{household_id}/plan", json=invalid
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"]["message"] == "The household plan is invalid."
+    assert "unknown driver" in response.json()["detail"]["errors"][0]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/api/v1/households/missing/plan",
+        "/api/v1/households/missing/completion",
+        "/api/v1/households/missing/local-context",
+    ],
+)
+def test_missing_household_returns_404(
+    api: tuple[TestClient, InMemoryHouseholdRepository], path: str
+) -> None:
+    client, _ = api
+    assert client.get(path).status_code == 404
+
+
+def test_plan_and_location_not_found(
+    api: tuple[TestClient, InMemoryHouseholdRepository]
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+
+    assert client.get(f"/api/v1/households/{household_id}/plan").status_code == 404
+    assert (
+        client.get(f"/api/v1/households/{household_id}/local-context").status_code
+        == 404
+    )
+
+
+def test_basic_scenarios_contract(api) -> None:
+    client, _ = api
+    response = client.get("/api/v1/scenarios/basic")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "scenario_id": "vehicle_unavailable",
+            "title": "Main Vehicle Unavailable",
+            "description": "Check whether another transport option is available.",
+        },
+        {
+            "scenario_id": "person_unavailable",
+            "title": "Primary Responsible Person Unavailable",
+            "description": "Check whether important responsibilities have backup people.",
+        },
+        {
+            "scenario_id": "destination_unavailable",
+            "title": "Primary Destination Unavailable",
+            "description": "Check whether another destination is available.",
+        },
+    ]
+
+
+def test_unsupported_scenario_returns_404(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+    client.put(f"/api/v1/households/{household_id}/plan", json=complete_plan_data)
+
+    response = client.post(
+        f"/api/v1/households/{household_id}/tests",
+        json={"scenario_id": "unknown"},
+    )
+
+    assert response.status_code == 404
+
+
+class FailingSpatialProvider:
+    def get_context(self, latitude: float, longitude: float):
+        raise RuntimeError("offline")
+
+
+def test_provider_failure_returns_503(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_spatial_provider] = lambda: FailingSpatialProvider()
+    household_id = create_household(client)
+    client.put(f"/api/v1/households/{household_id}/plan", json=complete_plan_data)
+    client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "Warrandyte VIC 3113"},
+    )
+
+    response = client.get(
+        f"/api/v1/households/{household_id}/preparation-support"
+    )
+
+    assert response.status_code == 503
+
