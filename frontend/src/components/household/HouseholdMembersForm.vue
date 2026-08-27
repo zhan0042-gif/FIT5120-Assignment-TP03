@@ -1,0 +1,129 @@
+<script setup lang="ts">
+import type { HouseholdMember, Pet } from '../../types/household'
+import { newId } from '../../api/client'
+import EmptyState from '../common/EmptyState.vue'
+
+const members = defineModel<HouseholdMember[]>('members', { required: true })
+const pets = defineModel<Pet[]>('pets', { required: true })
+
+function addMember() {
+  members.value.push({
+    member_id: newId('m'),
+    display_name: '',
+    is_dependant: false,
+    mobility_support_required: false,
+    support_notes: null,
+  })
+}
+
+function removeMember(id: string) {
+  members.value = members.value.filter((m) => m.member_id !== id)
+}
+
+function addPet() {
+  pets.value.push({ pet_id: newId('p'), display_name: '', pet_type: '', support_notes: null })
+}
+
+function removePet(id: string) {
+  pets.value = pets.value.filter((p) => p.pet_id !== id)
+}
+</script>
+
+<template>
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <p class="eyebrow">Epic 1 · US1.1</p>
+        <h3 class="card-title">Household members</h3>
+      </div>
+      <span class="badge" :class="members.length ? 'badge-success' : 'badge-neutral'">
+        {{ members.length }} recorded
+      </span>
+    </div>
+
+    <EmptyState
+      v-if="members.length === 0"
+      title="No household members yet"
+      message="Add everyone who needs to be considered in this plan, including any support needs."
+    >
+      <button class="btn btn-primary btn-sm" type="button" @click="addMember">Add member</button>
+    </EmptyState>
+
+    <template v-else>
+      <div v-for="member in members" :key="member.member_id" class="member-row">
+        <div class="field-grid">
+          <div class="field">
+            <label :for="`${member.member_id}-name`">Name</label>
+            <input :id="`${member.member_id}-name`" v-model="member.display_name" type="text" placeholder="e.g. Maya" />
+            <span v-if="!member.display_name.trim()" class="field-error">A name helps identify this member in results.</span>
+          </div>
+          <div class="field">
+            <label>Support notes (optional)</label>
+            <input v-model="member.support_notes" type="text" placeholder="e.g. Uses a wheelchair" />
+          </div>
+        </div>
+        <div class="checkbox-group">
+          <label class="checkbox-row">
+            <input v-model="member.is_dependant" type="checkbox" />
+            Dependant
+          </label>
+          <label class="checkbox-row">
+            <input v-model="member.mobility_support_required" type="checkbox" />
+            Requires mobility support
+          </label>
+          <button class="btn btn-danger btn-sm" type="button" @click="removeMember(member.member_id)">Remove</button>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" @click="addMember">+ Add another member</button>
+    </template>
+
+    <hr class="divider" />
+
+    <div class="card-header">
+      <h3 class="card-title">Pets</h3>
+      <span class="badge badge-neutral">{{ pets.length }} recorded</span>
+    </div>
+
+    <EmptyState v-if="pets.length === 0" title="No pets recorded" message="This is fine — pets are optional.">
+      <button class="btn btn-ghost btn-sm" type="button" @click="addPet">Add a pet</button>
+    </EmptyState>
+
+    <template v-else>
+      <div v-for="pet in pets" :key="pet.pet_id" class="member-row">
+        <div class="field-grid">
+          <div class="field">
+            <label>Name</label>
+            <input v-model="pet.display_name" type="text" placeholder="e.g. Buddy" />
+          </div>
+          <div class="field">
+            <label>Type</label>
+            <input v-model="pet.pet_type" type="text" placeholder="e.g. dog" />
+          </div>
+          <div class="field">
+            <label>Support notes (optional)</label>
+            <input v-model="pet.support_notes" type="text" />
+          </div>
+        </div>
+        <button class="btn btn-danger btn-sm" type="button" @click="removePet(pet.pet_id)">Remove</button>
+      </div>
+      <button class="btn btn-ghost btn-sm" type="button" @click="addPet">+ Add another pet</button>
+    </template>
+  </section>
+</template>
+
+<style scoped>
+.member-row {
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+</style>
