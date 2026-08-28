@@ -35,9 +35,14 @@ function formatTime(iso: string) {
         {{ store.contextStatus === 'loading' ? 'Checking…' : 'Check location' }}
       </button>
     </form>
-    <p class="hint">Include "VIC" for a full result — other addresses demonstrate the unavailable-data state.</p>
+    <p class="hint">Enter a Victorian household address.</p>
 
     <LoadingState v-if="store.contextStatus === 'loading'" message="Looking up local bushfire and fire-weather data…" />
+
+    <div v-else-if="store.contextUnavailable" class="state-block">
+      <p class="state-title">Local information is currently unavailable</p>
+      <p>We couldn't match this address to official Victorian bushfire data, or the latest data isn't available right now.</p>
+    </div>
 
     <ErrorState v-else-if="store.contextStatus === 'error'" :message="store.contextError ?? undefined" @retry="submit" />
 
@@ -71,13 +76,9 @@ function formatTime(iso: string) {
         </div>
         <p class="hint">Weather forecast as of {{ formatTime(store.context.weather.forecast_time) }}</p>
 
-        <p v-if="store.context.environmental_context.vegetation || store.context.environmental_context.terrain" class="hint">
-          Environment: {{ [store.context.environmental_context.vegetation, store.context.environmental_context.terrain].filter(Boolean).join(' · ') }}
+        <p v-if="store.context.environmental_context.vegetation_context || store.context.environmental_context.terrain_context" class="hint">
+          Environment: {{ [store.context.environmental_context.vegetation_context, store.context.environmental_context.terrain_context].filter(Boolean).join(' · ') }}
         </p>
-      </div>
-      <div v-else class="state-block">
-        <p class="state-title">Local information is currently unavailable</p>
-        <p>We couldn't match this address to official Victorian bushfire data, or the latest data isn't available right now.</p>
       </div>
     </template>
 

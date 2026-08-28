@@ -5,7 +5,12 @@ import type {
   HouseholdPlan,
   PlanCompletion,
 } from '../types/household'
-import type { LocalContext, PreparationSupport } from '../types/localContext'
+import type {
+  LocalContext,
+  LocationRequest,
+  PreparationSupport,
+  ResolvedLocation,
+} from '../types/localContext'
 import type { Scenario, TestResult } from '../types/scenario'
 
 const API_ROOT = '/api/v1'
@@ -113,24 +118,25 @@ export const api = {
   getCompletion: (householdId: string): Promise<PlanCompletion> =>
     request(`/households/${encodeURIComponent(householdId)}/completion`),
 
-  // Epic 2 remains on its temporary mock in Integration Patch 1.
-  saveLocation: (_householdId: string, address: string) => mock.saveLocation(address),
-  getLocalContext: async (_householdId: string): Promise<LocalContext> => {
-    const result = await mock.fetchLocalContext(mock.loadSavedAddress())
-    if (!result) throw new ApiError(503, 'Local context data is unavailable for this address.')
-    return result
-  },
-  getPreparationSupport: (_householdId: string): Promise<PreparationSupport> =>
-    mock.fetchPreparationSupport(),
+  saveLocation: (
+    householdId: string,
+    input: LocationRequest,
+  ): Promise<ResolvedLocation> =>
+    request(`/households/${encodeURIComponent(householdId)}/location`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
+  getLocalContext: (householdId: string): Promise<LocalContext> =>
+    request(`/households/${encodeURIComponent(householdId)}/local-context`),
+
+  getPreparationSupport: (householdId: string): Promise<PreparationSupport> =>
+    request(`/households/${encodeURIComponent(householdId)}/preparation-support`),
 
   // Epic 3 remains on its temporary mock in Integration Patch 1.
   getBasicScenarios: (): Promise<Scenario[]> => mock.fetchScenarios(),
   runBasicTest: (_householdId: string, scenarioId: string): Promise<TestResult> =>
     mock.runBasicTest(scenarioId),
-}
-
-export function loadSavedAddress(): string {
-  return mock.loadSavedAddress()
 }
 
 export function newId(prefix: string): string {

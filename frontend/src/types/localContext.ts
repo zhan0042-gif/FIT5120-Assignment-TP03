@@ -1,9 +1,15 @@
 // Mirrors Local Context / Preparation Support contracts (Epic 2, US2.1-US2.3)
 
+import type { CompletionSectionName } from './household'
+
 export interface ResolvedLocation {
   address: string
   latitude: number
   longitude: number
+}
+
+export interface LocationRequest {
+  address: string
 }
 
 export interface BushfireContext {
@@ -30,8 +36,9 @@ export interface Weather {
 }
 
 export interface EnvironmentalContext {
-  vegetation: string | null
-  terrain: string | null
+  fire_history_summary: string | null
+  vegetation_context: string | null
+  terrain_context: string | null
 }
 
 export interface LocalContext {
@@ -47,5 +54,5 @@ export type PreparationSupportStatus = 'up_to_date' | 'review_recommended'
 export interface PreparationSupport {
   status: PreparationSupportStatus
   message: string
-  sections_to_review: string[]
+  sections_to_review: CompletionSectionName[]
 }

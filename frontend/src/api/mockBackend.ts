@@ -1,16 +1,9 @@
-// Stand-in for the not-yet-built Backend (see "Iteration 1 总体分工与数据流", section 4:
-// Frontend develops against Mock JSON and does not wait on Database/DS/Backend).
-//
-// Every exported function here mirrors one endpoint from the I1 API Contract
-// (POST/GET/PUT /api/v1/households/...). When the real Backend exists, only
-// `src/api/client.ts` needs to change — components never import this file directly.
+// Temporary development data retained for Epic 3 until its HTTP integration patch.
 
 import type { HouseholdPlan, PlanCompletion } from '../types/household'
-import type { LocalContext, PreparationSupport } from '../types/localContext'
 import type { Scenario, TestResult, TestCheck } from '../types/scenario'
 
 const STORAGE_KEY = 'firebreak.household-plan.v1'
-const LOCATION_KEY = 'firebreak.location.v1'
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -65,7 +58,6 @@ function seedPlan(): HouseholdPlan {
     ],
   }
 }
-
 function loadPlan(): HouseholdPlan {
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return seedPlan()
@@ -149,110 +141,8 @@ export function computeCompletion(plan: HouseholdPlan): PlanCompletion {
 
   const overall_status = sections.every((s) => s.status === 'complete') ? 'complete' : 'needs_information'
   // Epic 1 uses FastAPI for authoritative immediate checks. This legacy mock
-  // only supports temporary Epic 2/3 helpers and deliberately has no rule engine.
+  // only supports temporary Epic 3 helpers and deliberately has no rule engine.
   return { overall_status, sections, immediate_checks: [] }
-}
-
-// ---------------------------------------------------------------------------
-// Location & Local Context (US2.1-US2.3)
-// ---------------------------------------------------------------------------
-
-export function loadSavedAddress(): string {
-  return localStorage.getItem(LOCATION_KEY) ?? ''
-}
-
-export async function saveLocation(address: string): Promise<{ address: string }> {
-  await delay(350)
-  localStorage.setItem(LOCATION_KEY, address)
-  return { address }
-}
-
-class ApiError extends Error {}
-
-export async function fetchLocalContext(address: string): Promise<LocalContext | null> {
-  await delay(500)
-
-  if (/error/i.test(address)) {
-    throw new ApiError('The local context service did not respond. Please try again.')
-  }
-
-  // AC4 (US2.1): unavailable data when the location cannot be matched.
-  if (!/vic/i.test(address)) {
-    return null
-  }
-
-  const seed = hashString(address)
-  const lat = -37.6 - (seed % 40) / 100
-  const lng = 144.9 + (seed % 60) / 100
-
-  return {
-    location: { address, latitude: Number(lat.toFixed(2)), longitude: Number(lng.toFixed(2)) },
-    bushfire_context: {
-      is_bushfire_prone_area: seed % 5 !== 0,
-      fire_district: 'Central',
-    },
-    fire_danger: {
-      today: 'Moderate',
-      tomorrow: 'High',
-      day_3: 'High',
-      day_4: 'Extreme',
-      source_updated_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-    },
-    weather: {
-      temperature_c: 28.0,
-      relative_humidity: 32,
-      wind_speed_kmh: 30,
-      wind_direction: 'NW',
-      forecast_time: new Date().toISOString(),
-    },
-    environmental_context: {
-      vegetation: null,
-      terrain: null,
-    },
-  }
-}
-
-export async function fetchPreparationSupport(): Promise<PreparationSupport> {
-  await delay(350)
-  const address = loadSavedAddress()
-  const context = await fetchLocalContext(address).catch(() => null)
-  const completion = computeCompletion(planCache)
-  const gaps = completion.sections
-    .filter((section) => section.status === 'needs_information')
-    .map((section) => section.section)
-  const levels = ['No Rating', 'Moderate', 'High', 'Extreme', 'Catastrophic']
-  const ratings = context
-    ? [
-        context.fire_danger.today,
-        context.fire_danger.tomorrow,
-        context.fire_danger.day_3,
-        context.fire_danger.day_4,
-      ].map((rating) => levels.indexOf(rating))
-    : []
-  const escalating = ratings.length > 1 && Math.max(...ratings.slice(1)) > ratings[0]
-  const serious = ratings.some((rating) => rating >= levels.indexOf('High'))
-
-  if (escalating || serious) {
-    return {
-      status: 'review_recommended',
-      message: 'Local fire conditions are expected to become more serious.',
-      sections_to_review: gaps,
-    }
-  }
-
-  if (gaps.length > 0) {
-    return {
-      status: 'review_recommended',
-      message: 'Review the incomplete sections of your household plan.',
-      sections_to_review: gaps,
-    }
-  }
-
-  return {
-    status: 'up_to_date',
-    message: 'No immediate plan review is recommended.',
-    sections_to_review: [],
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -281,7 +171,6 @@ export async function fetchScenarios(): Promise<Scenario[]> {
   await delay(300)
   return SCENARIOS
 }
-
 export async function runBasicTest(scenarioId: string): Promise<TestResult> {
   await delay(600)
   const plan = planCache
@@ -387,12 +276,4 @@ export async function runBasicTest(scenarioId: string): Promise<TestResult> {
     first_problem: firstProblem,
     tested_at: new Date().toISOString(),
   }
-}
-
-function hashString(input: string): number {
-  let hash = 0
-  for (let i = 0; i < input.length; i += 1) {
-    hash = (hash * 31 + input.charCodeAt(i)) >>> 0
-  }
-  return hash
 }

@@ -1,15 +1,18 @@
 from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app.core.dependencies import (
+    get_fire_danger_client,
     get_household_repository,
     get_spatial_provider,
     get_weather_client,
 )
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
+from app.schemas.households import FireDanger
 
 
 @pytest.fixture
@@ -168,6 +171,44 @@ def test_whitespace_only_location_is_rejected(
     assert response.status_code == 422
 
 
+def test_location_is_resolved_saved_and_replaced(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, repository = api
+    household_id = create_household(client)
+
+    first = client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "  Warrandyte   VIC 3113  "},
+    )
+    second = client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "Melbourne VIC 3000"},
+    )
+
+    assert first.status_code == 200
+    assert first.json() == {
+        "address": "Warrandyte VIC 3113",
+        "latitude": -37.74,
+        "longitude": 145.21,
+    }
+    assert second.status_code == 200
+    assert repository.get_location(household_id).model_dump() == second.json()
+
+
+def test_location_save_for_missing_household_returns_404(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+
+    response = client.put(
+        "/api/v1/households/missing/location",
+        json={"address": "Warrandyte VIC 3113"},
+    )
+
+    assert response.status_code == 404
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -245,6 +286,22 @@ class FailingWeatherClient:
         raise RuntimeError("BOM offline")
 
 
+class FailingFireDangerClient:
+    def get_fire_danger(self, fire_district: str):
+        raise RuntimeError("CFA offline")
+
+
+class StaleFireDangerClient:
+    def get_fire_danger(self, fire_district: str) -> FireDanger:
+        return FireDanger(
+            today="High",
+            tomorrow="High",
+            day_3="Extreme",
+            day_4="Extreme",
+            source_updated_at=datetime.now(timezone.utc) - timedelta(hours=25),
+        )
+
+
 def test_provider_failure_returns_503(
     api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
 ) -> None:
@@ -281,3 +338,28 @@ def test_preparation_support_does_not_require_weather(
     )
 
     assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "client_factory",
+    [lambda: FailingFireDangerClient(), lambda: StaleFireDangerClient()],
+)
+def test_unavailable_or_stale_fdr_returns_503_for_preparation_support(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+    complete_plan_data: dict,
+    client_factory,
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_fire_danger_client] = client_factory
+    household_id = create_household(client)
+    client.put(f"/api/v1/households/{household_id}/plan", json=complete_plan_data)
+    client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "Warrandyte VIC 3113"},
+    )
+
+    response = client.get(
+        f"/api/v1/households/{household_id}/preparation-support"
+    )
+
+    assert response.status_code == 503

@@ -12,8 +12,9 @@ from app.schemas.households import (
 class SpatialResult(Protocol):
     is_bushfire_prone_area: bool
     fire_district: str
-    vegetation: str | None
-    terrain: str | None
+    fire_history_summary: str | None
+    vegetation_context: str | None
+    terrain_context: str | None
 
 
 class AddressClient(Protocol):
@@ -30,4 +31,3 @@ class FireDangerClient(Protocol):
 
 class WeatherClient(Protocol):
     def get_weather(self, latitude: float, longitude: float) -> Weather: ...
-

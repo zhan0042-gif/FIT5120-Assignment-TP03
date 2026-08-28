@@ -1,6 +1,8 @@
 """Location, local-context aggregation, and preparation timing services."""
 
-from app.core.exceptions import ExternalDataUnavailable
+from datetime import datetime, timedelta, timezone
+
+from app.core.exceptions import ExternalDataUnavailable, HouseholdNotFound
 from app.providers.interfaces import (
     AddressClient,
     FireDangerClient,
@@ -11,6 +13,7 @@ from app.repositories.households import HouseholdRepository
 from app.schemas.households import (
     BushfireContext,
     EnvironmentalContext,
+    FireDanger,
     HouseholdLocation,
     LocalContext,
     PlanCompletion,
@@ -24,6 +27,8 @@ class LocationService:
         self.address_client = address_client
 
     def save(self, household_id: str, address: str) -> HouseholdLocation:
+        if not self.repository.household_exists(household_id):
+            raise HouseholdNotFound(f"Household '{household_id}' was not found.")
         try:
             location = self.address_client.resolve(address)
         except ExternalDataUnavailable:
@@ -59,6 +64,20 @@ class LocalContextService:
             weather = self.weather_client.get_weather(
                 location.latitude, location.longitude
             )
+            return LocalContext(
+                location=location,
+                bushfire_context=BushfireContext(
+                    is_bushfire_prone_area=spatial.is_bushfire_prone_area,
+                    fire_district=spatial.fire_district,
+                ),
+                fire_danger=fire_danger,
+                weather=weather,
+                environmental_context=EnvironmentalContext(
+                    fire_history_summary=spatial.fire_history_summary,
+                    vegetation_context=spatial.vegetation_context,
+                    terrain_context=spatial.terrain_context,
+                ),
+            )
         except ExternalDataUnavailable:
             raise
         except Exception as exc:
@@ -66,36 +85,37 @@ class LocalContextService:
                 "Local context provider data is unavailable."
             ) from exc
 
-        return LocalContext(
-            location=location,
-            bushfire_context=BushfireContext(
-                is_bushfire_prone_area=spatial.is_bushfire_prone_area,
-                fire_district=spatial.fire_district,
-            ),
-            fire_danger=fire_danger,
-            weather=weather,
-            environmental_context=EnvironmentalContext(
-                vegetation=spatial.vegetation,
-                terrain=spatial.terrain,
-            ),
-        )
-
 
 class PreparationTimingService:
     """Recommend review using supplied FDR values and plan completeness."""
 
     FDR_SEVERITY = {"No Rating": 0, "Moderate": 1, "High": 2, "Extreme": 3, "Catastrophic": 4}
+    FIRE_DANGER_MAX_AGE = timedelta(hours=24)
+    FIRE_DANGER_FUTURE_TOLERANCE = timedelta(minutes=5)
 
     def recommend(
-        self, fire_danger_values: list[str], completion: PlanCompletion
+        self,
+        fire_danger: FireDanger,
+        completion: PlanCompletion,
+        *,
+        now: datetime | None = None,
     ) -> PreparationSupport:
+        self._ensure_fresh(fire_danger, now or datetime.now(timezone.utc))
         incomplete = [
             item.section
             for item in completion.sections
             if item.status == "needs_information"
         ]
         try:
-            levels = [self.FDR_SEVERITY[value] for value in fire_danger_values]
+            levels = [
+                self.FDR_SEVERITY[value]
+                for value in (
+                    fire_danger.today,
+                    fire_danger.tomorrow,
+                    fire_danger.day_3,
+                    fire_danger.day_4,
+                )
+            ]
         except KeyError as exc:
             raise ExternalDataUnavailable(
                 f"Unsupported Fire Danger Rating supplied: {exc.args[0]}"
@@ -120,6 +140,22 @@ class PreparationTimingService:
             message="No immediate plan review is recommended.",
             sections_to_review=[],
         )
+
+    def _ensure_fresh(self, fire_danger: FireDanger, now: datetime) -> None:
+        updated_at = fire_danger.source_updated_at
+        if updated_at.tzinfo is None or updated_at.utcoffset() is None:
+            raise ExternalDataUnavailable(
+                "Fire Danger Rating issue time is unavailable."
+            )
+        age = now.astimezone(timezone.utc) - updated_at.astimezone(timezone.utc)
+        if age > self.FIRE_DANGER_MAX_AGE:
+            raise ExternalDataUnavailable(
+                "Fire Danger Rating data is stale; preparation support is unavailable."
+            )
+        if age < -self.FIRE_DANGER_FUTURE_TOLERANCE:
+            raise ExternalDataUnavailable(
+                "Fire Danger Rating issue time is invalid."
+            )
 
 
 class PreparationSupportService:
@@ -146,19 +182,10 @@ class PreparationSupportService:
             fire_danger = self.fire_danger_client.get_fire_danger(
                 spatial.fire_district
             )
+            return PreparationTimingService().recommend(fire_danger, completion)
         except ExternalDataUnavailable:
             raise
         except Exception as exc:
             raise ExternalDataUnavailable(
                 "Preparation support provider data is unavailable."
             ) from exc
-
-        return PreparationTimingService().recommend(
-            [
-                fire_danger.today,
-                fire_danger.tomorrow,
-                fire_danger.day_3,
-                fire_danger.day_4,
-            ],
-            completion,
-        )

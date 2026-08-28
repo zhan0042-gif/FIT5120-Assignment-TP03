@@ -18,6 +18,17 @@ NonBlankText = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1),
 ]
+CompletionSectionName = Literal[
+    "household_profile",
+    "transport",
+    "backup_transport",
+    "primary_destination",
+    "backup_destination",
+    "responsibilities",
+]
+FireDangerLevel = Literal[
+    "No Rating", "Moderate", "High", "Extreme", "Catastrophic"
+]
 
 
 class HouseholdCreate(BaseModel):
@@ -93,19 +104,12 @@ class LocationRequest(BaseModel):
 
 class HouseholdLocation(BaseModel):
     address: str
-    latitude: float
-    longitude: float
+    latitude: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+    longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
 
 
 class CompletionSection(BaseModel):
-    section: Literal[
-        "household_profile",
-        "transport",
-        "backup_transport",
-        "primary_destination",
-        "backup_destination",
-        "responsibilities",
-    ]
+    section: CompletionSectionName
     status: Literal["complete", "needs_information"]
 
 
@@ -133,14 +137,14 @@ class PlanCompletion(BaseModel):
 
 class BushfireContext(BaseModel):
     is_bushfire_prone_area: bool
-    fire_district: str
+    fire_district: NonBlankText
 
 
 class FireDanger(BaseModel):
-    today: str
-    tomorrow: str
-    day_3: str
-    day_4: str
+    today: FireDangerLevel
+    tomorrow: FireDangerLevel
+    day_3: FireDangerLevel
+    day_4: FireDangerLevel
     source_updated_at: datetime
 
 
@@ -153,8 +157,9 @@ class Weather(BaseModel):
 
 
 class EnvironmentalContext(BaseModel):
-    vegetation: str | None = None
-    terrain: str | None = None
+    fire_history_summary: str | None = None
+    vegetation_context: str | None = None
+    terrain_context: str | None = None
 
 
 class LocalContext(BaseModel):
@@ -166,6 +171,6 @@ class LocalContext(BaseModel):
 
 
 class PreparationSupport(BaseModel):
-    status: str
+    status: Literal["up_to_date", "review_recommended"]
     message: str
-    sections_to_review: list[str]
+    sections_to_review: list[CompletionSectionName]

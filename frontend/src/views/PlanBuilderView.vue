@@ -27,7 +27,7 @@ function resetDraft() {
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
   resetDraft()
-  if (localContextStore.submittedAddress && localContextStore.contextStatus === 'idle') {
+  if (localContextStore.contextStatus === 'idle') {
     localContextStore.init()
   }
 })
