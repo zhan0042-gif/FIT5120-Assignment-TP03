@@ -1,11 +1,19 @@
 <script setup lang="ts">
 import type { TestResult } from '../../types/scenario'
 import StatusBadge from '../common/StatusBadge.vue'
+import { formatAustralianDateTime } from '../../utils/dateTime'
 
 defineProps<{ result: TestResult }>()
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+const CHECK_LABELS: Record<string, string> = {
+  backup_transport: 'Backup transport',
+  backup_driver: 'Backup driver',
+  backup_person: 'Backup person',
+  backup_destination: 'Backup destination',
+}
+
+function checkLabel(check: string) {
+  return CHECK_LABELS[check] ?? 'Plan check'
 }
 </script>
 
@@ -13,7 +21,7 @@ function formatTime(iso: string) {
   <div class="result">
     <div class="result-header">
       <StatusBadge :status="result.overall_status" />
-      <span class="hint">Tested {{ formatTime(result.tested_at) }}</span>
+      <span class="hint">Tested {{ formatAustralianDateTime(result.tested_at) }}</span>
     </div>
 
     <p class="hint">{{ result.result_reason }}</p>
@@ -25,7 +33,7 @@ function formatTime(iso: string) {
 
     <ul class="checks">
       <li v-for="check in result.checks" :key="check.check" class="list-item">
-        <span>{{ check.message }}</span>
+        <span>{{ checkLabel(check.check) }}</span>
         <StatusBadge :status="check.status" />
       </li>
     </ul>

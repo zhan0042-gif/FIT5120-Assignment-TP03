@@ -18,7 +18,7 @@ export interface Animal {
   support_notes: string | null
 }
 
-export type TransportType = 'car' | 'other' | 'none'
+export type TransportType = 'car' | 'motorbike' | 'van' | 'other'
 
 export interface Transport {
   transport_id: string
@@ -51,6 +51,7 @@ export interface Responsibility {
 export interface HouseholdPlan {
   members: HouseholdMember[]
   animals: Animal[]
+  has_private_transport: boolean | null
   transports: Transport[]
   arrangements: Arrangements
   responsibilities: Responsibility[]

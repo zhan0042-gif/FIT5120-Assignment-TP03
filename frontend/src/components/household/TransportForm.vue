@@ -4,9 +4,11 @@ import { newId } from '../../api/client'
 import EmptyState from '../common/EmptyState.vue'
 
 const props = defineProps<{ members: HouseholdMember[] }>()
-const transports = defineModel<Transport[]>({ required: true })
+const transports = defineModel<Transport[]>('transports', { required: true })
+const hasPrivateTransport = defineModel<boolean | null>('hasPrivateTransport', { required: true })
 
-function addTransport() {
+function addPrivateTransport() {
+  hasPrivateTransport.value = true
   transports.value.push({
     transport_id: newId('t'),
     transport_type: 'car',
@@ -15,13 +17,21 @@ function addTransport() {
   })
 }
 
-function addNoTransport() {
+function addOtherArrangement() {
   transports.value.push({
     transport_id: newId('t'),
-    transport_type: 'none',
-    display_name: 'No private transport available',
+    transport_type: 'other',
+    display_name: '',
     driver_member_ids: [],
   })
+}
+
+function recordNoPrivateTransport() {
+  hasPrivateTransport.value = false
+}
+
+function markPrivateTransport(transport: Transport) {
+  if (transport.transport_type !== 'other') hasPrivateTransport.value = true
 }
 
 function removeTransport(id: string) {
@@ -45,15 +55,19 @@ function memberName(id: string) {
       <div>
         <h3 class="card-title">Transport & driver availability</h3>
       </div>
-      <span class="badge" :class="transports.length ? 'badge-success' : 'badge-neutral'">
-        {{ transports.length }} recorded
+      <span class="badge" :class="hasPrivateTransport !== null || transports.length ? 'badge-success' : 'badge-neutral'">
+        {{ hasPrivateTransport === false ? 'No private transport recorded' : `${transports.length} recorded` }}
       </span>
     </div>
 
-    <EmptyState v-if="transports.length === 0" title="No transport recorded yet">
+    <EmptyState
+      v-if="transports.length === 0"
+      :title="hasPrivateTransport === false ? 'No private transport recorded' : 'No transport recorded yet'"
+    >
       <div class="empty-actions">
-        <button class="btn btn-primary btn-sm" type="button" @click="addTransport">Add transport</button>
-        <button class="btn btn-ghost btn-sm" type="button" @click="addNoTransport">We have no private transport</button>
+        <button class="btn btn-primary btn-sm" type="button" @click="addPrivateTransport">Add private transport</button>
+        <button v-if="hasPrivateTransport !== false" class="btn btn-ghost btn-sm" type="button" @click="recordNoPrivateTransport">We have no private transport</button>
+        <button v-else class="btn btn-ghost btn-sm" type="button" @click="addOtherArrangement">Add another transport arrangement</button>
       </div>
     </EmptyState>
 
@@ -62,10 +76,11 @@ function memberName(id: string) {
         <div class="field-grid">
           <div class="field">
             <label>Type</label>
-            <select v-model="transport.transport_type">
+            <select v-model="transport.transport_type" @change="markPrivateTransport(transport)">
               <option value="car">Car</option>
+              <option value="motorbike">Motorbike</option>
+              <option value="van">Van</option>
               <option value="other">Other</option>
-              <option value="none">None available</option>
             </select>
           </div>
           <div class="field">
@@ -74,7 +89,7 @@ function memberName(id: string) {
           </div>
         </div>
 
-        <div v-if="transport.transport_type !== 'none'" class="drivers">
+        <div class="drivers">
           <p class="eyebrow">Who can drive it</p>
           <div v-if="members.length === 0" class="hint">Add household members first to assign drivers.</div>
           <label v-for="member in members" :key="member.member_id" class="checkbox-row">
@@ -89,7 +104,9 @@ function memberName(id: string) {
 
         <button class="btn btn-danger btn-sm" type="button" @click="removeTransport(transport.transport_id)">Remove</button>
       </div>
-      <button class="btn btn-ghost btn-sm" type="button" @click="addTransport">+ Add another transport option</button>
+      <button class="btn btn-ghost btn-sm" type="button" @click="hasPrivateTransport === false ? addOtherArrangement() : addPrivateTransport()">
+        + Add another transport option
+      </button>
     </template>
   </section>
 </template>

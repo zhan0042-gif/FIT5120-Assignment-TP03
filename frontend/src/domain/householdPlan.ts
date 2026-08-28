@@ -4,6 +4,7 @@ export function createEmptyHouseholdPlan(): HouseholdPlan {
   return {
     members: [],
     animals: [],
+    has_private_transport: null,
     transports: [],
     arrangements: {
       primary_transport_id: null,

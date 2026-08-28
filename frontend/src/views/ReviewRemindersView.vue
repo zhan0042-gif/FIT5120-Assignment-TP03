@@ -12,8 +12,7 @@
       <h3 class="card-title" style="margin-top: 0.75rem">Coming in a later iteration</h3>
       <p>
         Re-test after improvements, before/after comparison, household coordination and scheduled review reminders
-        are scoped to Iteration 3 (Epic 7 & 8) and depend on Backend endpoints that don't exist yet. This screen is a
-        placeholder so the navigation matches the product design — it isn't wired to mock data.
+        are planned for a later iteration and are not available yet.
       </p>
       <p class="hint">
         In the meantime, use <router-link to="/scenarios">Scenario tester</router-link> to check your plan and

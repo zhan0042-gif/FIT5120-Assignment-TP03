@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useLocalContextStore } from '../../stores/localContext'
 import LoadingState from '../common/LoadingState.vue'
 import ErrorState from '../common/ErrorState.vue'
+import { formatAustralianDateTime } from '../../utils/dateTime'
 
 const store = useLocalContextStore()
 const draftAddress = ref(store.address)
@@ -12,9 +13,6 @@ function submit() {
   store.submitAddress(draftAddress.value.trim())
 }
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
 </script>
 
 <template>
@@ -53,7 +51,7 @@ function formatTime(iso: string) {
           </span>
           <span>Temporary spatial context pending DS integration</span>
         </div>
-        <p class="hint">Temporary fire district: {{ store.context.bushfire_context.fire_district }}. This spatial classification currently uses development data.</p>
+        <p class="hint">Fire district: {{ store.context.bushfire_context.fire_district }}.</p>
 
         <template v-if="store.context.fire_danger.availability === 'available'">
           <div class="fdr-grid">
@@ -68,7 +66,7 @@ function formatTime(iso: string) {
             </div>
           </div>
           <p class="hint">
-            Fire Danger Rating issued {{ formatTime(store.context.fire_danger.source_updated_at) }}
+            Fire Danger Rating issued {{ formatAustralianDateTime(store.context.fire_danger.source_updated_at) }}
             <template v-if="store.context.fire_danger.source_url">
               · <a :href="store.context.fire_danger.source_url" target="_blank" rel="noopener noreferrer">Bureau of Meteorology source</a>
             </template>
@@ -84,7 +82,7 @@ function formatTime(iso: string) {
         <p class="hint">
           <a href="http://www.bom.gov.au/other/copyright.shtml" target="_blank" rel="noopener noreferrer">Bureau of Meteorology observation</a>
           from {{ store.context.weather.station_name }} at
-          {{ formatTime(store.context.weather.observed_at) }}
+          {{ formatAustralianDateTime(store.context.weather.observed_at) }}
         </p>
 
         <p v-if="store.context.environmental_context.vegetation_context || store.context.environmental_context.terrain_context" class="hint">

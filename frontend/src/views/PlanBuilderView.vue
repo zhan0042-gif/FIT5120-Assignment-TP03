@@ -80,7 +80,11 @@ async function save() {
 
     <template v-else-if="draft">
       <HouseholdMembersForm v-model:members="draft.members" v-model:animals="draft.animals" />
-      <TransportForm v-model="draft.transports" :members="draft.members" />
+      <TransportForm
+        v-model:transports="draft.transports"
+        v-model:has-private-transport="draft.has_private_transport"
+        :members="draft.members"
+      />
       <ArrangementsForm v-model="draft.arrangements" :transports="draft.transports" />
       <ResponsibilitiesForm v-model="draft.responsibilities" :members="draft.members" />
       <CompletionOverview :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />

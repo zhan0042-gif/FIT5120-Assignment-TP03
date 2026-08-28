@@ -4,7 +4,7 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Project structure
 
-- `frontend/` contains the Vue 3 + Vite + TypeScript application for Iteration 1, built against a mock backend (no Backend/DB dependency yet).
+- `frontend/` contains the Vue 3 + Vite + TypeScript application for Iteration 1, integrated with the FastAPI backend.
 - `backend/` contains the runnable FastAPI application, its layered package structure, tests, dependencies, and Dockerfile.
 - `database/` reserves locations for MySQL initialization, migrations, and future development seed data.
 - `ai/` reserves a location for later AI processing and integrations; no AI architecture is selected.
@@ -24,11 +24,10 @@ This repository contains the initial backend and infrastructure foundation for a
 
 The backend provides the `/api/health` endpoint and an Iteration 1 API under
 `/api/v1`. Household plans, locations, completion checks, local context,
-preparation support, and basic scenario tests run end-to-end using process-local
-storage and deterministic mock providers. MySQL is configured for Docker-based
-development but is deliberately not used by this foundation. The frontend has
-not been initialized, AI functionality and the database schema have not been
-designed, and EC2 deployment is not active.
+preparation support, and basic scenario tests run end-to-end. Normal runtime
+uses official Vicmap and BOM providers; set `APP_DATA_MODE=mock` explicitly for
+offline provider-isolated development and tests. Persistence remains process-local,
+and spatial classification remains temporary pending Database and DS integration.
 
 The Iteration 1 endpoints are:
 
@@ -91,7 +90,7 @@ The deployment workflow is a manual, non-deploying scaffold. It does not connect
 ## Remaining work
 
 - Add a frontend Dockerfile and CI workflow now that the Vue app exists.
-- Build the real Backend endpoints from the I1 API contract and swap `frontend/src/api/client.ts` off the mock backend.
+- Replace process-local persistence and temporary spatial classification when the Database and DS integrations are ready.
 - Define the application database schema, migrations, and any development seed data.
 - Decide and implement the AI architecture.
 - Add a production Nginx configuration after routing and domains are known.

@@ -146,6 +146,17 @@ def test_empty_plan_disables_all_scenarios_with_reasons() -> None:
     ]
 
 
+def test_explicit_no_private_transport_does_not_enable_vehicle_scenario() -> None:
+    plan = HouseholdPlan(has_private_transport=False)
+
+    vehicle = BasicScenarioService().list_scenarios(plan)[0]
+
+    assert vehicle.scenario_id == "vehicle_unavailable"
+    assert vehicle.enabled is False
+    with pytest.raises(ScenarioNotApplicable):
+        BasicScenarioService().run(plan, "vehicle_unavailable")
+
+
 @pytest.mark.parametrize(
     ("scenario_id", "mutation"),
     [

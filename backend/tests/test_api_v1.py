@@ -147,6 +147,63 @@ def test_partial_plan_round_trip_and_completion(
     assert completion_response.json()["immediate_checks"] == []
 
 
+def test_no_private_transport_round_trip_needs_no_fake_transport(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+
+    save_response = client.put(
+        f"/api/v1/households/{household_id}/plan",
+        json={"has_private_transport": False},
+    )
+    completion_response = client.get(
+        f"/api/v1/households/{household_id}/completion"
+    )
+    scenarios_response = client.get(
+        f"/api/v1/scenarios/basic?household_id={household_id}"
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.json()["has_private_transport"] is False
+    assert save_response.json()["transports"] == []
+    statuses = {
+        section["section"]: section["status"]
+        for section in completion_response.json()["sections"]
+    }
+    assert statuses["transport"] == "complete"
+    assert statuses["backup_transport"] == "complete"
+    assert scenarios_response.status_code == 200
+    vehicle = next(
+        item
+        for item in scenarios_response.json()
+        if item["scenario_id"] == "vehicle_unavailable"
+    )
+    assert vehicle["enabled"] is False
+
+
+def test_fake_no_transport_sentinel_is_rejected_by_api(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+
+    response = client.put(
+        f"/api/v1/households/{household_id}/plan",
+        json={
+            "transports": [
+                {
+                    "transport_id": "t_fake",
+                    "transport_type": "none",
+                    "display_name": "No private transport available",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 422
+
+
 def test_shared_transport_api_save_succeeds_and_returns_immediate_check(
     api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
 ) -> None:

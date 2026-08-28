@@ -1,6 +1,7 @@
 from copy import deepcopy
 
 import pytest
+from pydantic import ValidationError
 
 from app.core.exceptions import PlanValidationError
 from app.repositories.households import InMemoryHouseholdRepository
@@ -41,6 +42,89 @@ def test_partial_plan_can_be_saved_and_completion_reports_all_gaps() -> None:
     ]
     assert all(section.status == "needs_information" for section in completion.sections)
     assert completion.immediate_checks == []
+
+
+def test_explicit_no_private_transport_saves_without_fake_resource() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    plan = HouseholdPlan(has_private_transport=False)
+
+    saved = HouseholdPlanService(repository).save(household_id, plan)
+    completion = PlanCompletionService().evaluate(saved)
+    statuses = {section.section: section.status for section in completion.sections}
+
+    assert saved.has_private_transport is False
+    assert saved.transports == []
+    assert statuses["transport"] == "complete"
+    assert statuses["backup_transport"] == "complete"
+    assert completion.immediate_checks == []
+
+
+def test_unanswered_transport_still_needs_information() -> None:
+    completion = PlanCompletionService().evaluate(HouseholdPlan())
+    statuses = {section.section: section.status for section in completion.sections}
+
+    assert statuses["transport"] == "needs_information"
+    assert statuses["backup_transport"] == "needs_information"
+
+
+def test_real_primary_transport_preserves_normal_completion_behavior(
+    complete_plan: HouseholdPlan,
+) -> None:
+    completion = PlanCompletionService().evaluate(complete_plan)
+    statuses = {section.section: section.status for section in completion.sections}
+
+    assert complete_plan.has_private_transport is True
+    assert statuses["transport"] == "complete"
+    assert statuses["backup_transport"] == "complete"
+
+
+def test_other_arrangement_is_allowed_with_no_private_transport() -> None:
+    plan = HouseholdPlan.model_validate(
+        {
+            "has_private_transport": False,
+            "transports": [
+                {
+                    "transport_id": "t_other",
+                    "transport_type": "other",
+                    "display_name": "Community transport",
+                }
+            ],
+        }
+    )
+
+    HouseholdPlanService.validate(plan)
+    assert plan.transports[0].display_name == "Community transport"
+
+
+def test_private_vehicle_cannot_contradict_explicit_no_private_transport() -> None:
+    with pytest.raises(ValidationError, match="has_private_transport"):
+        HouseholdPlan.model_validate(
+            {
+                "has_private_transport": False,
+                "transports": [
+                    {
+                        "transport_id": "t_car",
+                        "transport_type": "car",
+                    }
+                ],
+            }
+        )
+
+
+def test_fake_no_transport_resource_is_rejected() -> None:
+    with pytest.raises(ValidationError):
+        HouseholdPlan.model_validate(
+            {
+                "transports": [
+                    {
+                        "transport_id": "t_fake",
+                        "transport_type": "none",
+                        "display_name": "No private transport available",
+                    }
+                ]
+            }
+        )
 
 
 def test_pet_and_livestock_animals_save_and_load_with_optional_support() -> None:
@@ -220,7 +304,54 @@ def test_missing_backups_and_people_are_reported_deterministically(
         "missing_backup_destination",
         "missing_backup_person",
     ]
-    assert checks[2].message == "Responsibility 'r_001' has no backup person."
+    assert checks[2].message == (
+        'No backup person is assigned for "Drive household".'
+    )
+    assert "r_001" not in checks[2].message
+
+
+def test_missing_backup_person_uses_generic_message_without_task_or_ids() -> None:
+    plan = HouseholdPlan.model_validate(
+        {
+            "members": [
+                {
+                    "member_id": "m_001",
+                    "display_name": "Maya",
+                    "is_dependant": False,
+                    "mobility_support_required": False,
+                }
+            ],
+            "responsibilities": [
+                {
+                    "responsibility_id": "r_secret",
+                    "task_name": "   ",
+                    "primary_member_id": "m_001",
+                    "backup_member_id": None,
+                }
+            ],
+        }
+    )
+
+    message = ImmediateCheckService().evaluate(plan)[0].message
+
+    assert message == "A responsibility has no backup person assigned."
+    assert "r_secret" not in message
+
+
+def test_immediate_check_messages_contain_no_internal_ids(
+    complete_plan_data: dict,
+) -> None:
+    data = deepcopy(complete_plan_data)
+    data["arrangements"]["backup_transport_id"] = None
+    data["arrangements"]["backup_destination"] = None
+    data["responsibilities"][0]["task_name"] = "Collect children"
+    data["responsibilities"][0]["backup_member_id"] = None
+
+    checks = ImmediateCheckService().evaluate(HouseholdPlan.model_validate(data))
+    messages = " ".join(check.message for check in checks)
+
+    assert "Collect children" in messages
+    assert not any(prefix in messages for prefix in ("r_", "m_", "t_", "a_"))
 
 
 def test_shared_transport_saves_and_is_reported(

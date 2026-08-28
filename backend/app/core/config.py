@@ -18,7 +18,7 @@ class ExternalProviders:
 
 
 def data_mode() -> str:
-    mode = os.getenv("APP_DATA_MODE", "mock").strip().lower()
+    mode = os.getenv("APP_DATA_MODE", "live").strip().lower()
     if mode not in {"mock", "live"}:
         raise RuntimeError("APP_DATA_MODE must be either 'mock' or 'live'.")
     return mode

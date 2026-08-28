@@ -1,4 +1,8 @@
+import os
 from copy import deepcopy
+
+# Tests must opt into deterministic providers before application modules load.
+os.environ["APP_DATA_MODE"] = "mock"
 
 import pytest
 
@@ -33,6 +37,7 @@ def complete_plan_data() -> dict:
                 "support_notes": None,
             }
         ],
+        "has_private_transport": True,
         "transports": [
             {
                 "transport_id": "t_001",

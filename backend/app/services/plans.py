@@ -126,6 +126,10 @@ class PlanCompletionService:
 
     def evaluate(self, plan: HouseholdPlan) -> PlanCompletion:
         arrangements = plan.arrangements
+        explicitly_no_private_transport = (
+            plan.has_private_transport is False
+            and arrangements.primary_transport_id is None
+        )
         statuses = {
             "household_profile": bool(plan.members)
             and all(member.display_name.strip() for member in plan.members)
@@ -133,8 +137,10 @@ class PlanCompletionService:
                 animal.display_name.strip() and animal.animal_type.strip()
                 for animal in plan.animals
             ),
-            "transport": bool(plan.transports and arrangements.primary_transport_id),
-            "backup_transport": bool(arrangements.backup_transport_id),
+            "transport": explicitly_no_private_transport
+            or bool(plan.transports and arrangements.primary_transport_id),
+            "backup_transport": explicitly_no_private_transport
+            or bool(arrangements.backup_transport_id),
             "primary_destination": bool(
                 arrangements.primary_destination
                 and arrangements.primary_destination.display_name.strip()
@@ -206,9 +212,8 @@ class ImmediateCheckService:
                     ImmediateCheck(
                         check="missing_backup_person",
                         section="responsibilities",
-                        message=(
-                            f"Responsibility '{responsibility.responsibility_id}' "
-                            "has no backup person."
+                        message=self._missing_backup_person_message(
+                            responsibility.task_name
                         ),
                     )
                 )
@@ -227,3 +232,10 @@ class ImmediateCheckService:
             )
 
         return checks
+
+    @staticmethod
+    def _missing_backup_person_message(task_name: str) -> str:
+        task = task_name.strip()
+        if task:
+            return f'No backup person is assigned for "{task}".'
+        return "A responsibility has no backup person assigned."

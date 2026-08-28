@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 
 EntityId = Annotated[
@@ -29,6 +29,7 @@ CompletionSectionName = Literal[
 FireDangerLevel = Literal[
     "No Rating", "Moderate", "High", "Extreme", "Catastrophic"
 ]
+TransportType = Literal["car", "motorbike", "van", "other"]
 
 
 class HouseholdCreate(BaseModel):
@@ -59,7 +60,7 @@ class Animal(BaseModel):
 
 class Transport(BaseModel):
     transport_id: EntityId
-    transport_type: NonBlankText
+    transport_type: TransportType
     display_name: str | None = None
     driver_member_ids: list[EntityId] = Field(default_factory=list)
 
@@ -90,9 +91,21 @@ class HouseholdPlan(BaseModel):
 
     members: list[HouseholdMember] = Field(default_factory=list)
     animals: list[Animal] = Field(default_factory=list)
+    has_private_transport: bool | None = None
     transports: list[Transport] = Field(default_factory=list)
     arrangements: Arrangements = Field(default_factory=Arrangements)
     responsibilities: list[Responsibility] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def private_transport_answer_matches_resources(self) -> "HouseholdPlan":
+        if self.has_private_transport is False and any(
+            transport.transport_type in {"car", "motorbike", "van"}
+            for transport in self.transports
+        ):
+            raise ValueError(
+                "Private vehicle records require has_private_transport to be true."
+            )
+        return self
 
 
 class LocationRequest(BaseModel):

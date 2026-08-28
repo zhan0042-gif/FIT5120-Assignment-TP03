@@ -49,7 +49,7 @@ class MockSpatialProvider:
 
 class MockFireDangerClient:
     def __init__(self, source_updated_at: datetime | None = None) -> None:
-        # Development timestamp only; this is not a live CFA observation.
+        # Development timestamp only; this is not an official FDR issue time.
         self.source_updated_at = source_updated_at or datetime.now(timezone.utc).replace(
             minute=0, second=0, microsecond=0
         )

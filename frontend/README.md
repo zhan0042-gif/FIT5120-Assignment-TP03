@@ -19,13 +19,10 @@ Epic 1 household creation, plan persistence, and completion use the FastAPI
 stored locally so a browser refresh can reload the authoritative plan from the
 backend. Plan data itself is not stored in localStorage.
 
-Epic 2 and Epic 3 remain on temporary deterministic mocks until their
-integration patches. The mock address is stored in localStorage. To demonstrate
-the current Epic 2 mock states:
-
-- An address containing `VIC` returns a full local-context result.
-- An address without `VIC` demonstrates the unavailable-data state.
-- An address containing `error` demonstrates an API-error state.
+Epic 2 and Epic 3 use the FastAPI contracts. The backend defaults to official
+Vicmap and BOM providers; use `APP_DATA_MODE=mock` on the backend only for
+deliberate offline/provider-isolated development. Spatial classification remains
+temporary pending DS integration.
 
 ## Development
 
