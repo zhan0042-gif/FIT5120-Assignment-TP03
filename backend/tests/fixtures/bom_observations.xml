@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<product><observations>
+  <station lat="-37.8000" lon="144.9000" description="Nearest stale station"><period time-utc="2026-08-28T04:00:00+00:00"><level type="surface"><element type="air_temperature">10.0</element><element type="rel-humidity">70</element><element type="wind_dir">W</element><element type="wind_spd_kmh">8</element></level></period></station>
+  <station lat="-37.8010" lon="144.9010" description="Nearest incomplete station"><period time-utc="2026-08-28T05:50:00+00:00"><level type="surface"><element type="air_temperature">11.0</element><element type="wind_dir">WNW</element><element type="wind_spd_kmh">7</element></level></period></station>
+  <station lat="-37.8200" lon="144.9500" description="Fresh complete station"><period time-utc="2026-08-28T05:50:00+00:00"><level type="surface"><element type="air_temperature">15.8</element><element type="rel-humidity">51</element><element type="wind_dir">WNW</element><element type="wind_spd_kmh">7</element></level></period></station>
+  <station lat="-38.2000" lon="145.3000" description="Far complete station"><period time-utc="2026-08-28T05:55:00+00:00"><level type="surface"><element type="air_temperature">14.0</element><element type="rel-humidity">55</element><element type="wind_dir">S</element><element type="wind_spd_kmh">12</element></level></period></station>
+</observations></product>

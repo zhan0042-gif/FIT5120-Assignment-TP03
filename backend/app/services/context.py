@@ -2,7 +2,11 @@
 
 from datetime import datetime, timedelta, timezone
 
-from app.core.exceptions import ExternalDataUnavailable, HouseholdNotFound
+from app.core.exceptions import (
+    AddressResolutionError,
+    ExternalDataUnavailable,
+    HouseholdNotFound,
+)
 from app.providers.interfaces import (
     AddressClient,
     FireDangerClient,
@@ -31,7 +35,7 @@ class LocationService:
             raise HouseholdNotFound(f"Household '{household_id}' was not found.")
         try:
             location = self.address_client.resolve(address)
-        except ExternalDataUnavailable:
+        except (AddressResolutionError, ExternalDataUnavailable):
             raise
         except Exception as exc:
             raise ExternalDataUnavailable("Address resolution is unavailable.") from exc

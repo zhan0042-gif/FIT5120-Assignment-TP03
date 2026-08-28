@@ -51,9 +51,9 @@ function formatTime(iso: string) {
           <span class="badge" :class="store.context.bushfire_context.is_bushfire_prone_area ? 'badge-accent' : 'badge-neutral'">
             {{ store.context.bushfire_context.is_bushfire_prone_area ? 'Bushfire-prone area' : 'Not a bushfire-prone area' }}
           </span>
-          <span>{{ store.context.bushfire_context.is_bushfire_prone_area ? 'Confirmed bushfire-prone area' : 'Not a designated bushfire-prone area' }}</span>
+          <span>Temporary spatial context pending DS integration</span>
         </div>
-        <p class="hint">Fire district: {{ store.context.bushfire_context.fire_district }} · Checked against the Victorian Bushfire Prone Area open data.</p>
+        <p class="hint">Temporary fire district: {{ store.context.bushfire_context.fire_district }}. This spatial classification currently uses development data.</p>
 
         <div class="fdr-grid">
           <div v-for="(level, day) in {
@@ -66,14 +66,23 @@ function formatTime(iso: string) {
             <p class="fdr-level">{{ level }}</p>
           </div>
         </div>
-        <p class="hint">Fire Danger Rating updated {{ formatTime(store.context.fire_danger.source_updated_at) }}</p>
+        <p class="hint">
+          Fire Danger Rating issued {{ formatTime(store.context.fire_danger.source_updated_at) }}
+          <template v-if="store.context.fire_danger.source_url">
+            · <a :href="store.context.fire_danger.source_url" target="_blank" rel="noopener noreferrer">CFA source</a>
+          </template>
+        </p>
 
         <div class="weather-grid">
           <div><span class="eyebrow">Temp</span><p>{{ store.context.weather.temperature_c }}°C</p></div>
           <div><span class="eyebrow">Humidity</span><p>{{ store.context.weather.relative_humidity }}%</p></div>
           <div><span class="eyebrow">Wind</span><p>{{ store.context.weather.wind_speed_kmh }} km/h {{ store.context.weather.wind_direction }}</p></div>
         </div>
-        <p class="hint">Weather forecast as of {{ formatTime(store.context.weather.forecast_time) }}</p>
+        <p class="hint">
+          <a href="http://www.bom.gov.au/other/copyright.shtml" target="_blank" rel="noopener noreferrer">Bureau of Meteorology observation</a>
+          from {{ store.context.weather.station_name }} at
+          {{ formatTime(store.context.weather.observed_at) }}
+        </p>
 
         <p v-if="store.context.environmental_context.vegetation_context || store.context.environmental_context.terrain_context" class="hint">
           Environment: {{ [store.context.environmental_context.vegetation_context, store.context.environmental_context.terrain_context].filter(Boolean).join(' · ') }}

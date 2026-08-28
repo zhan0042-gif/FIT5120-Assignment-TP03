@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.router import router as api_router
 from app.core.exceptions import (
+    AddressResolutionError,
     ExternalDataUnavailable,
     HouseholdNotFound,
     LocationNotFound,
@@ -32,8 +33,9 @@ async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
 
 
 @app.exception_handler(ScenarioNotApplicable)
-async def scenario_not_applicable_handler(
-    request: Request, exc: ScenarioNotApplicable
+@app.exception_handler(AddressResolutionError)
+async def unprocessable_entity_handler(
+    request: Request, exc: Exception
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

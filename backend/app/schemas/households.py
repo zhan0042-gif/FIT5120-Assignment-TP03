@@ -146,6 +146,7 @@ class FireDanger(BaseModel):
     day_3: FireDangerLevel
     day_4: FireDangerLevel
     source_updated_at: datetime
+    source_url: str | None = None
 
 
 class Weather(BaseModel):
@@ -153,7 +154,8 @@ class Weather(BaseModel):
     relative_humidity: int
     wind_speed_kmh: float
     wind_direction: str
-    forecast_time: datetime
+    observed_at: datetime
+    station_name: NonBlankText
 
 
 class EnvironmentalContext(BaseModel):

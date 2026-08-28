@@ -80,7 +80,8 @@ def test_local_context_aggregates_deterministic_mocks() -> None:
     assert result.weather.relative_humidity == 32
     assert result.weather.wind_speed_kmh == 30
     assert result.weather.wind_direction == "NW"
-    assert result.weather.forecast_time.tzinfo is not None
+    assert result.weather.observed_at.tzinfo is not None
+    assert result.weather.station_name == "Mock Melbourne Station"
     assert result.environmental_context.fire_history_summary is None
     assert result.environmental_context.vegetation_context is None
     assert result.environmental_context.terrain_context is None
@@ -189,6 +190,16 @@ def test_low_non_escalating_conditions_need_no_review_when_complete() -> None:
 
     assert result.status == "up_to_date"
     assert result.sections_to_review == []
+
+
+def test_no_rating_alone_does_not_recommend_review() -> None:
+    result = PreparationTimingService().recommend(
+        fire_danger("No Rating", "No Rating", "No Rating", "No Rating"),
+        completion(),
+        now=NOW,
+    )
+
+    assert result.status == "up_to_date"
 
 
 def test_increasing_fire_danger_recommends_review() -> None:

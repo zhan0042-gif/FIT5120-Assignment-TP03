@@ -65,9 +65,9 @@ class MockFireDangerClient:
 
 
 class MockWeatherClient:
-    def __init__(self, forecast_time: datetime | None = None) -> None:
-        # Development timestamp only; this is not a live BOM forecast.
-        self.forecast_time = forecast_time or datetime.now(timezone.utc).replace(
+    def __init__(self, observed_at: datetime | None = None) -> None:
+        # Development timestamp only; this is not a live BOM observation.
+        self.observed_at = observed_at or datetime.now(timezone.utc).replace(
             minute=0, second=0, microsecond=0
         )
 
@@ -77,5 +77,6 @@ class MockWeatherClient:
             relative_humidity=32,
             wind_speed_kmh=30,
             wind_direction="NW",
-            forecast_time=self.forecast_time,
+            observed_at=self.observed_at,
+            station_name="Mock Melbourne Station",
         )

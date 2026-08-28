@@ -5,11 +5,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.dependencies import (
+    get_address_client,
     get_fire_danger_client,
     get_household_repository,
     get_spatial_provider,
     get_weather_client,
 )
+from app.core.exceptions import AddressResolutionError
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
 from app.schemas.households import FireDanger
@@ -28,6 +30,29 @@ def create_household(client: TestClient) -> str:
     response = client.post("/api/v1/households")
     assert response.status_code == 201
     return response.json()["household_id"]
+
+
+class NoMatchingAddressClient:
+    def resolve(self, address: str):
+        raise AddressResolutionError("No matching Victorian household address was found.")
+
+
+def test_address_resolution_error_returns_controlled_422(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_address_client] = lambda: NoMatchingAddressClient()
+    household_id = create_household(client)
+
+    response = client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "999 Missing Road Nowhere VIC 3999"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "No matching Victorian household address was found."
+    )
 
 
 def test_complete_household_api_flow(
@@ -67,6 +92,11 @@ def test_complete_household_api_flow(
         "is_bushfire_prone_area": True,
         "fire_district": "Central",
     }
+    assert context_response.json()["weather"]["station_name"] == (
+        "Mock Melbourne Station"
+    )
+    assert context_response.json()["weather"]["observed_at"]
+    assert "forecast_time" not in context_response.json()["weather"]
     assert preparation_response.json()["status"] == "review_recommended"
     assert test_response.status_code == 201
     assert test_response.json()["overall_status"] == "pass"

@@ -33,6 +33,10 @@ class ExternalDataUnavailable(ApplicationError):
     pass
 
 
+class AddressResolutionError(ApplicationError):
+    pass
+
+
 class PlanValidationError(ApplicationError):
     def __init__(self, errors: list[str]) -> None:
         self.errors = errors

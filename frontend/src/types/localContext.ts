@@ -25,6 +25,7 @@ export interface FireDanger {
   day_3: FireDangerLevel
   day_4: FireDangerLevel
   source_updated_at: string
+  source_url: string | null
 }
 
 export interface Weather {
@@ -32,7 +33,8 @@ export interface Weather {
   relative_humidity: number
   wind_speed_kmh: number
   wind_direction: string
-  forecast_time: string
+  observed_at: string
+  station_name: string
 }
 
 export interface EnvironmentalContext {

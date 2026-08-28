@@ -1,25 +1,19 @@
-"""Application dependency wiring for the in-memory Iteration 1 runtime."""
+"""Central dependency wiring for the Iteration 1 runtime."""
 
+from app.core.config import build_external_providers
 from app.providers.interfaces import (
     AddressClient,
     FireDangerClient,
     SpatialProvider,
     WeatherClient,
 )
-from app.providers.mock import (
-    MockAddressClient,
-    MockFireDangerClient,
-    MockSpatialProvider,
-    MockWeatherClient,
-)
+from app.providers.mock import MockSpatialProvider
 from app.repositories.households import HouseholdRepository, InMemoryHouseholdRepository
 
 
 _repository = InMemoryHouseholdRepository()
-_address_client = MockAddressClient()
+_external_providers = build_external_providers()
 _spatial_provider = MockSpatialProvider()
-_fire_danger_client = MockFireDangerClient()
-_weather_client = MockWeatherClient()
 
 
 def get_household_repository() -> HouseholdRepository:
@@ -27,7 +21,7 @@ def get_household_repository() -> HouseholdRepository:
 
 
 def get_address_client() -> AddressClient:
-    return _address_client
+    return _external_providers.address
 
 
 def get_spatial_provider() -> SpatialProvider:
@@ -35,9 +29,8 @@ def get_spatial_provider() -> SpatialProvider:
 
 
 def get_fire_danger_client() -> FireDangerClient:
-    return _fire_danger_client
+    return _external_providers.fire_danger
 
 
 def get_weather_client() -> WeatherClient:
-    return _weather_client
-
+    return _external_providers.weather
