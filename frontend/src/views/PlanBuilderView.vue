@@ -108,6 +108,8 @@ async function save() {
 <style scoped>
 .plan-builder {
   max-width: 780px;
+  width: 100%;
+  margin-inline: auto;
 }
 
 .headline {

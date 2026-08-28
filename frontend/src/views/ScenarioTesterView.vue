@@ -92,6 +92,8 @@ const selectedScenario = computed(() =>
 <style scoped>
 .scenario-tester {
   max-width: 980px;
+  width: 100%;
+  margin-inline: auto;
 }
 
 .headline {

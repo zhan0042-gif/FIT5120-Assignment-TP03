@@ -85,6 +85,8 @@ const stages = [
 <style scoped>
 .overview {
   max-width: 920px;
+  width: 100%;
+  margin-inline: auto;
 }
 
 .headline {
