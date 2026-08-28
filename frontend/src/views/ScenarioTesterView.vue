@@ -13,10 +13,10 @@ const scenarioStore = useScenarioStore()
 
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
-  if (scenarioStore.scenariosStatus === 'idle') await scenarioStore.loadScenarios()
+  await scenarioStore.loadScenarios()
 })
 
-const readyToTest = computed(() => (householdStore.plan?.members.length ?? 0) > 0)
+const readyToTest = computed(() => householdStore.plan !== null)
 
 const selectedScenario = computed(() =>
   scenarioStore.scenarios.find((s) => s.scenario_id === scenarioStore.selectedScenarioId) ?? null,
@@ -49,7 +49,7 @@ const selectedScenario = computed(() =>
         <LoadingState v-if="scenarioStore.scenariosStatus === 'loading'" message="Loading scenarios…" />
         <ErrorState
           v-else-if="scenarioStore.scenariosStatus === 'error'"
-          message="Could not load basic scenarios."
+          :message="scenarioStore.scenariosError ?? 'Could not load basic scenarios.'"
           @retry="scenarioStore.loadScenarios"
         />
         <ScenarioList
@@ -63,7 +63,7 @@ const selectedScenario = computed(() =>
           v-if="scenarioStore.selectedScenarioId"
           class="btn btn-accent run-btn"
           type="button"
-          :disabled="scenarioStore.testStatus === 'loading'"
+          :disabled="scenarioStore.testStatus === 'loading' || !selectedScenario?.enabled"
           @click="scenarioStore.runTest"
         >
           {{ scenarioStore.testStatus === 'loading' ? 'Running test…' : `Start test: ${selectedScenario?.title}` }}

@@ -139,3 +139,12 @@ def run_preparedness_test(
     return BasicScenarioService(repository).run_for_household(
         household_id, request.scenario_id
     )
+
+
+@router.get("/{household_id}/tests/{test_run_id}", response_model=ScenarioTestResult)
+def get_preparedness_test_result(
+    household_id: str,
+    test_run_id: str,
+    repository: RepositoryDependency,
+) -> ScenarioTestResult:
+    return repository.get_test_result(household_id, test_run_id)

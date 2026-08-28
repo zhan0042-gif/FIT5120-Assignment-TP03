@@ -16,6 +16,8 @@ function formatTime(iso: string) {
       <span class="hint">Tested {{ formatTime(result.tested_at) }}</span>
     </div>
 
+    <p class="hint">{{ result.result_reason }}</p>
+
     <div v-if="result.first_problem" class="first-problem">
       <p class="eyebrow">First problem found</p>
       <p>{{ result.first_problem.message }}</p>

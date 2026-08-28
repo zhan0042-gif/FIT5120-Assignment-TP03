@@ -4,7 +4,12 @@ from copy import deepcopy
 from typing import Protocol
 from uuid import uuid4
 
-from app.core.exceptions import HouseholdNotFound, LocationNotFound, PlanNotFound
+from app.core.exceptions import (
+    HouseholdNotFound,
+    LocationNotFound,
+    PlanNotFound,
+    TestResultNotFound,
+)
 from app.schemas.households import HouseholdLocation, HouseholdPlan
 from app.schemas.scenarios import ScenarioTestResult
 
@@ -25,6 +30,10 @@ class HouseholdRepository(Protocol):
     def save_test_result(self, household_id: str, result: ScenarioTestResult) -> None: ...
 
     def get_test_results(self, household_id: str) -> list[ScenarioTestResult]: ...
+
+    def get_test_result(
+        self, household_id: str, test_run_id: str
+    ) -> ScenarioTestResult: ...
 
 
 class InMemoryHouseholdRepository:
@@ -80,3 +89,12 @@ class InMemoryHouseholdRepository:
         assert isinstance(results, list)
         return deepcopy(results)
 
+    def get_test_result(
+        self, household_id: str, test_run_id: str
+    ) -> ScenarioTestResult:
+        for result in self.get_test_results(household_id):
+            if result.test_run_id == test_run_id:
+                return result
+        raise TestResultNotFound(
+            f"Test result '{test_run_id}' was not found for household '{household_id}'."
+        )

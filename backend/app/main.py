@@ -10,6 +10,8 @@ from app.core.exceptions import (
     LocationNotFound,
     PlanNotFound,
     PlanValidationError,
+    ScenarioNotApplicable,
+    TestResultNotFound,
     UnsupportedScenario,
 )
 
@@ -22,9 +24,20 @@ app.include_router(api_router, prefix="/api")
 @app.exception_handler(PlanNotFound)
 @app.exception_handler(LocationNotFound)
 @app.exception_handler(UnsupportedScenario)
+@app.exception_handler(TestResultNotFound)
 async def not_found_handler(request: Request, exc: Exception) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND, content={"detail": str(exc)}
+    )
+
+
+@app.exception_handler(ScenarioNotApplicable)
+async def scenario_not_applicable_handler(
+    request: Request, exc: ScenarioNotApplicable
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": str(exc)},
     )
 
 

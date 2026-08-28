@@ -21,6 +21,14 @@ class UnsupportedScenario(ApplicationError):
     pass
 
 
+class ScenarioNotApplicable(ApplicationError):
+    pass
+
+
+class TestResultNotFound(ApplicationError):
+    pass
+
+
 class ExternalDataUnavailable(ApplicationError):
     pass
 
@@ -29,4 +37,3 @@ class PlanValidationError(ApplicationError):
     def __init__(self, errors: list[str]) -> None:
         self.errors = errors
         super().__init__("; ".join(errors))
-

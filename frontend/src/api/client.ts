@@ -1,4 +1,3 @@
-import * as mock from './mockBackend'
 import type {
   HouseholdCreate,
   HouseholdCreated,
@@ -11,7 +10,7 @@ import type {
   PreparationSupport,
   ResolvedLocation,
 } from '../types/localContext'
-import type { Scenario, TestResult } from '../types/scenario'
+import type { Scenario, ScenarioId, TestResult } from '../types/scenario'
 
 const API_ROOT = '/api/v1'
 const HOUSEHOLD_ID_KEY = 'firebreak.household-id.v1'
@@ -133,12 +132,21 @@ export const api = {
   getPreparationSupport: (householdId: string): Promise<PreparationSupport> =>
     request(`/households/${encodeURIComponent(householdId)}/preparation-support`),
 
-  // Epic 3 remains on its temporary mock in Integration Patch 1.
-  getBasicScenarios: (): Promise<Scenario[]> => mock.fetchScenarios(),
-  runBasicTest: (_householdId: string, scenarioId: string): Promise<TestResult> =>
-    mock.runBasicTest(scenarioId),
+  getBasicScenarios: (householdId: string): Promise<Scenario[]> =>
+    request(`/scenarios/basic?household_id=${encodeURIComponent(householdId)}`),
+
+  runBasicTest: (householdId: string, scenarioId: ScenarioId): Promise<TestResult> =>
+    request(`/households/${encodeURIComponent(householdId)}/tests`, {
+      method: 'POST',
+      body: JSON.stringify({ scenario_id: scenarioId }),
+    }),
+
+  getTestResult: (householdId: string, testRunId: string): Promise<TestResult> =>
+    request(
+      `/households/${encodeURIComponent(householdId)}/tests/${encodeURIComponent(testRunId)}`,
+    ),
 }
 
 export function newId(prefix: string): string {
-  return mock.genId(prefix)
+  return `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`
 }

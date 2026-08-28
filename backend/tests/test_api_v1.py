@@ -237,9 +237,13 @@ def test_plan_and_location_not_found(
     )
 
 
-def test_basic_scenarios_contract(api) -> None:
+def test_basic_scenarios_contract(api, complete_plan_data: dict) -> None:
     client, _ = api
-    response = client.get("/api/v1/scenarios/basic")
+    household_id = create_household(client)
+    client.put(f"/api/v1/households/{household_id}/plan", json=complete_plan_data)
+    response = client.get(
+        "/api/v1/scenarios/basic", params={"household_id": household_id}
+    )
 
     assert response.status_code == 200
     assert response.json() == [
@@ -247,18 +251,97 @@ def test_basic_scenarios_contract(api) -> None:
             "scenario_id": "vehicle_unavailable",
             "title": "Main Vehicle Unavailable",
             "description": "Check whether another transport option is available.",
+            "enabled": True,
+            "disabled_reason": None,
         },
         {
             "scenario_id": "person_unavailable",
             "title": "Primary Responsible Person Unavailable",
             "description": "Check whether important responsibilities have backup people.",
+            "enabled": True,
+            "disabled_reason": None,
         },
         {
             "scenario_id": "destination_unavailable",
             "title": "Primary Destination Unavailable",
             "description": "Check whether another destination is available.",
+            "enabled": True,
+            "disabled_reason": None,
         },
     ]
+
+
+def test_scenario_listing_requires_existing_household_and_plan(api) -> None:
+    client, _ = api
+    household_id = create_household(client)
+
+    assert client.get(
+        "/api/v1/scenarios/basic", params={"household_id": "missing"}
+    ).status_code == 404
+    assert client.get(
+        "/api/v1/scenarios/basic", params={"household_id": household_id}
+    ).status_code == 404
+
+
+def test_disabled_scenario_execution_returns_422(api) -> None:
+    client, repository = api
+    household_id = create_household(client)
+    client.put(f"/api/v1/households/{household_id}/plan", json={})
+
+    response = client.post(
+        f"/api/v1/households/{household_id}/tests",
+        json={"scenario_id": "vehicle_unavailable"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "No primary transport is currently recorded."
+    assert repository.get_test_results(household_id) == []
+
+
+def test_test_execution_uses_latest_saved_plan_and_persists_both_results(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, repository = api
+    household_id = create_household(client)
+    plan_without_backup = deepcopy(complete_plan_data)
+    plan_without_backup["arrangements"]["backup_transport_id"] = None
+    client.put(
+        f"/api/v1/households/{household_id}/plan", json=plan_without_backup
+    )
+
+    first = client.post(
+        f"/api/v1/households/{household_id}/tests",
+        json={"scenario_id": "vehicle_unavailable"},
+    )
+    client.put(
+        f"/api/v1/households/{household_id}/plan", json=complete_plan_data
+    )
+    second = client.post(
+        f"/api/v1/households/{household_id}/tests",
+        json={"scenario_id": "vehicle_unavailable"},
+    )
+
+    assert first.status_code == 201
+    assert first.json()["overall_status"] == "needs_attention"
+    assert first.json()["first_problem"]["section"] == "transport"
+    assert first.json()["result_reason"]
+    assert second.status_code == 201
+    assert second.json()["overall_status"] == "pass"
+    assert second.json()["first_problem"] is None
+    assert second.json()["result_reason"]
+    assert first.json()["test_run_id"] != second.json()["test_run_id"]
+    assert len(repository.get_test_results(household_id)) == 2
+
+    retrieved = client.get(
+        f"/api/v1/households/{household_id}/tests/{first.json()['test_run_id']}"
+    )
+    other_household = create_household(client)
+    wrong_household = client.get(
+        f"/api/v1/households/{other_household}/tests/{first.json()['test_run_id']}"
+    )
+    assert retrieved.status_code == 200
+    assert retrieved.json() == first.json()
+    assert wrong_household.status_code == 404
 
 
 def test_unsupported_scenario_returns_404(
