@@ -4,7 +4,7 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Project structure
 
-- `frontend/` is reserved for the frontend team's Vue application; it has not been initialized.
+- `frontend/` contains the Vue 3 + Vite + TypeScript application for Iteration 1, built against a mock backend (no Backend/DB dependency yet).
 - `backend/` contains the runnable FastAPI application, its layered package structure, tests, dependencies, and Dockerfile.
 - `database/` reserves locations for MySQL initialization, migrations, and future development seed data.
 - `ai/` reserves a location for later AI processing and integrations; no AI architecture is selected.
@@ -40,6 +40,7 @@ The Iteration 1 endpoints are:
 - `GET /api/v1/households/{household_id}/preparation-support`
 - `GET /api/v1/scenarios/basic`
 - `POST /api/v1/households/{household_id}/tests`
+
 
 ## Local backend setup
 
@@ -89,7 +90,8 @@ The deployment workflow is a manual, non-deploying scaffold. It does not connect
 
 ## Remaining work
 
-- Initialize the Vue frontend, then add its Dockerfile and CI workflow.
+- Add a frontend Dockerfile and CI workflow now that the Vue app exists.
+- Build the real Backend endpoints from the I1 API contract and swap `frontend/src/api/client.ts` off the mock backend.
 - Define the application database schema, migrations, and any development seed data.
 - Decide and implement the AI architecture.
 - Add a production Nginx configuration after routing and domains are known.
