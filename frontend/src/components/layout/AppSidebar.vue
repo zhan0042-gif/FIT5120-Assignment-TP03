@@ -24,7 +24,6 @@ const navItems = [
   { to: '/', label: 'Overview', icon: '◆' },
   { to: '/plan', label: 'Plan builder', icon: '▤' },
   { to: '/scenarios', label: 'Scenario tester', icon: '▲' },
-  { to: '/review', label: 'Review & reminders', icon: '◔' },
 ]
 </script>
 

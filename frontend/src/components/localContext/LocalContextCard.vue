@@ -21,7 +21,6 @@ function formatTime(iso: string) {
   <section class="card">
     <div class="card-header">
       <div>
-        <p class="eyebrow">Epic 2 · US2.1</p>
         <h3 class="card-title">Location & bushfire context</h3>
       </div>
     </div>

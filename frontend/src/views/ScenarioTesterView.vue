@@ -25,7 +25,6 @@ const selectedScenario = computed(() =>
 
 <template>
   <div class="scenario-tester">
-    <p class="eyebrow">Epic 3 · US3.1-US3.3</p>
     <h1 class="headline">Break the plan on purpose</h1>
     <p class="subhead">Pick a disruption. See exactly which parts of your plan still hold — and which don't.</p>
 

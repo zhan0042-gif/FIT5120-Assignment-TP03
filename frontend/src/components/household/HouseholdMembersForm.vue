@@ -20,7 +20,7 @@ function removeMember(id: string) {
   members.value = members.value.filter((m) => m.member_id !== id)
 }
 
-function addPet() {
+function addAnimal() {
   animals.value.push({
     animal_id: newId('a'),
     category: 'pet',
@@ -30,7 +30,7 @@ function addPet() {
   })
 }
 
-function removePet(id: string) {
+function removeAnimal(id: string) {
   animals.value = animals.value.filter((animal) => animal.animal_id !== id)
 }
 </script>
@@ -39,7 +39,6 @@ function removePet(id: string) {
   <section class="card">
     <div class="card-header">
       <div>
-        <p class="eyebrow">Epic 1 · US1.1</p>
         <h3 class="card-title">Household members</h3>
       </div>
       <span class="badge" :class="members.length ? 'badge-success' : 'badge-neutral'">
@@ -86,33 +85,40 @@ function removePet(id: string) {
     <hr class="divider" />
 
     <div class="card-header">
-      <h3 class="card-title">Pets</h3>
+      <h3 class="card-title">Animals</h3>
       <span class="badge badge-neutral">{{ animals.length }} recorded</span>
     </div>
 
-    <EmptyState v-if="animals.length === 0" title="No pets recorded" message="This is fine — pets are optional.">
-      <button class="btn btn-ghost btn-sm" type="button" @click="addPet">Add a pet</button>
+    <EmptyState v-if="animals.length === 0" title="No animals recorded" message="This is fine — animals are optional.">
+      <button class="btn btn-ghost btn-sm" type="button" @click="addAnimal">Add animal</button>
     </EmptyState>
 
     <template v-else>
       <div v-for="animal in animals" :key="animal.animal_id" class="member-row">
         <div class="field-grid">
           <div class="field">
-            <label>Name</label>
-            <input v-model="animal.display_name" type="text" placeholder="e.g. Buddy" />
+            <label>Category</label>
+            <select v-model="animal.category" required>
+              <option value="pet">Pet</option>
+              <option value="livestock">Livestock</option>
+            </select>
           </div>
           <div class="field">
-            <label>Type</label>
+            <label>Animal type</label>
             <input v-model="animal.animal_type" type="text" placeholder="e.g. dog" />
+          </div>
+          <div class="field">
+            <label>Name</label>
+            <input v-model="animal.display_name" type="text" placeholder="e.g. Buddy" />
           </div>
           <div class="field">
             <label>Support notes (optional)</label>
             <input v-model="animal.support_notes" type="text" />
           </div>
         </div>
-        <button class="btn btn-danger btn-sm" type="button" @click="removePet(animal.animal_id)">Remove</button>
+        <button class="btn btn-danger btn-sm" type="button" @click="removeAnimal(animal.animal_id)">Remove</button>
       </div>
-      <button class="btn btn-ghost btn-sm" type="button" @click="addPet">+ Add another pet</button>
+      <button class="btn btn-ghost btn-sm" type="button" @click="addAnimal">+ Add another animal</button>
     </template>
   </section>
 </template>

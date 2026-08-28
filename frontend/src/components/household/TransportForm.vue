@@ -43,7 +43,6 @@ function memberName(id: string) {
   <section class="card">
     <div class="card-header">
       <div>
-        <p class="eyebrow">Epic 1 · US1.2</p>
         <h3 class="card-title">Transport & driver availability</h3>
       </div>
       <span class="badge" :class="transports.length ? 'badge-success' : 'badge-neutral'">

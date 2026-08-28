@@ -13,6 +13,7 @@ const LABELS: Record<string, string> = {
   needs_attention: 'Needs attention',
   up_to_date: 'Up to date',
   review_recommended: 'Review recommended',
+  warning: 'Warning',
 }
 
 const VARIANTS: Record<string, string> = {
@@ -22,6 +23,7 @@ const VARIANTS: Record<string, string> = {
   up_to_date: 'badge-success',
   needs_information: 'badge-warning',
   review_recommended: 'badge-warning',
+  warning: 'badge-warning',
   fail: 'badge-danger',
   needs_attention: 'badge-danger',
   not_checked: 'badge-neutral',

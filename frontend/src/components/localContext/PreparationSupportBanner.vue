@@ -17,7 +17,6 @@ const reviewLabels = computed(() =>
 
 <template>
   <section v-if="store.prepSupport" class="banner" :class="{ 'is-alert': store.prepSupport.status === 'review_recommended' }">
-    <p class="eyebrow">Epic 2 · US2.3 — Preparation timing</p>
     <p class="message">{{ store.prepSupport.message }}</p>
     <p v-if="reviewLabels.length" class="review-list">
       Review: <strong>{{ reviewLabels.join(', ') }}</strong>

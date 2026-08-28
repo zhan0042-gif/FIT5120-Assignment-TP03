@@ -33,7 +33,6 @@ function clearBackupDestination() {
   <section class="card">
     <div class="card-header">
       <div>
-        <p class="eyebrow">Epic 1 · US1.3</p>
         <h3 class="card-title">Primary & backup arrangements</h3>
       </div>
     </div>
