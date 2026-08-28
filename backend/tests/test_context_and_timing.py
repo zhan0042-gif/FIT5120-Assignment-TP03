@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from pydantic import TypeAdapter, ValidationError
 
 from app.core.exceptions import ExternalDataUnavailable, HouseholdNotFound, LocationNotFound
 from app.providers.mock import (
@@ -11,7 +12,12 @@ from app.providers.mock import (
     MockWeatherClient,
 )
 from app.repositories.households import InMemoryHouseholdRepository
-from app.schemas.households import CompletionSection, FireDanger, PlanCompletion
+from app.schemas.households import (
+    CompletionSection,
+    FireDanger,
+    FireDangerContext,
+    PlanCompletion,
+)
 from app.services.context import (
     LocalContextService,
     LocationService,
@@ -56,6 +62,36 @@ def completion(*incomplete: str) -> PlanCompletion:
     )
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "availability": "available",
+            "today": None,
+            "tomorrow": "Moderate",
+            "day_3": "Moderate",
+            "day_4": "Moderate",
+            "source_updated_at": NOW,
+            "message": None,
+        },
+        {
+            "availability": "unavailable",
+            "today": "No Rating",
+            "tomorrow": None,
+            "day_3": None,
+            "day_4": None,
+            "source_updated_at": None,
+            "message": "Official data is unavailable.",
+        },
+    ],
+)
+def test_fire_danger_availability_union_rejects_invalid_combinations(
+    payload: dict,
+) -> None:
+    with pytest.raises(ValidationError):
+        TypeAdapter(FireDangerContext).validate_python(payload)
+
+
 def test_local_context_aggregates_deterministic_mocks() -> None:
     repository = InMemoryHouseholdRepository()
     household_id = repository.create_household()
@@ -74,6 +110,7 @@ def test_local_context_aggregates_deterministic_mocks() -> None:
     assert (result.location.latitude, result.location.longitude) == (-37.74, 145.21)
     assert result.bushfire_context.is_bushfire_prone_area is True
     assert result.bushfire_context.fire_district == "Central"
+    assert result.fire_danger.availability == "available"
     assert result.fire_danger.today == "Moderate"
     assert result.fire_danger.source_updated_at.tzinfo is not None
     assert result.weather.temperature_c == 28.0
@@ -269,6 +306,84 @@ class FailingSpatialProvider:
 class InvalidWeatherClient:
     def get_weather(self, latitude: float, longitude: float):
         return {"temperature_c": "not-a-number"}
+
+
+class UnavailableFireDangerClient:
+    def get_fire_danger(self, fire_district: str):
+        raise ExternalDataUnavailable("Official FDR is unavailable.")
+
+
+class UnexpectedFireDangerClient:
+    def get_fire_danger(self, fire_district: str):
+        raise RuntimeError("unexpected parser defect")
+
+
+def test_explicit_fire_danger_unavailability_is_partial() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+
+    result = LocalContextService(
+        repository,
+        MockSpatialProvider(),
+        UnavailableFireDangerClient(),
+        MockWeatherClient(),
+    ).get(household_id)
+
+    assert result.location.address == "Warrandyte VIC 3113"
+    assert result.bushfire_context.fire_district == "Central"
+    assert result.weather.station_name == "Mock Melbourne Station"
+    assert result.environmental_context.vegetation_context is None
+    assert result.fire_danger.model_dump() == {
+        "availability": "unavailable",
+        "today": None,
+        "tomorrow": None,
+        "day_3": None,
+        "day_4": None,
+        "source_updated_at": None,
+        "source_url": None,
+        "message": (
+            "Current fire danger information is not available from the official source."
+        ),
+    }
+
+
+def test_stale_fire_danger_is_not_exposed_by_local_context() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+
+    result = LocalContextService(
+        repository,
+        MockSpatialProvider(),
+        MockFireDangerClient(
+            source_updated_at=datetime.now(timezone.utc) - timedelta(hours=25)
+        ),
+        MockWeatherClient(),
+    ).get(household_id)
+
+    assert result.fire_danger.availability == "unavailable"
+    assert result.fire_danger.today is None
+
+
+def test_unexpected_fire_danger_error_is_not_converted_to_partial_context() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+
+    with pytest.raises(ExternalDataUnavailable, match="provider data"):
+        LocalContextService(
+            repository,
+            MockSpatialProvider(),
+            UnexpectedFireDangerClient(),
+            MockWeatherClient(),
+        ).get(household_id)
 
 
 def test_provider_failure_becomes_external_data_unavailable() -> None:

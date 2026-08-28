@@ -22,6 +22,7 @@ from app.schemas.households import (
     LocalContext,
     PlanCompletion,
     PreparationSupport,
+    UnavailableFireDanger,
 )
 
 
@@ -62,9 +63,15 @@ class LocalContextService:
             spatial = self.spatial_provider.get_context(
                 location.latitude, location.longitude
             )
-            fire_danger = self.fire_danger_client.get_fire_danger(
-                spatial.fire_district
-            )
+            try:
+                fire_danger = self.fire_danger_client.get_fire_danger(
+                    spatial.fire_district
+                )
+                PreparationTimingService().ensure_fresh(
+                    fire_danger, datetime.now(timezone.utc)
+                )
+            except ExternalDataUnavailable:
+                fire_danger = UnavailableFireDanger()
             weather = self.weather_client.get_weather(
                 location.latitude, location.longitude
             )
@@ -104,7 +111,7 @@ class PreparationTimingService:
         *,
         now: datetime | None = None,
     ) -> PreparationSupport:
-        self._ensure_fresh(fire_danger, now or datetime.now(timezone.utc))
+        self.ensure_fresh(fire_danger, now or datetime.now(timezone.utc))
         incomplete = [
             item.section
             for item in completion.sections
@@ -145,7 +152,7 @@ class PreparationTimingService:
             sections_to_review=[],
         )
 
-    def _ensure_fresh(self, fire_danger: FireDanger, now: datetime) -> None:
+    def ensure_fresh(self, fire_danger: FireDanger, now: datetime) -> None:
         updated_at = fire_danger.source_updated_at
         if updated_at.tzinfo is None or updated_at.utcoffset() is None:
             raise ExternalDataUnavailable(

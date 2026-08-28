@@ -141,12 +141,33 @@ class BushfireContext(BaseModel):
 
 
 class FireDanger(BaseModel):
+    availability: Literal["available"] = "available"
     today: FireDangerLevel
     tomorrow: FireDangerLevel
     day_3: FireDangerLevel
     day_4: FireDangerLevel
     source_updated_at: datetime
     source_url: str | None = None
+    message: None = None
+
+
+class UnavailableFireDanger(BaseModel):
+    availability: Literal["unavailable"] = "unavailable"
+    today: None = None
+    tomorrow: None = None
+    day_3: None = None
+    day_4: None = None
+    source_updated_at: None = None
+    source_url: None = None
+    message: NonBlankText = (
+        "Current fire danger information is not available from the official source."
+    )
+
+
+FireDangerContext = Annotated[
+    FireDanger | UnavailableFireDanger,
+    Field(discriminator="availability"),
+]
 
 
 class Weather(BaseModel):
@@ -167,7 +188,7 @@ class EnvironmentalContext(BaseModel):
 class LocalContext(BaseModel):
     location: HouseholdLocation
     bushfire_context: BushfireContext
-    fire_danger: FireDanger
+    fire_danger: FireDangerContext
     weather: Weather
     environmental_context: EnvironmentalContext
 

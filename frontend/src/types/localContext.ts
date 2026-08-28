@@ -19,14 +19,29 @@ export interface BushfireContext {
 
 export type FireDangerLevel = 'No Rating' | 'Moderate' | 'High' | 'Extreme' | 'Catastrophic'
 
-export interface FireDanger {
+export interface AvailableFireDanger {
+  availability: 'available'
   today: FireDangerLevel
   tomorrow: FireDangerLevel
   day_3: FireDangerLevel
   day_4: FireDangerLevel
   source_updated_at: string
   source_url: string | null
+  message: null
 }
+
+export interface UnavailableFireDanger {
+  availability: 'unavailable'
+  today: null
+  tomorrow: null
+  day_3: null
+  day_4: null
+  source_updated_at: null
+  source_url: null
+  message: string
+}
+
+export type FireDangerContext = AvailableFireDanger | UnavailableFireDanger
 
 export interface Weather {
   temperature_c: number
@@ -46,7 +61,7 @@ export interface EnvironmentalContext {
 export interface LocalContext {
   location: ResolvedLocation
   bushfire_context: BushfireContext
-  fire_danger: FireDanger
+  fire_danger: FireDangerContext
   weather: Weather
   environmental_context: EnvironmentalContext
 }

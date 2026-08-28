@@ -55,23 +55,26 @@ function formatTime(iso: string) {
         </div>
         <p class="hint">Temporary fire district: {{ store.context.bushfire_context.fire_district }}. This spatial classification currently uses development data.</p>
 
-        <div class="fdr-grid">
-          <div v-for="(level, day) in {
-            Today: store.context.fire_danger.today,
-            Tomorrow: store.context.fire_danger.tomorrow,
-            'Day 3': store.context.fire_danger.day_3,
-            'Day 4': store.context.fire_danger.day_4,
-          }" :key="day" class="fdr-cell">
-            <p class="eyebrow">{{ day }}</p>
-            <p class="fdr-level">{{ level }}</p>
+        <template v-if="store.context.fire_danger.availability === 'available'">
+          <div class="fdr-grid">
+            <div v-for="(level, day) in {
+              Today: store.context.fire_danger.today,
+              Tomorrow: store.context.fire_danger.tomorrow,
+              'Day 3': store.context.fire_danger.day_3,
+              'Day 4': store.context.fire_danger.day_4,
+            }" :key="day" class="fdr-cell">
+              <p class="eyebrow">{{ day }}</p>
+              <p class="fdr-level">{{ level }}</p>
+            </div>
           </div>
-        </div>
-        <p class="hint">
-          Fire Danger Rating issued {{ formatTime(store.context.fire_danger.source_updated_at) }}
-          <template v-if="store.context.fire_danger.source_url">
-            · <a :href="store.context.fire_danger.source_url" target="_blank" rel="noopener noreferrer">Bureau of Meteorology source</a>
-          </template>
-        </p>
+          <p class="hint">
+            Fire Danger Rating issued {{ formatTime(store.context.fire_danger.source_updated_at) }}
+            <template v-if="store.context.fire_danger.source_url">
+              · <a :href="store.context.fire_danger.source_url" target="_blank" rel="noopener noreferrer">Bureau of Meteorology source</a>
+            </template>
+          </p>
+        </template>
+        <p v-else class="hint">{{ store.context.fire_danger.message }}</p>
 
         <div class="weather-grid">
           <div><span class="eyebrow">Temp</span><p>{{ store.context.weather.temperature_c }}°C</p></div>

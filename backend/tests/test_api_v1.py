@@ -11,7 +11,7 @@ from app.core.dependencies import (
     get_spatial_provider,
     get_weather_client,
 )
-from app.core.exceptions import AddressResolutionError
+from app.core.exceptions import AddressResolutionError, ExternalDataUnavailable
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
 from app.schemas.households import FireDanger
@@ -92,6 +92,8 @@ def test_complete_household_api_flow(
         "is_bushfire_prone_area": True,
         "fire_district": "Central",
     }
+    assert context_response.json()["fire_danger"]["availability"] == "available"
+    assert context_response.json()["fire_danger"]["message"] is None
     assert context_response.json()["weather"]["station_name"] == (
         "Mock Melbourne Station"
     )
@@ -401,7 +403,17 @@ class FailingWeatherClient:
 
 class FailingFireDangerClient:
     def get_fire_danger(self, fire_district: str):
-        raise RuntimeError("CFA offline")
+        raise ExternalDataUnavailable("Official BOM FDR is unavailable")
+
+
+class MalformedFireDangerClient:
+    def get_fire_danger(self, fire_district: str):
+        raise ExternalDataUnavailable("The BOM FDR product is malformed")
+
+
+class UnexpectedFireDangerClient:
+    def get_fire_danger(self, fire_district: str):
+        raise RuntimeError("unexpected implementation defect")
 
 
 class StaleFireDangerClient:
@@ -413,6 +425,106 @@ class StaleFireDangerClient:
             day_4="Extreme",
             source_updated_at=datetime.now(timezone.utc) - timedelta(hours=25),
         )
+
+
+def _save_mock_location(client: TestClient, household_id: str) -> None:
+    response = client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "Warrandyte VIC 3113"},
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.parametrize(
+    "client_factory",
+    [lambda: FailingFireDangerClient(), lambda: MalformedFireDangerClient()],
+)
+def test_unavailable_or_malformed_fdr_returns_partial_local_context(
+    api: tuple[TestClient, InMemoryHouseholdRepository], client_factory
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_fire_danger_client] = client_factory
+    household_id = create_household(client)
+    _save_mock_location(client, household_id)
+
+    response = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["location"]["address"] == "Warrandyte VIC 3113"
+    assert payload["bushfire_context"]["fire_district"] == "Central"
+    assert payload["weather"]["station_name"] == "Mock Melbourne Station"
+    assert payload["environmental_context"] == {
+        "fire_history_summary": None,
+        "vegetation_context": None,
+        "terrain_context": None,
+    }
+    assert payload["fire_danger"] == {
+        "availability": "unavailable",
+        "today": None,
+        "tomorrow": None,
+        "day_3": None,
+        "day_4": None,
+        "source_updated_at": None,
+        "source_url": None,
+        "message": (
+            "Current fire danger information is not available from the official source."
+        ),
+    }
+
+
+def test_stale_fdr_returns_partial_local_context(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_fire_danger_client] = StaleFireDangerClient
+    household_id = create_household(client)
+    _save_mock_location(client, household_id)
+
+    response = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert response.status_code == 200
+    assert response.json()["fire_danger"]["availability"] == "unavailable"
+    assert response.json()["fire_danger"]["today"] is None
+
+
+def test_unexpected_fdr_error_remains_full_local_context_failure(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_fire_danger_client] = UnexpectedFireDangerClient
+    household_id = create_household(client)
+    _save_mock_location(client, household_id)
+
+    response = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert response.status_code == 503
+
+
+def test_weather_failure_remains_full_local_context_failure(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_weather_client] = FailingWeatherClient
+    household_id = create_household(client)
+    _save_mock_location(client, household_id)
+
+    response = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert response.status_code == 503
+
+
+def test_spatial_failure_remains_full_local_context_failure(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_spatial_provider] = FailingSpatialProvider
+    household_id = create_household(client)
+    _save_mock_location(client, household_id)
+
+    response = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert response.status_code == 503
 
 
 def test_provider_failure_returns_503(
