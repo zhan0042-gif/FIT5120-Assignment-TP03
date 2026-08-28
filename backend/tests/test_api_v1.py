@@ -59,6 +59,7 @@ def test_complete_household_api_flow(
     assert location_response.status_code == 200
     assert fetched_plan.json() == complete_plan_data
     assert completion_response.json()["overall_status"] == "complete"
+    assert completion_response.json()["immediate_checks"] == []
     assert context_response.json()["bushfire_context"] == {
         "is_bushfire_prone_area": True,
         "fire_district": "Central",
@@ -101,12 +102,57 @@ def test_partial_plan_round_trip_and_completion(
 
     assert save_response.status_code == 200
     assert save_response.json()["members"] == []
+    assert save_response.json()["animals"] == []
     assert completion_response.status_code == 200
     assert completion_response.json()["overall_status"] == "needs_information"
     assert all(
         section["status"] == "needs_information"
         for section in completion_response.json()["sections"]
     )
+    assert completion_response.json()["immediate_checks"] == []
+
+
+def test_shared_transport_api_save_succeeds_and_returns_immediate_check(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+    plan = deepcopy(complete_plan_data)
+    plan["arrangements"]["backup_transport_id"] = "t_001"
+
+    save_response = client.put(
+        f"/api/v1/households/{household_id}/plan", json=plan
+    )
+    completion_response = client.get(
+        f"/api/v1/households/{household_id}/completion"
+    )
+
+    assert save_response.status_code == 200
+    assert completion_response.status_code == 200
+    assert completion_response.json()["immediate_checks"] == [
+        {
+            "check": "shared_transport_resource",
+            "section": "backup_transport",
+            "status": "warning",
+            "message": "Primary and backup transport use the same resource.",
+        }
+    ]
+
+
+def test_same_responsible_person_api_remains_invalid(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+    plan = deepcopy(complete_plan_data)
+    plan["responsibilities"][0]["backup_member_id"] = "m_001"
+
+    response = client.put(
+        f"/api/v1/households/{household_id}/plan", json=plan
+    )
+
+    assert response.status_code == 422
+    assert "different backup member" in response.json()["detail"]["errors"][0]
 
 
 def test_whitespace_only_location_is_rejected(

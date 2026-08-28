@@ -24,11 +24,12 @@ def complete_plan_data() -> dict:
                 "support_notes": None,
             },
         ],
-        "pets": [
+        "animals": [
             {
-                "pet_id": "p_001",
+                "animal_id": "a_001",
+                "category": "pet",
                 "display_name": "Buddy",
-                "pet_type": "dog",
+                "animal_type": "dog",
                 "support_notes": None,
             }
         ],
@@ -75,4 +76,3 @@ def complete_plan_data() -> dict:
 @pytest.fixture
 def complete_plan(complete_plan_data: dict) -> HouseholdPlan:
     return HouseholdPlan.model_validate(deepcopy(complete_plan_data))
-

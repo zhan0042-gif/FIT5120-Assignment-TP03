@@ -1,7 +1,7 @@
 """Household, plan, location, context, and completion API contracts."""
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
@@ -38,10 +38,11 @@ class HouseholdMember(BaseModel):
     support_notes: str | None = None
 
 
-class Pet(BaseModel):
-    pet_id: EntityId
+class Animal(BaseModel):
+    animal_id: EntityId
+    category: Literal["pet", "livestock"]
+    animal_type: str = ""
     display_name: str = ""
-    pet_type: str = ""
     support_notes: str | None = None
 
 
@@ -77,7 +78,7 @@ class HouseholdPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     members: list[HouseholdMember] = Field(default_factory=list)
-    pets: list[Pet] = Field(default_factory=list)
+    animals: list[Animal] = Field(default_factory=list)
     transports: list[Transport] = Field(default_factory=list)
     arrangements: Arrangements = Field(default_factory=Arrangements)
     responsibilities: list[Responsibility] = Field(default_factory=list)
@@ -97,13 +98,37 @@ class HouseholdLocation(BaseModel):
 
 
 class CompletionSection(BaseModel):
-    section: str
-    status: str
+    section: Literal[
+        "household_profile",
+        "transport",
+        "backup_transport",
+        "primary_destination",
+        "backup_destination",
+        "responsibilities",
+    ]
+    status: Literal["complete", "needs_information"]
+
+
+class ImmediateCheck(BaseModel):
+    check: Literal[
+        "missing_backup_transport",
+        "missing_backup_destination",
+        "missing_backup_person",
+        "shared_transport_resource",
+    ]
+    section: Literal[
+        "backup_transport",
+        "backup_destination",
+        "responsibilities",
+    ]
+    status: Literal["warning"] = "warning"
+    message: str
 
 
 class PlanCompletion(BaseModel):
-    overall_status: str
+    overall_status: Literal["complete", "needs_information"]
     sections: list[CompletionSection]
+    immediate_checks: list[ImmediateCheck] = Field(default_factory=list)
 
 
 class BushfireContext(BaseModel):

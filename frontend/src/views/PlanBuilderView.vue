@@ -79,7 +79,7 @@ async function save() {
     />
 
     <template v-else-if="draft">
-      <HouseholdMembersForm v-model:members="draft.members" v-model:pets="draft.pets" />
+      <HouseholdMembersForm v-model:members="draft.members" v-model:animals="draft.animals" />
       <TransportForm v-model="draft.transports" :members="draft.members" />
       <ArrangementsForm v-model="draft.arrangements" :transports="draft.transports" />
       <ResponsibilitiesForm v-model="draft.responsibilities" :members="draft.members" />

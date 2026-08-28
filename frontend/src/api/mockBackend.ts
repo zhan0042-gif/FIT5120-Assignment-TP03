@@ -27,8 +27,14 @@ function seedPlan(): HouseholdPlan {
         support_notes: null,
       },
     ],
-    pets: [
-      { pet_id: 'p_001', display_name: 'Buddy', pet_type: 'dog', support_notes: null },
+    animals: [
+      {
+        animal_id: 'a_001',
+        category: 'pet',
+        display_name: 'Buddy',
+        animal_type: 'dog',
+        support_notes: null,
+      },
     ],
     transports: [
       {
@@ -64,7 +70,8 @@ function loadPlan(): HouseholdPlan {
   const raw = localStorage.getItem(STORAGE_KEY)
   if (!raw) return seedPlan()
   try {
-    return JSON.parse(raw) as HouseholdPlan
+    const parsed = JSON.parse(raw) as Partial<HouseholdPlan>
+    return Array.isArray(parsed.animals) ? (parsed as HouseholdPlan) : seedPlan()
   } catch {
     return seedPlan()
   }
@@ -115,7 +122,10 @@ export function computeCompletion(plan: HouseholdPlan): PlanCompletion {
   const householdOk =
     plan.members.length > 0 &&
     plan.members.every((m) => m.display_name.trim().length > 0) &&
-    plan.pets.every((p) => p.display_name.trim().length > 0 && p.pet_type.trim().length > 0)
+    plan.animals.every(
+      (animal) =>
+        animal.display_name.trim().length > 0 && animal.animal_type.trim().length > 0,
+    )
   const transportOk = plan.transports.length > 0 && !!plan.arrangements.primary_transport_id
   const backupTransportOk = !!plan.arrangements.backup_transport_id
   const primaryDestinationOk =
@@ -138,7 +148,9 @@ export function computeCompletion(plan: HouseholdPlan): PlanCompletion {
   ] as PlanCompletion['sections']
 
   const overall_status = sections.every((s) => s.status === 'complete') ? 'complete' : 'needs_information'
-  return { overall_status, sections }
+  // Epic 1 uses FastAPI for authoritative immediate checks. This legacy mock
+  // only supports temporary Epic 2/3 helpers and deliberately has no rule engine.
+  return { overall_status, sections, immediate_checks: [] }
 }
 
 // ---------------------------------------------------------------------------

@@ -3,7 +3,7 @@ import type { HouseholdPlan } from '../types/household'
 export function createEmptyHouseholdPlan(): HouseholdPlan {
   return {
     members: [],
-    pets: [],
+    animals: [],
     transports: [],
     arrangements: {
       primary_transport_id: null,

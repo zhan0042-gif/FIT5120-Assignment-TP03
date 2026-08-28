@@ -8,10 +8,13 @@ export interface HouseholdMember {
   support_notes: string | null
 }
 
-export interface Pet {
-  pet_id: string
+export type AnimalCategory = 'pet' | 'livestock'
+
+export interface Animal {
+  animal_id: string
+  category: AnimalCategory
+  animal_type: string
   display_name: string
-  pet_type: string
   support_notes: string | null
 }
 
@@ -47,7 +50,7 @@ export interface Responsibility {
 
 export interface HouseholdPlan {
   members: HouseholdMember[]
-  pets: Pet[]
+  animals: Animal[]
   transports: Transport[]
   arrangements: Arrangements
   responsibilities: Responsibility[]
@@ -62,13 +65,34 @@ export interface HouseholdCreated {
 }
 
 export type SectionStatus = 'complete' | 'needs_information'
+export type CompletionSectionName =
+  | 'household_profile'
+  | 'transport'
+  | 'backup_transport'
+  | 'primary_destination'
+  | 'backup_destination'
+  | 'responsibilities'
 
 export interface CompletionSection {
-  section: string
+  section: CompletionSectionName
   status: SectionStatus
+}
+
+export type ImmediateCheckName =
+  | 'missing_backup_transport'
+  | 'missing_backup_destination'
+  | 'missing_backup_person'
+  | 'shared_transport_resource'
+
+export interface ImmediateCheck {
+  check: ImmediateCheckName
+  section: 'backup_transport' | 'backup_destination' | 'responsibilities'
+  status: 'warning'
+  message: string
 }
 
 export interface PlanCompletion {
   overall_status: SectionStatus
   sections: CompletionSection[]
+  immediate_checks: ImmediateCheck[]
 }
