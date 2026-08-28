@@ -121,3 +121,44 @@ class PreparationTimingService:
             sections_to_review=[],
         )
 
+
+class PreparationSupportService:
+    """Combine plan completion and FDR without depending on weather data."""
+
+    def __init__(
+        self,
+        repository: HouseholdRepository,
+        spatial_provider: SpatialProvider,
+        fire_danger_client: FireDangerClient,
+    ) -> None:
+        self.repository = repository
+        self.spatial_provider = spatial_provider
+        self.fire_danger_client = fire_danger_client
+
+    def get(
+        self, household_id: str, completion: PlanCompletion
+    ) -> PreparationSupport:
+        location = self.repository.get_location(household_id)
+        try:
+            spatial = self.spatial_provider.get_context(
+                location.latitude, location.longitude
+            )
+            fire_danger = self.fire_danger_client.get_fire_danger(
+                spatial.fire_district
+            )
+        except ExternalDataUnavailable:
+            raise
+        except Exception as exc:
+            raise ExternalDataUnavailable(
+                "Preparation support provider data is unavailable."
+            ) from exc
+
+        return PreparationTimingService().recommend(
+            [
+                fire_danger.today,
+                fire_danger.tomorrow,
+                fire_danger.day_3,
+                fire_danger.day_4,
+            ],
+            completion,
+        )

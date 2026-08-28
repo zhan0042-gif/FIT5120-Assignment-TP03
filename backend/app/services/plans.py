@@ -46,18 +46,41 @@ class HouseholdPlanService:
                 )
 
         arrangements = plan.arrangements
-        if arrangements.primary_transport_id not in known_transports:
+        if (
+            arrangements.primary_transport_id is not None
+            and arrangements.primary_transport_id not in known_transports
+        ):
             errors.append("primary_transport_id must reference an existing transport")
         if (
             arrangements.backup_transport_id is not None
             and arrangements.backup_transport_id not in known_transports
         ):
             errors.append("backup_transport_id must reference an existing transport")
-        if arrangements.backup_transport_id == arrangements.primary_transport_id:
+        if (
+            arrangements.backup_transport_id is not None
+            and arrangements.backup_transport_id == arrangements.primary_transport_id
+        ):
             errors.append("backup_transport_id must differ from primary_transport_id")
 
+        destinations = [
+            destination
+            for destination in (
+                arrangements.primary_destination,
+                arrangements.backup_destination,
+            )
+            if destination is not None
+        ]
+        HouseholdPlanService._check_unique(
+            [destination.destination_id for destination in destinations],
+            "destination_id",
+            errors,
+        )
+
         for responsibility in plan.responsibilities:
-            if responsibility.primary_member_id not in known_members:
+            if (
+                responsibility.primary_member_id is not None
+                and responsibility.primary_member_id not in known_members
+            ):
                 errors.append(
                     f"Responsibility '{responsibility.responsibility_id}' references an "
                     "unknown primary member"
@@ -70,7 +93,11 @@ class HouseholdPlanService:
                     f"Responsibility '{responsibility.responsibility_id}' references an "
                     "unknown backup member"
                 )
-            if responsibility.backup_member_id == responsibility.primary_member_id:
+            if (
+                responsibility.backup_member_id is not None
+                and responsibility.backup_member_id
+                == responsibility.primary_member_id
+            ):
                 errors.append(
                     f"Responsibility '{responsibility.responsibility_id}' must assign a "
                     "different backup member"
@@ -100,12 +127,28 @@ class PlanCompletionService:
     def evaluate(self, plan: HouseholdPlan) -> PlanCompletion:
         arrangements = plan.arrangements
         statuses = {
-            "household_profile": bool(plan.members),
+            "household_profile": bool(plan.members)
+            and all(member.display_name.strip() for member in plan.members)
+            and all(
+                pet.display_name.strip() and pet.pet_type.strip()
+                for pet in plan.pets
+            ),
             "transport": bool(plan.transports and arrangements.primary_transport_id),
             "backup_transport": bool(arrangements.backup_transport_id),
-            "primary_destination": arrangements.primary_destination is not None,
-            "backup_destination": arrangements.backup_destination is not None,
-            "responsibilities": bool(plan.responsibilities),
+            "primary_destination": bool(
+                arrangements.primary_destination
+                and arrangements.primary_destination.display_name.strip()
+            ),
+            "backup_destination": bool(
+                arrangements.backup_destination
+                and arrangements.backup_destination.display_name.strip()
+            ),
+            "responsibilities": bool(plan.responsibilities)
+            and all(
+                responsibility.task_name.strip()
+                and responsibility.primary_member_id
+                for responsibility in plan.responsibilities
+            ),
         }
         sections = [
             CompletionSection(
@@ -120,4 +163,3 @@ class PlanCompletionService:
             ),
             sections=sections,
         )
-

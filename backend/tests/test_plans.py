@@ -17,6 +17,34 @@ def test_valid_plan_can_be_saved_and_retrieved(complete_plan: HouseholdPlan) -> 
     assert repository.get_plan(household_id) == complete_plan
 
 
+def test_partial_plan_can_be_saved_and_completion_reports_all_gaps() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    partial_plan = HouseholdPlan()
+
+    saved = HouseholdPlanService(repository).save(household_id, partial_plan)
+    completion = PlanCompletionService().evaluate(saved)
+
+    assert saved == partial_plan
+    assert completion.overall_status == "needs_information"
+    assert [section.section for section in completion.sections] == [
+        "household_profile",
+        "transport",
+        "backup_transport",
+        "primary_destination",
+        "backup_destination",
+        "responsibilities",
+    ]
+    assert all(section.status == "needs_information" for section in completion.sections)
+
+
+def test_optional_reference_must_be_valid_when_supplied() -> None:
+    plan = HouseholdPlan(arrangements={"primary_transport_id": "missing"})
+
+    with pytest.raises(PlanValidationError, match="primary_transport_id"):
+        HouseholdPlanService.validate(plan)
+
+
 def test_invalid_driver_member_reference_is_rejected(
     complete_plan_data: dict,
 ) -> None:
@@ -62,6 +90,14 @@ def test_same_primary_and_backup_person_is_rejected(complete_plan_data: dict) ->
         HouseholdPlanService.validate(HouseholdPlan.model_validate(data))
 
 
+def test_duplicate_destination_ids_are_rejected(complete_plan_data: dict) -> None:
+    data = deepcopy(complete_plan_data)
+    data["arrangements"]["backup_destination"]["destination_id"] = "d_001"
+
+    with pytest.raises(PlanValidationError, match="destination_id values must be unique"):
+        HouseholdPlanService.validate(HouseholdPlan.model_validate(data))
+
+
 def test_complete_plan_completion(complete_plan: HouseholdPlan) -> None:
     result = PlanCompletionService().evaluate(complete_plan)
 
@@ -88,4 +124,3 @@ def test_incomplete_plan_sections(
     statuses = {section.section: section.status for section in result.sections}
     assert result.overall_status == "needs_information"
     assert statuses[missing_section] == "needs_information"
-

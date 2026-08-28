@@ -46,12 +46,19 @@ export interface Responsibility {
 }
 
 export interface HouseholdPlan {
-  household_id: string | null
   members: HouseholdMember[]
   pets: Pet[]
   transports: Transport[]
   arrangements: Arrangements
   responsibilities: Responsibility[]
+}
+
+export interface HouseholdCreate {
+  display_name?: string | null
+}
+
+export interface HouseholdCreated {
+  household_id: string
 }
 
 export type SectionStatus = 'complete' | 'needs_information'

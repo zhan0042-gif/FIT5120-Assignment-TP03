@@ -42,7 +42,7 @@ export interface LocalContext {
   environmental_context: EnvironmentalContext
 }
 
-export type PreparationSupportStatus = 'on_track' | 'review_recommended'
+export type PreparationSupportStatus = 'up_to_date' | 'review_recommended'
 
 export interface PreparationSupport {
   status: PreparationSupportStatus

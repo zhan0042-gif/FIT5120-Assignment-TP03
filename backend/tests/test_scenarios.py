@@ -55,6 +55,13 @@ def test_destination_without_backup_fails(complete_plan_data: dict) -> None:
     assert run(complete_plan_data, "destination_unavailable").overall_status == "needs_attention"
 
 
+def test_destination_scenario_handles_partial_plan() -> None:
+    result = BasicScenarioService().run(HouseholdPlan(), "destination_unavailable")
+
+    assert result.overall_status == "needs_attention"
+    assert result.checks[0].check == "backup_destination"
+
+
 def test_destination_with_same_address_fails(complete_plan_data: dict) -> None:
     complete_plan_data["arrangements"]["backup_destination"]["address"] = "1 example road"
 

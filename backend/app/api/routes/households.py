@@ -32,7 +32,7 @@ from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
 from app.services.context import (
     LocalContextService,
     LocationService,
-    PreparationTimingService,
+    PreparationSupportService,
 )
 from app.services.plans import HouseholdPlanService, PlanCompletionService
 from app.services.scenarios import BasicScenarioService
@@ -118,17 +118,12 @@ def get_preparation_support(
     fire_danger_client: Annotated[
         FireDangerClient, Depends(get_fire_danger_client)
     ],
-    weather_client: Annotated[WeatherClient, Depends(get_weather_client)],
 ) -> PreparationSupport:
     plan = repository.get_plan(household_id)
     completion = PlanCompletionService().evaluate(plan)
-    context = _local_context_service(
-        repository, spatial_provider, fire_danger_client, weather_client
-    ).get(household_id)
-    danger = context.fire_danger
-    return PreparationTimingService().recommend(
-        [danger.today, danger.tomorrow, danger.day_3, danger.day_4], completion
-    )
+    return PreparationSupportService(
+        repository, spatial_provider, fire_danger_client
+    ).get(household_id, completion)
 
 
 @router.post(
@@ -144,4 +139,3 @@ def run_preparedness_test(
     return BasicScenarioService(repository).run_for_household(
         household_id, request.scenario_id
     )
-

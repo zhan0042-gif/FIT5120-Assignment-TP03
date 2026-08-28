@@ -8,6 +8,7 @@ defineProps<{ completion: PlanCompletion | null; loading: boolean }>()
 const SECTION_LABELS: Record<string, string> = {
   household_profile: 'Household profile',
   transport: 'Transport',
+  backup_transport: 'Backup transport',
   primary_destination: 'Primary destination',
   backup_destination: 'Backup destination',
   responsibilities: 'Responsibilities',

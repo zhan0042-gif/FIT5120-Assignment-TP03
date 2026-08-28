@@ -3,7 +3,11 @@ from copy import deepcopy
 import pytest
 from fastapi.testclient import TestClient
 
-from app.core.dependencies import get_household_repository, get_spatial_provider
+from app.core.dependencies import (
+    get_household_repository,
+    get_spatial_provider,
+    get_weather_client,
+)
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
 
@@ -82,6 +86,42 @@ def test_business_validation_returns_clean_422(
     assert "unknown driver" in response.json()["detail"]["errors"][0]
 
 
+def test_partial_plan_round_trip_and_completion(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+
+    save_response = client.put(
+        f"/api/v1/households/{household_id}/plan", json={}
+    )
+    completion_response = client.get(
+        f"/api/v1/households/{household_id}/completion"
+    )
+
+    assert save_response.status_code == 200
+    assert save_response.json()["members"] == []
+    assert completion_response.status_code == 200
+    assert completion_response.json()["overall_status"] == "needs_information"
+    assert all(
+        section["status"] == "needs_information"
+        for section in completion_response.json()["sections"]
+    )
+
+
+def test_whitespace_only_location_is_rejected(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+
+    response = client.put(
+        f"/api/v1/households/{household_id}/location", json={"address": "   "}
+    )
+
+    assert response.status_code == 422
+
+
 @pytest.mark.parametrize(
     "path",
     [
@@ -154,6 +194,11 @@ class FailingSpatialProvider:
         raise RuntimeError("offline")
 
 
+class FailingWeatherClient:
+    def get_weather(self, latitude: float, longitude: float):
+        raise RuntimeError("BOM offline")
+
+
 def test_provider_failure_returns_503(
     api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
 ) -> None:
@@ -172,3 +217,21 @@ def test_provider_failure_returns_503(
 
     assert response.status_code == 503
 
+
+def test_preparation_support_does_not_require_weather(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_weather_client] = lambda: FailingWeatherClient()
+    household_id = create_household(client)
+    client.put(f"/api/v1/households/{household_id}/plan", json=complete_plan_data)
+    client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "Warrandyte VIC 3113"},
+    )
+
+    response = client.get(
+        f"/api/v1/households/{household_id}/preparation-support"
+    )
+
+    assert response.status_code == 200

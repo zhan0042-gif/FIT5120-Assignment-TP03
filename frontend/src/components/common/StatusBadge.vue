@@ -11,7 +11,7 @@ const LABELS: Record<string, string> = {
   not_checked: 'Not checked',
   ok: 'All checks pass',
   needs_attention: 'Needs attention',
-  on_track: 'On track',
+  up_to_date: 'Up to date',
   review_recommended: 'Review recommended',
 }
 
@@ -19,7 +19,7 @@ const VARIANTS: Record<string, string> = {
   complete: 'badge-success',
   pass: 'badge-success',
   ok: 'badge-success',
-  on_track: 'badge-success',
+  up_to_date: 'badge-success',
   needs_information: 'badge-warning',
   review_recommended: 'badge-warning',
   fail: 'badge-danger',

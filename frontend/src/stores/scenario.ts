@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '../api/client'
+import { useHouseholdStore } from './household'
 import type { Scenario, TestResult } from '../types/scenario'
 import type { AsyncStatus } from '../types/async'
 
 export const useScenarioStore = defineStore('scenario', () => {
+  const householdStore = useHouseholdStore()
   const scenarios = ref<Scenario[]>([])
   const scenariosStatus = ref<AsyncStatus>('idle')
 
@@ -34,7 +36,8 @@ export const useScenarioStore = defineStore('scenario', () => {
     testStatus.value = 'loading'
     testError.value = null
     try {
-      result.value = await api.runBasicTest(selectedScenarioId.value)
+      const householdId = await householdStore.ensureHousehold()
+      result.value = await api.runBasicTest(householdId, selectedScenarioId.value)
       testStatus.value = 'success'
     } catch (err) {
       testStatus.value = 'error'

@@ -167,9 +167,11 @@ class BasicScenarioService:
         primary = plan.arrangements.primary_destination
         backup = plan.arrangements.backup_destination
         meaningfully_different = bool(
-            backup
+            primary
+            and backup
             and backup.destination_id != primary.destination_id
-            and backup.address.strip().casefold() != primary.address.strip().casefold()
+            and (backup.address or "").strip().casefold()
+            != (primary.address or "").strip().casefold()
         )
         if not meaningfully_different:
             return [

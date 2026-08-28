@@ -19,7 +19,7 @@ export interface FirstProblem {
   message: string
 }
 
-export type TestOverallStatus = 'ok' | 'needs_attention'
+export type TestOverallStatus = 'pass' | 'needs_attention'
 
 export interface TestResult {
   test_run_id: string

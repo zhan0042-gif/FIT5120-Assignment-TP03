@@ -1,10 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api, loadSavedAddress } from '../api/client'
+import { useHouseholdStore } from './household'
 import type { LocalContext, PreparationSupport } from '../types/localContext'
 import type { AsyncStatus } from '../types/async'
 
 export const useLocalContextStore = defineStore('localContext', () => {
+  const householdStore = useHouseholdStore()
   const address = ref(loadSavedAddress())
   const submittedAddress = ref(address.value)
 
@@ -22,8 +24,9 @@ export const useLocalContextStore = defineStore('localContext', () => {
     contextStatus.value = 'loading'
     contextError.value = null
     try {
-      await api.saveLocation(next)
-      context.value = await api.getLocalContext(next)
+      const householdId = await householdStore.ensureHousehold()
+      await api.saveLocation(householdId, next)
+      context.value = await api.getLocalContext(householdId)
       contextStatus.value = 'success'
       await loadPreparationSupport()
     } catch (err) {
@@ -35,7 +38,8 @@ export const useLocalContextStore = defineStore('localContext', () => {
   async function loadPreparationSupport() {
     prepStatus.value = 'loading'
     try {
-      prepSupport.value = await api.getPreparationSupport()
+      const householdId = await householdStore.ensureHousehold()
+      prepSupport.value = await api.getPreparationSupport(householdId)
       prepStatus.value = 'success'
     } catch {
       prepStatus.value = 'error'

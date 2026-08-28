@@ -1,8 +1,23 @@
 """Household, plan, location, context, and completion API contracts."""
 
 from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+
+EntityId = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    ),
+]
+NonBlankText = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1),
+]
 
 
 class HouseholdCreate(BaseModel):
@@ -16,60 +31,63 @@ class HouseholdCreated(BaseModel):
 
 
 class HouseholdMember(BaseModel):
-    member_id: str = Field(min_length=1)
-    display_name: str = Field(min_length=1)
+    member_id: EntityId
+    display_name: str = ""
     is_dependant: bool
     mobility_support_required: bool
     support_notes: str | None = None
 
 
 class Pet(BaseModel):
-    pet_id: str = Field(min_length=1)
-    display_name: str = Field(min_length=1)
-    pet_type: str = Field(min_length=1)
+    pet_id: EntityId
+    display_name: str = ""
+    pet_type: str = ""
     support_notes: str | None = None
 
 
 class Transport(BaseModel):
-    transport_id: str = Field(min_length=1)
-    transport_type: str = Field(min_length=1)
-    display_name: str = Field(min_length=1)
-    driver_member_ids: list[str] = Field(default_factory=list)
+    transport_id: EntityId
+    transport_type: NonBlankText
+    display_name: str | None = None
+    driver_member_ids: list[EntityId] = Field(default_factory=list)
 
 
 class Destination(BaseModel):
-    destination_id: str = Field(min_length=1)
-    display_name: str = Field(min_length=1)
-    address: str = Field(min_length=1)
+    destination_id: EntityId
+    display_name: str = ""
+    address: str | None = None
 
 
 class Arrangements(BaseModel):
-    primary_transport_id: str
-    backup_transport_id: str | None = None
-    primary_destination: Destination
+    primary_transport_id: EntityId | None = None
+    backup_transport_id: EntityId | None = None
+    primary_destination: Destination | None = None
     backup_destination: Destination | None = None
-    meeting_point: str = Field(min_length=1)
+    meeting_point: str | None = None
 
 
 class Responsibility(BaseModel):
-    responsibility_id: str = Field(min_length=1)
-    task_name: str = Field(min_length=1)
-    primary_member_id: str
-    backup_member_id: str | None = None
+    responsibility_id: EntityId
+    task_name: str = ""
+    primary_member_id: EntityId | None = None
+    backup_member_id: EntityId | None = None
 
 
 class HouseholdPlan(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    members: list[HouseholdMember] = Field(min_length=1)
+    members: list[HouseholdMember] = Field(default_factory=list)
     pets: list[Pet] = Field(default_factory=list)
-    transports: list[Transport] = Field(min_length=1)
-    arrangements: Arrangements
+    transports: list[Transport] = Field(default_factory=list)
+    arrangements: Arrangements = Field(default_factory=Arrangements)
     responsibilities: list[Responsibility] = Field(default_factory=list)
 
 
 class LocationRequest(BaseModel):
-    address: str = Field(min_length=1, max_length=300)
+    address: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
+    ]
 
 
 class HouseholdLocation(BaseModel):
@@ -126,4 +144,3 @@ class PreparationSupport(BaseModel):
     status: str
     message: str
     sections_to_review: list[str]
-

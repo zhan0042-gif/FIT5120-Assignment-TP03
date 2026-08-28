@@ -18,7 +18,6 @@ function delay(ms: number) {
 
 function seedPlan(): HouseholdPlan {
   return {
-    household_id: 'h_001',
     members: [
       {
         member_id: 'm_001',
@@ -113,19 +112,26 @@ export async function fetchCompletion(): Promise<PlanCompletion> {
 }
 
 export function computeCompletion(plan: HouseholdPlan): PlanCompletion {
-  const householdOk = plan.members.length > 0 && plan.members.every((m) => m.display_name.trim().length > 0)
-  const transportOk = plan.transports.length > 0
+  const householdOk =
+    plan.members.length > 0 &&
+    plan.members.every((m) => m.display_name.trim().length > 0) &&
+    plan.pets.every((p) => p.display_name.trim().length > 0 && p.pet_type.trim().length > 0)
+  const transportOk = plan.transports.length > 0 && !!plan.arrangements.primary_transport_id
+  const backupTransportOk = !!plan.arrangements.backup_transport_id
   const primaryDestinationOk =
-    !!plan.arrangements.primary_transport_id &&
     !!plan.arrangements.primary_destination &&
     plan.arrangements.primary_destination.display_name.trim().length > 0
-  const backupDestinationOk = plan.arrangements.backup_destination !== null
+  const backupDestinationOk =
+    !!plan.arrangements.backup_destination &&
+    plan.arrangements.backup_destination.display_name.trim().length > 0
   const responsibilitiesOk =
-    plan.responsibilities.length > 0 && plan.responsibilities.every((r) => !!r.primary_member_id)
+    plan.responsibilities.length > 0 &&
+    plan.responsibilities.every((r) => r.task_name.trim().length > 0 && !!r.primary_member_id)
 
   const sections = [
     { section: 'household_profile', status: householdOk ? 'complete' : 'needs_information' },
     { section: 'transport', status: transportOk ? 'complete' : 'needs_information' },
+    { section: 'backup_transport', status: backupTransportOk ? 'complete' : 'needs_information' },
     { section: 'primary_destination', status: primaryDestinationOk ? 'complete' : 'needs_information' },
     { section: 'backup_destination', status: backupDestinationOk ? 'complete' : 'needs_information' },
     { section: 'responsibilities', status: responsibilitiesOk ? 'complete' : 'needs_information' },
@@ -198,18 +204,23 @@ export async function fetchPreparationSupport(): Promise<PreparationSupport> {
   await delay(350)
   const address = loadSavedAddress()
   const context = await fetchLocalContext(address).catch(() => null)
-  const plan = planCache
+  const completion = computeCompletion(planCache)
+  const gaps = completion.sections
+    .filter((section) => section.status === 'needs_information')
+    .map((section) => section.section)
+  const levels = ['No Rating', 'Moderate', 'High', 'Extreme', 'Catastrophic']
+  const ratings = context
+    ? [
+        context.fire_danger.today,
+        context.fire_danger.tomorrow,
+        context.fire_danger.day_3,
+        context.fire_danger.day_4,
+      ].map((rating) => levels.indexOf(rating))
+    : []
+  const escalating = ratings.length > 1 && Math.max(...ratings.slice(1)) > ratings[0]
+  const serious = ratings.some((rating) => rating >= levels.indexOf('High'))
 
-  const gaps: string[] = []
-  if (plan.arrangements.backup_transport_id === null) gaps.push('backup_transport')
-  if (plan.arrangements.backup_destination === null) gaps.push('backup_destination')
-  if (plan.responsibilities.some((r) => !r.backup_member_id)) gaps.push('responsibilities')
-
-  const seriousWeather =
-    !!context &&
-    (['High', 'Extreme', 'Catastrophic'] as string[]).includes(context.fire_danger.tomorrow)
-
-  if (seriousWeather && gaps.length > 0) {
+  if (escalating || serious) {
     return {
       status: 'review_recommended',
       message: 'Local fire conditions are expected to become more serious.',
@@ -217,11 +228,17 @@ export async function fetchPreparationSupport(): Promise<PreparationSupport> {
     }
   }
 
+  if (gaps.length > 0) {
+    return {
+      status: 'review_recommended',
+      message: 'Review the incomplete sections of your household plan.',
+      sections_to_review: gaps,
+    }
+  }
+
   return {
-    status: 'on_track',
-    message: context
-      ? 'Your household plan looks steady for current local conditions.'
-      : 'Add your location to receive preparation timing guidance.',
+    status: 'up_to_date',
+    message: 'No immediate plan review is recommended.',
     sections_to_review: [],
   }
 }
@@ -257,15 +274,19 @@ export async function runBasicTest(scenarioId: string): Promise<TestResult> {
   await delay(600)
   const plan = planCache
   const checks: TestCheck[] = []
+  let firstProblem: TestResult['first_problem'] = null
 
   if (scenarioId === 'vehicle_unavailable') {
-    const hasBackupTransport = !!plan.arrangements.backup_transport_id
+    const primaryId = plan.arrangements.primary_transport_id
+    const backupId = plan.arrangements.backup_transport_id
+    const backup = plan.transports.find((transport) => transport.transport_id === backupId)
+    const hasBackupTransport = !!backupId && backupId !== primaryId && !!backup
     checks.push({
       check: 'backup_transport',
       status: hasBackupTransport ? 'pass' : 'fail',
       message: hasBackupTransport
-        ? 'A backup transport option is recorded.'
-        : 'No backup transport is set.',
+        ? 'A different backup transport is set.'
+        : 'No different backup transport is set.',
     })
     if (!hasBackupTransport) {
       checks.push({
@@ -273,74 +294,85 @@ export async function runBasicTest(scenarioId: string): Promise<TestResult> {
         status: 'not_checked',
         message: 'A backup driver cannot be checked because no backup transport is set.',
       })
+      firstProblem = {
+        section: 'transport',
+        message: 'Your plan needs a backup transport arrangement.',
+      }
     } else {
-      const backup = plan.transports.find((t) => t.transport_id === plan.arrangements.backup_transport_id)
-      const hasDriver = !!backup && backup.driver_member_ids.length > 0
+      const memberIds = new Set(plan.members.map((member) => member.member_id))
+      const hasDriver = backup.driver_member_ids.some((memberId) => memberIds.has(memberId))
       checks.push({
         check: 'backup_driver',
         status: hasDriver ? 'pass' : 'fail',
         message: hasDriver
-          ? 'The backup transport has at least one available driver.'
-          : 'The backup transport has no driver assigned.',
+          ? 'The backup transport has a valid driver.'
+          : 'The backup transport has no valid driver.',
       })
+      if (!hasDriver) {
+        firstProblem = {
+          section: 'transport',
+          message: 'Assign a valid driver to the backup transport.',
+        }
+      }
     }
   } else if (scenarioId === 'person_unavailable') {
-    const missingBackups = plan.responsibilities.filter((r) => r.primary_member_id && !r.backup_member_id)
+    const memberIds = new Set(plan.members.map((member) => member.member_id))
+    const hasValidBackups =
+      plan.responsibilities.length > 0 &&
+      plan.responsibilities.every(
+        (responsibility) =>
+          !!responsibility.backup_member_id &&
+          responsibility.backup_member_id !== responsibility.primary_member_id &&
+          memberIds.has(responsibility.backup_member_id),
+      )
     checks.push({
-      check: 'responsibility_backups',
-      status: plan.responsibilities.length > 0 && missingBackups.length === 0 ? 'pass' : 'fail',
-      message:
-        missingBackups.length === 0
-          ? 'Every responsibility has a backup person.'
-          : `No backup person is set for: ${missingBackups.map((r) => r.task_name).join(', ')}.`,
+      check: 'backup_person',
+      status: hasValidBackups ? 'pass' : 'fail',
+      message: hasValidBackups
+        ? 'Every responsibility has a different backup person.'
+        : 'One or more responsibilities do not have a different backup person.',
     })
-    const primaryTransport = plan.transports.find((t) => t.transport_id === plan.arrangements.primary_transport_id)
-    const redundantDrivers = (primaryTransport?.driver_member_ids.length ?? 0) > 1 || !!plan.arrangements.backup_transport_id
-    checks.push({
-      check: 'driver_redundancy',
-      status: redundantDrivers ? 'pass' : 'fail',
-      message: redundantDrivers
-        ? 'More than one person can drive the household if needed.'
-        : 'Only one person can currently drive the household.',
-    })
+    if (!hasValidBackups) {
+      firstProblem = {
+        section: 'responsibilities',
+        message: 'Assign a different backup person to every important responsibility.',
+      }
+    }
   } else if (scenarioId === 'destination_unavailable') {
-    const hasBackupDestination = plan.arrangements.backup_destination !== null
+    const primary = plan.arrangements.primary_destination
+    const backup = plan.arrangements.backup_destination
+    const hasBackupDestination = !!(
+      primary &&
+      backup &&
+      backup.destination_id !== primary.destination_id &&
+      (backup.address ?? '').trim().toLowerCase() !==
+        (primary.address ?? '').trim().toLowerCase()
+    )
     checks.push({
       check: 'backup_destination',
       status: hasBackupDestination ? 'pass' : 'fail',
       message: hasBackupDestination
-        ? 'A backup destination is recorded.'
-        : 'No backup destination is set.',
+        ? 'A different backup destination is set.'
+        : 'No meaningfully different backup destination is set.',
     })
     if (!hasBackupDestination) {
-      checks.push({
-        check: 'meeting_point',
-        status: 'not_checked',
-        message: 'A meeting point cannot be relied on without a backup destination.',
-      })
-    } else {
-      const hasMeetingPoint = !!plan.arrangements.meeting_point
-      checks.push({
-        check: 'meeting_point',
-        status: hasMeetingPoint ? 'pass' : 'fail',
-        message: hasMeetingPoint
-          ? 'A meeting point is recorded in case the household is separated.'
-          : 'No meeting point is set in case the household is separated.',
-      })
+      firstProblem = {
+        section: 'backup_destination',
+        message: 'Your plan needs a different backup destination.',
+      }
     }
   }
 
-  const overall_status = checks.some((c) => c.status === 'fail') ? 'needs_attention' : 'ok'
-  const firstFail = checks.find((c) => c.status === 'fail')
+  const overall_status = checks.some((check) => check.status === 'fail')
+    ? 'needs_attention'
+    : 'pass'
 
   return {
     test_run_id: genId('test'),
     scenario_id: scenarioId,
     overall_status,
     checks,
-    first_problem: firstFail
-      ? { section: firstFail.check, message: firstFail.message }
-      : null,
+    first_problem: firstProblem,
     tested_at: new Date().toISOString(),
   }
 }
