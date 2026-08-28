@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import os
 
 from app.providers.bom import BOMWeatherClient
-from app.providers.cfa import CFAFireDangerClient
+from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import AddressClient, FireDangerClient, WeatherClient
 from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
 from app.providers.vicmap import VicmapAddressClient
@@ -35,7 +35,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
     if selected == "live":
         return ExternalProviders(
             address=VicmapAddressClient(),
-            fire_danger=CFAFireDangerClient(),
+            fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )
     raise RuntimeError("Provider mode must be either 'mock' or 'live'.")

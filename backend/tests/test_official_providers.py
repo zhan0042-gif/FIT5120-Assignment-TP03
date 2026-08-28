@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from pathlib import Path
+from xml.etree import ElementTree
 
 import httpx
 import pytest
@@ -11,6 +12,13 @@ from app.providers.bom import (
     haversine_km,
     parse_bom_observations,
     select_nearest_weather,
+)
+from app.providers.bom_fire_danger import (
+    BOMFireDangerClient,
+    BOM_FIRE_DISTRICTS,
+    fire_danger_for_district,
+    normalize_bom_fire_district,
+    parse_bom_fire_danger_product,
 )
 from app.providers.cfa import (
     CFA_FEED_URLS,
@@ -312,8 +320,118 @@ def test_bom_transport_failure_is_translated() -> None:
         client.get_weather(-37.8, 144.9)
 
 
+def test_bom_fire_danger_parses_all_districts_and_exact_four_days() -> None:
+    forecast = parse_bom_fire_danger_product(fixture("bom_fire_danger.xml"))
+    result = fire_danger_for_district(forecast, " central ")
+
+    assert set(forecast.ratings) == set(BOM_FIRE_DISTRICTS)
+    assert all(len(values) == 4 for values in forecast.ratings.values())
+    assert forecast.fire_behaviour_indices["Central"] == (13, 24, 50, 100)
+    assert [result.today, result.tomorrow, result.day_3, result.day_4] == [
+        "Moderate",
+        "High",
+        "Extreme",
+        "Catastrophic",
+    ]
+    assert result.source_updated_at.isoformat() == "2026-08-28T16:00:00+10:00"
+    assert result.source_url == (
+        "ftp://ftp.bom.gov.au/anon/gen/fwo/IDV18555.xml"
+    )
+
+
+def test_bom_fire_danger_district_normalization_is_strict() -> None:
+    assert normalize_bom_fire_district(" WEST and south GIPPSLAND ") == (
+        "West and South Gippsland"
+    )
+    with pytest.raises(ExternalDataUnavailable, match="not supported"):
+        normalize_bom_fire_district("Somewhere Else")
+
+
+def test_bom_fire_danger_client_uses_one_cached_state_product() -> None:
+    calls = 0
+
+    def loader() -> bytes:
+        nonlocal calls
+        calls += 1
+        return fixture("bom_fire_danger.xml")
+
+    client = BOMFireDangerClient(loader=loader, now_provider=lambda: NOW)
+
+    assert client.get_fire_danger("Central").today == "Moderate"
+    assert client.get_fire_danger("Mallee").today == "Catastrophic"
+    assert calls == 1
+
+
+def test_bom_fire_danger_stale_product_is_unavailable() -> None:
+    client = BOMFireDangerClient(
+        loader=lambda: fixture("bom_fire_danger.xml"),
+        now_provider=lambda: datetime(2026, 8, 30, 7, 0, tzinfo=timezone.utc),
+    )
+
+    with pytest.raises(ExternalDataUnavailable, match="stale"):
+        client.get_fire_danger("Central")
+
+
+def test_bom_fire_danger_missing_district_is_unavailable() -> None:
+    root = ElementTree.fromstring(fixture("bom_fire_danger.xml"))
+    forecast = root.find("forecast")
+    assert forecast is not None
+    forecast.remove(forecast.findall("area")[0])
+
+    with pytest.raises(ExternalDataUnavailable, match="all nine"):
+        parse_bom_fire_danger_product(ElementTree.tostring(root))
+
+
+def test_bom_fire_danger_missing_day_is_unavailable() -> None:
+    root = ElementTree.fromstring(fixture("bom_fire_danger.xml"))
+    area = root.find("./forecast/area[@description='Central']")
+    assert area is not None
+    area.remove(area.findall("forecast-period")[-1])
+
+    with pytest.raises(ExternalDataUnavailable, match="exactly four"):
+        parse_bom_fire_danger_product(ElementTree.tostring(root))
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        (b"<product>", "product is invalid"),
+        (
+            fixture("bom_fire_danger.xml").replace(
+                b"<issue-time-local tz=\"EST\">2026-08-28T16:00:00+10:00</issue-time-local>",
+                b"",
+            ),
+            "issue time is unavailable",
+        ),
+        (
+            fixture("bom_fire_danger.xml").replace(
+                b">Catastrophic</text>", b">Severe</text>", 1
+            ),
+            "unsupported Fire Danger Rating",
+        ),
+    ],
+)
+def test_bom_fire_danger_invalid_payload_is_unavailable(
+    payload: bytes, message: str
+) -> None:
+    with pytest.raises(ExternalDataUnavailable, match=message):
+        parse_bom_fire_danger_product(payload)
+
+
+def test_bom_fire_danger_transport_failure_is_translated() -> None:
+    def failing_loader() -> bytes:
+        raise TimeoutError("FTP timeout")
+
+    client = BOMFireDangerClient(loader=failing_loader, now_provider=lambda: NOW)
+    with pytest.raises(ExternalDataUnavailable, match="BOM"):
+        client.get_fire_danger("Central")
+
+
 def test_explicit_provider_modes_do_not_fallback() -> None:
     assert isinstance(build_external_providers("mock").address, MockAddressClient)
     assert isinstance(build_external_providers("live").address, VicmapAddressClient)
+    assert isinstance(
+        build_external_providers("live").fire_danger, BOMFireDangerClient
+    )
     with pytest.raises(RuntimeError, match="either 'mock' or 'live'"):
         build_external_providers("automatic")

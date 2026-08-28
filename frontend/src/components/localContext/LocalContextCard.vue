@@ -69,7 +69,7 @@ function formatTime(iso: string) {
         <p class="hint">
           Fire Danger Rating issued {{ formatTime(store.context.fire_danger.source_updated_at) }}
           <template v-if="store.context.fire_danger.source_url">
-            · <a :href="store.context.fire_danger.source_url" target="_blank" rel="noopener noreferrer">CFA source</a>
+            · <a :href="store.context.fire_danger.source_url" target="_blank" rel="noopener noreferrer">Bureau of Meteorology source</a>
           </template>
         </p>
 
