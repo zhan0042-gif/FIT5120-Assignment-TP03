@@ -26,6 +26,8 @@
 <style scoped>
 .review {
   max-width: 680px;
+  width: 100%;
+  margin-inline: auto;
 }
 
 .headline {
