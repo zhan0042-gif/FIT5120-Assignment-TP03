@@ -64,60 +64,66 @@ async function save() {
 
 <template>
   <div class="plan-builder">
-    <p class="eyebrow">Plan builder</p>
-    <h1 class="headline">Build the plan</h1>
-    <p class="subhead">Everything here feeds the scenario tester — the more complete it is, the more useful a stress test becomes.</p>
+    <div class="plan-scroll">
+      <p class="eyebrow">Plan builder</p>
+      <h1 class="headline">Build the plan</h1>
+      <p class="subhead">Everything here feeds the scenario tester — the more complete it is, the more useful a stress test becomes.</p>
 
-    <PreparationSupportBanner />
-    <LocalContextCard />
+      <PreparationSupportBanner />
+      <LocalContextCard />
 
-    <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your household plan…" />
-    <ErrorState
-      v-else-if="householdStore.planStatus === 'error'"
-      :message="householdStore.planError ?? undefined"
-      @retry="householdStore.loadPlan"
-    />
-
-    <template v-else-if="draft">
-      <HouseholdMembersForm v-model:members="draft.members" v-model:animals="draft.animals" />
-      <TransportForm
-        v-model:transports="draft.transports"
-        v-model:has-private-transport="draft.has_private_transport"
-        :members="draft.members"
+      <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your household plan…" />
+      <ErrorState
+        v-else-if="householdStore.planStatus === 'error'"
+        message="Could not load your household plan."
+        @retry="householdStore.loadPlan"
       />
-      <ArrangementsForm v-model="draft.arrangements" :transports="draft.transports" />
-      <ResponsibilitiesForm v-model="draft.responsibilities" :members="draft.members" />
-      <CompletionOverview :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
 
-      <div class="save-bar">
-        <div>
-          <p v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</p>
-          <p v-else-if="householdStore.saveStatus === 'error'" class="field-error">{{ householdStore.saveError }}</p>
-          <p v-else-if="hasUnsavedChanges" class="hint">You have unsaved changes.</p>
-          <p v-else class="hint">All changes saved.</p>
-        </div>
-        <button
-          class="btn btn-accent"
-          type="button"
-          :disabled="!hasUnsavedChanges || validationErrors.length > 0 || householdStore.saveStatus === 'loading'"
-          @click="save"
-        >
-          {{ householdStore.saveStatus === 'loading' ? 'Saving…' : 'Save plan' }}
-        </button>
+      <template v-else-if="draft">
+        <HouseholdMembersForm v-model:members="draft.members" v-model:animals="draft.animals" />
+        <TransportForm
+          v-model:transports="draft.transports"
+          v-model:has-private-transport="draft.has_private_transport"
+          :members="draft.members"
+        />
+        <ArrangementsForm v-model="draft.arrangements" :transports="draft.transports" />
+        <ResponsibilitiesForm v-model="draft.responsibilities" :members="draft.members" />
+        <CompletionOverview :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
+      </template>
+    </div>
+
+    <div v-if="draft" class="save-bar">
+      <div>
+        <p v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</p>
+        <p v-else-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</p>
+        <p v-else-if="hasUnsavedChanges" class="hint">You have unsaved changes.</p>
+        <p v-else class="hint">All changes saved.</p>
       </div>
-    </template>
+      <button
+        class="btn btn-accent"
+        type="button"
+        :disabled="!hasUnsavedChanges || validationErrors.length > 0 || householdStore.saveStatus === 'loading'"
+        @click="save"
+      >
+        {{ householdStore.saveStatus === 'loading' ? 'Saving…' : 'Save plan' }}
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .plan-builder {
-  max-width: 780px;
   width: 100%;
-  margin-inline: auto;
+  min-width: 0;
+}
+
+.plan-scroll {
+  min-width: 0;
+  padding-bottom: 5.5rem;
 }
 
 .headline {
-  font-size: 1.9rem;
+  font-size: 2rem;
   margin: 0.4rem 0 0.5rem;
 }
 
@@ -128,12 +134,13 @@ async function save() {
 
 .save-bar {
   position: sticky;
-  bottom: 1rem;
-  margin-top: 1.5rem;
+  bottom: 0;
+  z-index: 10;
+  margin-top: 1rem;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -142,7 +149,18 @@ async function save() {
 }
 
 .hint {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
+}
+
+@media (max-width: 520px) {
+  .save-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .save-bar .btn {
+    width: 100%;
+  }
 }
 </style>

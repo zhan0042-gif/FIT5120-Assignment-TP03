@@ -11,12 +11,24 @@ import TestResultPanel from '../components/scenario/TestResultPanel.vue'
 const householdStore = useHouseholdStore()
 const scenarioStore = useScenarioStore()
 
+const readyToTest = computed(() => householdStore.plan !== null)
+
+const noSavedPlan = computed(
+  () =>
+    householdStore.planStatus === 'success' &&
+    householdStore.completion === null &&
+    householdStore.completionStatus === 'idle',
+)
+
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
-  await scenarioStore.loadScenarios()
+  if (!noSavedPlan.value) await scenarioStore.loadScenarios()
 })
 
-const readyToTest = computed(() => householdStore.plan !== null)
+async function retryPlanAvailability() {
+  await householdStore.loadPlan()
+  if (!noSavedPlan.value) await scenarioStore.loadScenarios()
+}
 
 const selectedScenario = computed(() =>
   scenarioStore.scenarios.find((s) => s.scenario_id === scenarioStore.selectedScenarioId) ?? null,
@@ -31,9 +43,20 @@ const selectedScenario = computed(() =>
     <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your household plan…" />
     <ErrorState
       v-else-if="householdStore.planStatus === 'error'"
-      :message="householdStore.planError ?? undefined"
+      message="Could not load your household plan."
       @retry="householdStore.loadPlan"
     />
+
+    <EmptyState
+      v-else-if="noSavedPlan"
+      title="No saved plan found"
+      message="Build and save your plan before testing scenarios."
+    >
+      <div class="state-actions">
+        <router-link class="btn btn-primary btn-sm" to="/plan">Go to Plan builder</router-link>
+        <button class="btn btn-ghost btn-sm" type="button" @click="retryPlanAvailability">Retry</button>
+      </div>
+    </EmptyState>
 
     <EmptyState
       v-else-if="!readyToTest"
@@ -48,7 +71,7 @@ const selectedScenario = computed(() =>
         <LoadingState v-if="scenarioStore.scenariosStatus === 'loading'" message="Loading scenarios…" />
         <ErrorState
           v-else-if="scenarioStore.scenariosStatus === 'error'"
-          :message="scenarioStore.scenariosError ?? 'Could not load basic scenarios.'"
+          message="Could not load scenarios. Please try again."
           @retry="scenarioStore.loadScenarios"
         />
         <ScenarioList
@@ -74,7 +97,7 @@ const selectedScenario = computed(() =>
         <LoadingState v-else-if="scenarioStore.testStatus === 'loading'" message="Testing your current plan…" />
         <ErrorState
           v-else-if="scenarioStore.testStatus === 'error'"
-          :message="scenarioStore.testError ?? undefined"
+          message="The scenario test could not be completed. Check that your plan has been saved, then try again."
           @retry="scenarioStore.runTest"
         />
         <EmptyState
@@ -90,13 +113,12 @@ const selectedScenario = computed(() =>
 
 <style scoped>
 .scenario-tester {
-  max-width: 980px;
   width: 100%;
-  margin-inline: auto;
+  min-width: 0;
 }
 
 .headline {
-  font-size: 1.9rem;
+  font-size: 2rem;
   margin: 0.4rem 0 0.5rem;
 }
 
@@ -120,6 +142,13 @@ const selectedScenario = computed(() =>
 
 .run-btn {
   width: 100%;
+}
+
+.state-actions {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 760px) {

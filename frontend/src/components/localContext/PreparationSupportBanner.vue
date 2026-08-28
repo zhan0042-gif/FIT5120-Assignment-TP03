@@ -45,7 +45,7 @@ const reviewLabels = computed(() =>
 
 .review-list {
   margin-top: 0.4rem;
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
 }
 </style>

@@ -41,7 +41,7 @@ function submit() {
       <p>We couldn't match this address to official Victorian bushfire data, or the latest data isn't available right now.</p>
     </div>
 
-    <ErrorState v-else-if="store.contextStatus === 'error'" :message="store.contextError ?? undefined" @retry="submit" />
+    <ErrorState v-else-if="store.contextStatus === 'error'" message="Could not load local bushfire context." @retry="submit" />
 
     <template v-else-if="store.contextStatus === 'success'">
       <div v-if="store.context" class="context-results">
@@ -110,7 +110,7 @@ function submit() {
 }
 
 .hint {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
   margin-bottom: 1rem;
 }

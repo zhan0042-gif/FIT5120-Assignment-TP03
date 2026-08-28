@@ -65,6 +65,6 @@ const SECTION_LABELS: Record<string, string> = {
 
 .hint {
   color: var(--color-text-muted);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
 }
 </style>

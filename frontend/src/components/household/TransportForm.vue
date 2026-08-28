@@ -120,6 +120,10 @@ function memberName(id: string) {
   gap: 0.75rem;
 }
 
+.transport-row > .btn-danger {
+  align-self: flex-end;
+}
+
 .drivers {
   display: flex;
   flex-direction: column;
@@ -127,7 +131,7 @@ function memberName(id: string) {
 }
 
 .hint {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
 }
 

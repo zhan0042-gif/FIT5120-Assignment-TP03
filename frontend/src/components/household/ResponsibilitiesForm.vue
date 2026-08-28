@@ -85,8 +85,12 @@ function isConflict(r: Responsibility) {
   gap: 0.75rem;
 }
 
+.resp-row > .btn-danger {
+  align-self: flex-end;
+}
+
 .hint {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
 }
 </style>

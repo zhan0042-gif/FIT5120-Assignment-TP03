@@ -138,4 +138,12 @@ function removeAnimal(id: string) {
   gap: 1.25rem;
   flex-wrap: wrap;
 }
+
+.member-row > .btn-danger {
+  align-self: flex-end;
+}
+
+.checkbox-group > .btn-danger {
+  margin-left: auto;
+}
 </style>
