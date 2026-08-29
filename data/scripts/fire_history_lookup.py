@@ -5,10 +5,12 @@ from shapely.geometry import Point
 
 
 # --------------------------------------------------
-# Load full processed Fire History dataset
+# Load lightweight Fire History dataset
 # --------------------------------------------------
 
-FIRE_HISTORY_PATH = "data/processed/fire_history.parquet"
+FIRE_HISTORY_PATH = (
+    "data/processed/fire_history_lightweight.parquet"
+)
 
 fire_history = gpd.read_parquet(FIRE_HISTORY_PATH)
 
@@ -17,14 +19,12 @@ print("Source CRS:", fire_history.crs)
 
 
 # --------------------------------------------------
-# Prepare projected dataset once
-#
-# EPSG:7899 = GDA2020 / Vicgrid
-# It uses metres and is suitable for Victorian
-# distance-based spatial operations.
+# Project dataset once for distance-based lookup
 # --------------------------------------------------
 
-fire_history_projected = fire_history.to_crs("EPSG:7899")
+fire_history_projected = fire_history.to_crs(
+    "EPSG:7899"
+)
 
 print("Lookup CRS:", fire_history_projected.crs)
 
@@ -41,38 +41,37 @@ def get_fire_history_context(
     """
     Return historical bushfire context around a location.
 
-    The source dataset has already been filtered to Bushfire
-    records only.
+    The lightweight dataset contains one representative
+    point for each historical bushfire polygon.
 
-    This function returns contextual historical information.
+    The result is contextual information only.
     It does not calculate or predict bushfire risk.
     """
 
-    # Create location point
     location = gpd.GeoSeries(
         [Point(longitude, latitude)],
         crs="EPSG:4326"
     )
 
-    # Convert location to Victorian projected CRS
-    location_projected = location.to_crs("EPSG:7899")
+    location_projected = location.to_crs(
+        "EPSG:7899"
+    )
 
-    # Create search radius in metres
     search_area = location_projected.buffer(
         radius_km * 1000
     ).iloc[0]
 
-    # Use spatial index to find intersecting fire polygons
-    matching_indices = fire_history_projected.sindex.query(
-        search_area,
-        predicate="intersects"
+    matching_indices = (
+        fire_history_projected.sindex.query(
+            search_area,
+            predicate="intersects"
+        )
     )
 
     nearby_fires = fire_history_projected.iloc[
         matching_indices
     ].copy()
 
-    # No historical records found
     if nearby_fires.empty:
         return {
             "historical_fire_record_count": 0,
@@ -81,7 +80,6 @@ def get_fire_history_context(
             "search_radius_km": radius_km
         }
 
-    # Most recent valid start date
     valid_dates = nearby_fires[
         "start_date"
     ].dropna()
@@ -90,10 +88,11 @@ def get_fire_history_context(
         most_recent_fire_date = None
     else:
         most_recent_fire_date = (
-            valid_dates.max().date().isoformat()
+            valid_dates.max()
+            .date()
+            .isoformat()
         )
 
-    # Compact backend-facing result
     return {
         "historical_fire_record_count": int(
             len(nearby_fires)
@@ -128,6 +127,9 @@ print(
 )
 
 
+# --------------------------------------------------
+# Basic validation
+# --------------------------------------------------
 
 print("\nBasic validation:")
 
@@ -138,14 +140,21 @@ required_keys = {
     "search_radius_km"
 }
 
-keys_ok = required_keys.issubset(result.keys())
+keys_ok = required_keys.issubset(
+    result.keys()
+)
 
 count_ok = (
-    isinstance(result["historical_fire_record_count"], int)
+    isinstance(
+        result["historical_fire_record_count"],
+        int
+    )
     and result["historical_fire_record_count"] >= 0
 )
 
-radius_ok = result["search_radius_km"] == 20
+radius_ok = (
+    result["search_radius_km"] == 20
+)
 
 print("Required keys present:", keys_ok)
 print("Record count valid:", count_ok)

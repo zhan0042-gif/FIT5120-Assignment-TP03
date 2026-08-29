@@ -391,7 +391,7 @@ The Fire History functionality is contextual only. It does not calculate, estima
 
 ### Source processing
 
-The original Fire History dataset contains records for several fire types.
+The original Fire History dataset contains several fire types.
 
 The processing pipeline keeps only records where:
 
@@ -405,19 +405,19 @@ Processing is performed by:
 
 `scripts/process_fire_history.py`
 
-The processed full-resolution dataset contains:
+The full processed dataset contains:
 
 ~~~text
 628,308 Bushfire records
 ~~~
 
-with records covering seasons from:
+covering seasons from:
 
 ~~~text
 1903 to 2025
 ~~~
 
-The processed data is converted to:
+The full processed dataset is converted to:
 
 `EPSG:4326`
 
@@ -425,13 +425,13 @@ and stored as:
 
 `processed/fire_history.parquet`
 
-### Storage
+### Full processed dataset storage
 
 The full processed Fire History GeoParquet is approximately 639 MB.
 
 Because of its size, it is not committed to GitHub.
 
-It is stored separately in the team's shared data storage / Google Drive.
+It is stored separately in the team's shared Google Drive / data storage.
 
 The file is excluded from Git using:
 
@@ -439,11 +439,37 @@ The file is excluded from Git using:
 data/processed/fire_history.parquet
 ~~~
 
-The processing code remains in GitHub so that the processed dataset can be reproduced from the original source.
+The processing script remains in GitHub so that the full processed dataset can be reproduced from the original source.
 
-### Backend-facing Fire History lookup
+### Lightweight Backend dataset
 
-A lightweight application-facing lookup is implemented in:
+To support faster Backend integration, a lightweight Fire History dataset is derived from the full processed dataset.
+
+The lightweight dataset is created by:
+
+`scripts/create_fire_history_lightweight.py`
+
+The output is:
+
+`processed/fire_history_lightweight.parquet`
+
+The lightweight file is approximately 11 MB.
+
+It keeps all 628,308 Bushfire records but retains only:
+
+- `season`
+- `start_date`
+- `geometry`
+
+The original fire polygon geometry is replaced with one representative point located inside each original fire polygon.
+
+This significantly reduces storage size while preserving one spatial reference point for every historical Bushfire record.
+
+The full polygon dataset remains preserved separately and is not replaced by the lightweight dataset.
+
+### Lightweight lookup
+
+The application-facing lookup is implemented in:
 
 `scripts/fire_history_lookup.py`
 
@@ -465,7 +491,7 @@ The lookup returns a compact result such as:
 
 ~~~json
 {
-  "historical_fire_record_count": 63,
+  "historical_fire_record_count": 58,
   "last_recorded_burn_year": 2025,
   "most_recent_fire_date": "2025-02-03",
   "search_radius_km": 20
@@ -476,29 +502,40 @@ The exact values depend on the location being queried.
 
 ### Lookup method
 
-The lookup:
+The lightweight lookup:
 
-1. receives a latitude and longitude in EPSG:4326
-2. transforms the location and historical fire polygons to EPSG:7899 (GDA2020 / Vicgrid)
-3. creates a search area using the specified radius in kilometres
-4. uses a spatial index to identify historical bushfire polygons intersecting the search area
-5. derives a compact contextual response from those records
+1. loads the representative-point Fire History dataset
+2. receives a latitude and longitude in EPSG:4326
+3. transforms the query location and representative points to EPSG:7899 (GDA2020 / Vicgrid)
+4. creates a search area using the specified radius in kilometres
+5. uses a spatial index to identify representative points that fall inside the search area
+6. derives a compact contextual response from the matching records
 
-The full Fire History dataset is preserved separately.
+### Approximation and interpretation
 
-The compact lookup result is a derived application view and does not replace or discard the underlying historical records.
+The lightweight dataset uses a representative point for each original historical fire polygon.
 
-### Interpretation
+Therefore:
 
-`historical_fire_record_count` represents the number of historical bushfire polygon records intersecting the selected search area.
+`historical_fire_record_count`
+
+represents the number of historical Bushfire record representative points located inside the selected search radius.
+
+It is not exactly equivalent to counting all original fire polygons that intersect the search area.
+
+For example, a large historical fire polygon may intersect the search radius even if its representative point lies outside the radius.
+
+The full polygon dataset is retained separately when exact polygon-level spatial analysis is required.
+
+The lightweight result is designed for fast contextual display in the application.
 
 It must not automatically be interpreted as the number of unique real-world bushfire events because a fire event may be represented by more than one spatial record.
 
-`last_recorded_burn_year` represents the most recent recorded fire season among matching historical bushfire records.
+`last_recorded_burn_year` represents the most recent recorded fire season among matching historical records.
 
 `most_recent_fire_date` represents the latest available `START_DATE` among matching records.
 
-`search_radius_km` makes the geographic scope of the result explicit.
+`search_radius_km` makes the geographic scope of the lookup explicit.
 
 These values provide historical context only.
 
