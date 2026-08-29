@@ -21,3 +21,6 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Raw open datasets are stored externally
+data/raw/
