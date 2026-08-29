@@ -24,3 +24,6 @@ Thumbs.db
 
 # Raw open datasets are stored externally
 data/raw/
+
+# Large processed Fire History dataset is stored externally
+data/processed/fire_history.parquet

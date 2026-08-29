@@ -377,3 +377,134 @@ In particular:
 - CFA Fire District identifies the relevant district, not the current Fire Danger Rating.
 - Fire Danger Ratings must come from an official live or forecast source.
 - Environmental or historical datasets added later should be presented as contextual information unless a validated methodology supports stronger interpretation.
+
+
+---
+
+## Fire History Context
+
+### Purpose
+
+The Fire History dataset is used to provide simple historical bushfire context around a household location for Iteration 1 US2.2.
+
+The Fire History functionality is contextual only. It does not calculate, estimate or predict personalised bushfire risk.
+
+### Source processing
+
+The original Fire History dataset contains records for several fire types.
+
+The processing pipeline keeps only records where:
+
+~~~text
+FIRETYPE = Bushfire
+~~~
+
+This prevents planned burns and other fire types from being mixed with historical bushfire context.
+
+Processing is performed by:
+
+`scripts/process_fire_history.py`
+
+The processed full-resolution dataset contains:
+
+~~~text
+628,308 Bushfire records
+~~~
+
+with records covering seasons from:
+
+~~~text
+1903 to 2025
+~~~
+
+The processed data is converted to:
+
+`EPSG:4326`
+
+and stored as:
+
+`processed/fire_history.parquet`
+
+### Storage
+
+The full processed Fire History GeoParquet is approximately 639 MB.
+
+Because of its size, it is not committed to GitHub.
+
+It is stored separately in the team's shared data storage / Google Drive.
+
+The file is excluded from Git using:
+
+~~~text
+data/processed/fire_history.parquet
+~~~
+
+The processing code remains in GitHub so that the processed dataset can be reproduced from the original source.
+
+### Backend-facing Fire History lookup
+
+A lightweight application-facing lookup is implemented in:
+
+`scripts/fire_history_lookup.py`
+
+The lookup accepts:
+
+~~~text
+latitude
+longitude
+search_radius_km
+~~~
+
+The current default search radius is:
+
+~~~text
+20 km
+~~~
+
+The lookup returns a compact result such as:
+
+~~~json
+{
+  "historical_fire_record_count": 63,
+  "last_recorded_burn_year": 2025,
+  "most_recent_fire_date": "2025-02-03",
+  "search_radius_km": 20
+}
+~~~
+
+The exact values depend on the location being queried.
+
+### Lookup method
+
+The lookup:
+
+1. receives a latitude and longitude in EPSG:4326
+2. transforms the location and historical fire polygons to EPSG:7899 (GDA2020 / Vicgrid)
+3. creates a search area using the specified radius in kilometres
+4. uses a spatial index to identify historical bushfire polygons intersecting the search area
+5. derives a compact contextual response from those records
+
+The full Fire History dataset is preserved separately.
+
+The compact lookup result is a derived application view and does not replace or discard the underlying historical records.
+
+### Interpretation
+
+`historical_fire_record_count` represents the number of historical bushfire polygon records intersecting the selected search area.
+
+It must not automatically be interpreted as the number of unique real-world bushfire events because a fire event may be represented by more than one spatial record.
+
+`last_recorded_burn_year` represents the most recent recorded fire season among matching historical bushfire records.
+
+`most_recent_fire_date` represents the latest available `START_DATE` among matching records.
+
+`search_radius_km` makes the geographic scope of the result explicit.
+
+These values provide historical context only.
+
+They must not be used to claim that:
+
+- a future bushfire will occur
+- a location is safe or unsafe
+- a household has a particular bushfire risk level
+- historical fire frequency directly predicts future fire activity
