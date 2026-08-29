@@ -21,11 +21,25 @@ Determine whether a Victorian latitude and longitude falls inside a designated B
 
 #### Source
 
-Victorian Government DataVic — Designated Bushfire Prone Area (BPA).
+Dataset: Designated Bushfire Prone Area (BPA)
+
+Organisation: Department of Transport and Planning
+
+Platform: Victorian Government DataVic
 
 Source page:
 
 https://discover.data.vic.gov.au/dataset/designated-bushfire-prone-area-bpa
+
+Licence: Creative Commons Attribution 4.0 International
+
+Published metadata record: 27/09/2023
+
+Last updated: 30/07/2026
+
+Update frequency: Unknown
+
+The DataVic metadata notes that the latest listed BPA review was gazetted on 16 June 2026.
 
 #### Raw data
 
@@ -104,7 +118,23 @@ This allows the Backend to associate a household location with the correct CFA d
 
 #### Source
 
-Victorian Government / Country Fire Authority — CFA Total Fire Ban District Polygon dataset.
+Dataset: Vicmap Admin - Country Fire Authority (CFA) Total Fire Ban District Polygon
+
+Organisation: Country Fire Authority
+
+Platform: Victorian Government DataVic
+
+Source page:
+
+https://discover.data.vic.gov.au/dataset/vicmap-admin-country-fire-authority-cfa-total-fire-ban-district-polygon
+
+Licence: Creative Commons Attribution 4.0 International
+
+Published metadata record: 28/02/2025
+
+Last updated: 30/07/2026
+
+Update frequency: Unknown
 
 #### Raw data
 
