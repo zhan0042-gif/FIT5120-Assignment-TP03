@@ -1,0 +1,79 @@
+import pytest
+
+from app.core.exceptions import ExternalDataUnavailable
+from app.providers.data_spatial import DataSpatialProvider
+
+
+def test_data_spatial_provider_maps_the_data_contract() -> None:
+    def lookup(latitude: float, longitude: float) -> dict:
+        assert (latitude, longitude) == (-37.89, 144.12)
+        return {
+            "is_bushfire_prone_area": True,
+            "fire_district": "Central",
+            "environmental_context": {
+                "fire_history": {
+                    "historical_fire_record_count": 3,
+                    "last_recorded_burn_year": 2024,
+                    "most_recent_fire_date": "2024-02-03",
+                    "search_radius_km": 20,
+                }
+            },
+        }
+
+    result = DataSpatialProvider(lookup).get_context(-37.89, 144.12)
+
+    assert result.is_bushfire_prone_area is True
+    assert result.fire_district == "Central"
+    assert result.fire_history_summary == (
+        "3 historical bushfire records were found within 20 km. "
+        "The latest recorded burn season was 2024. "
+        "The most recent dated record was 2024-02-03."
+    )
+    assert result.vegetation_context is None
+    assert result.terrain_context is None
+
+
+def test_data_spatial_provider_formats_an_empty_fire_history() -> None:
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {
+            "is_bushfire_prone_area": False,
+            "fire_district": "Mallee",
+            "environmental_context": {
+                "fire_history": {
+                    "historical_fire_record_count": 0,
+                    "last_recorded_burn_year": None,
+                    "most_recent_fire_date": None,
+                    "search_radius_km": 12.5,
+                }
+            },
+        }
+    )
+
+    result = provider.get_context(-35.0, 142.0)
+
+    assert result.fire_history_summary == (
+        "No historical bushfire records were found within 12.5 km."
+    )
+
+
+def test_data_spatial_provider_rejects_locations_without_a_district() -> None:
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {
+            "is_bushfire_prone_area": False,
+            "fire_district": None,
+            "environmental_context": {},
+        }
+    )
+
+    with pytest.raises(ExternalDataUnavailable, match="CFA fire district"):
+        provider.get_context(-10.0, 120.0)
+
+
+def test_data_spatial_provider_hides_lookup_failures() -> None:
+    def unavailable(_latitude: float, _longitude: float) -> dict:
+        raise OSError("private data path")
+
+    with pytest.raises(
+        ExternalDataUnavailable, match="Spatial context data is unavailable"
+    ):
+        DataSpatialProvider(unavailable).get_context(-37.89, 144.12)

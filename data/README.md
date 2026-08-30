@@ -2,6 +2,11 @@
 
 This directory contains open-data processing work for the FIT5120 project.
 
+See [`docs/iteration1-integration-contract.md`](../docs/iteration1-integration-contract.md)
+for the Backend adapter, runtime modes, and complete cross-component contract.
+This README remains the source for datasets, processing, provenance, and spatial
+lookup details.
+
 ## Folder structure
 
 - `raw/` — original datasets stored locally or in the team Google Drive and not committed to GitHub.
@@ -223,7 +228,8 @@ Combined lookup testing is implemented in:
 
 `scripts/test_spatial_lookup.py`
 
-For a latitude and longitude, the current data layer can return:
+For a latitude and longitude, the spatial-classification portion of the combined
+result is:
 
 ~~~json
 {
@@ -236,14 +242,15 @@ For a latitude and longitude, the current data layer can return:
 }
 ~~~
 
-This is the main Iteration 1 spatial data output intended for Backend integration.
+This is part of the Iteration 1 spatial output used by Backend.
 
-The lookup combines:
+The application-facing combined lookup also includes the Fire History context
+documented below. Its spatial classification combines:
 
 - Designated Bushfire Prone Area status
 - CFA Fire District
 
-into a single location context result.
+into a single location-context result.
 
 ---
 
@@ -327,7 +334,7 @@ Processed GeoParquet files
         ↓
 Spatial point-in-polygon lookup
         ↓
-BPA status + CFA Fire District
+        BPA status + CFA Fire District + Fire History context
         ↓
 Backend integration
 ~~~
@@ -344,6 +351,7 @@ The Data layer does not calculate or predict official Fire Danger Ratings.
 |---|---|---|
 | Bushfire Prone Area | `processed/bpa.parquet` | Determine whether a location is inside a designated BPA |
 | CFA Fire District | `processed/fire_district.parquet` | Determine the CFA fire district for a location |
+| Lightweight Fire History | `processed/fire_history_lightweight.parquet` | Provide contextual historical-fire records within a configured radius |
 
 ---
 
@@ -353,7 +361,12 @@ The Data layer does not calculate or predict official Fire Danger Ratings.
 |---|---|
 | `scripts/process_bpa.py` | Clean, validate and export BPA spatial data |
 | `scripts/process_fire_district.py` | Clean, validate and export CFA Fire District data |
-| `scripts/test_spatial_lookup.py` | Test combined BPA and Fire District spatial lookups |
+| `scripts/process_fire_history.py` | Clean and export the full bushfire-history dataset |
+| `scripts/create_fire_history_lightweight.py` | Create the representative-point Backend dataset |
+| `scripts/fire_history_lookup.py` | Query contextual Fire History by radius |
+| `scripts/location_context.py` | Combine BPA, district, and Fire History results for Backend |
+| `scripts/test_location_context.py` | Validate the combined application-facing response |
+| `scripts/test_spatial_lookup.py` | Validate BPA/district fixtures and Fire History response structure |
 
 ---
 
@@ -555,6 +568,9 @@ The main reusable location-context module for Backend integration is:
 
 `data/scripts/location_context.py`
 
+Backend consumes it through `backend/app/providers/data_spatial.py`, which maps
+the nested fire-history values into the public API's contextual summary string.
+
 It combines the current Iteration 1 spatial context into one application-ready response:
 
 ~~~json
@@ -576,10 +592,10 @@ It combines the current Iteration 1 spatial context into one application-ready r
 }
 ~~~
 
-Backend can import:
+From the repository root, Backend imports:
 
 ~~~python
-from location_context import get_location_context
+from data.scripts.location_context import get_location_context
 ~~~
 
 and call:

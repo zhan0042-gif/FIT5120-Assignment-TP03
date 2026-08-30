@@ -1,17 +1,17 @@
 import geopandas as gpd
 from shapely.geometry import Point
 import pandas as pd
-from fire_history_lookup import get_fire_history_context
+from pathlib import Path
+
+from data.scripts.fire_history_lookup import get_fire_history_context
 
 
 # Load processed datasets
-bpa = gpd.read_parquet(
-    "data/processed/bpa.parquet"
-)
+DATA_DIR = Path(__file__).resolve().parents[1]
 
-fire_district = gpd.read_parquet(
-    "data/processed/fire_district.parquet"
-)
+bpa = gpd.read_parquet(DATA_DIR / "processed" / "bpa.parquet")
+
+fire_district = gpd.read_parquet(DATA_DIR / "processed" / "fire_district.parquet")
 
 
 def check_bpa(latitude, longitude, bpa_gdf):
@@ -144,9 +144,7 @@ for _, row in fire_district.iterrows():
 
 
 
-test_cases = pd.read_csv(
-    "data/test/location_test_cases.csv"
-)
+test_cases = pd.read_csv(DATA_DIR / "test" / "location_test_cases.csv")
 
 print("\nRunning test fixtures:")
 

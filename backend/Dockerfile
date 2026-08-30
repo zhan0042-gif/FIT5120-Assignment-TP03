@@ -5,10 +5,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app ./app
+COPY backend/app ./app
+COPY data/__init__.py ./data/__init__.py
+COPY data/scripts/__init__.py data/scripts/location_context.py data/scripts/fire_history_lookup.py ./data/scripts/
+COPY data/processed/bpa.parquet data/processed/fire_district.parquet data/processed/fire_history_lightweight.parquet ./data/processed/
 
 EXPOSE 8000
 

@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import geopandas as gpd
 from shapely.geometry import Point
@@ -9,7 +10,9 @@ from shapely.geometry import Point
 # --------------------------------------------------
 
 FIRE_HISTORY_PATH = (
-    "data/processed/fire_history_lightweight.parquet"
+    Path(__file__).resolve().parents[1]
+    / "processed"
+    / "fire_history_lightweight.parquet"
 )
 
 fire_history = gpd.read_parquet(FIRE_HISTORY_PATH)

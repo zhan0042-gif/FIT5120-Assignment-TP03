@@ -1,19 +1,21 @@
 # FIT5120 Full-Stack Project
 
-This repository contains the initial backend and infrastructure foundation for a university team project. It deliberately keeps the current architecture small and leaves other project streams to their owners.
+This repository contains the Iteration 1 full-stack implementation for the
+FIT5120 FIREBREAK university team project. The current architecture remains
+deliberately small and keeps future project streams outside the I1 contract.
 
 ## Project structure
 
-- `frontend/` is reserved for the frontend team's Vue application; it has not been initialized.
+- `frontend/` contains the Vue 3 + Vite + TypeScript application for Iteration 1, integrated with the FastAPI backend.
 - `backend/` contains the runnable FastAPI application, its layered package structure, tests, dependencies, and Dockerfile.
-- `database/` reserves locations for MySQL initialization, migrations, and future development seed data.
+- `database/` contains the Iteration 1 MySQL application schema and reserves locations for migrations and future development seed data.
 - `ai/` reserves a location for later AI processing and integrations; no AI architecture is selected.
 - `nginx/` documents the planned reverse-proxy role for a future production deployment.
 - `.github/workflows/` contains backend CI and a non-deploying manual CD scaffold.
 
 ## Technology stack
 
-- Vue 3 + Vite + TypeScript (planned frontend)
+- Vue 3 + Vite + TypeScript
 - Python 3.12 + FastAPI (backend)
 - MySQL 8
 - Docker + Docker Compose
@@ -22,7 +24,33 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Current status
 
-The backend scaffold and `/api/health` endpoint are implemented, and MySQL is configured for Docker-based development with persistent storage. The frontend has not been initialized, AI functionality and the database schema have not been designed, and EC2 deployment is not active.
+The Iteration 1 Vue frontend, FastAPI API, MySQL application persistence, and
+processed spatial Data layer are integrated. Household plans, locations,
+completion checks, local context, preparation support, and basic scenario tests
+run end-to-end under `/api/v1`.
+
+See [`docs/iteration1-integration-contract.md`](docs/iteration1-integration-contract.md)
+for the human-readable API, business-rule, persistence, ownership, and provider
+contract.
+
+Normal runtime uses MySQL, the processed BPA/CFA district/fire-history datasets,
+and official Vicmap/BOM providers. Set `APP_DATA_MODE=mock` for deterministic
+offline address, fire-danger, and weather responses. Unit tests additionally set
+`APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock`; these modes are test and
+development fallbacks rather than the full-stack defaults.
+
+The Iteration 1 endpoints are:
+
+- `POST /api/v1/households`
+- `PUT|GET /api/v1/households/{household_id}/plan`
+- `GET /api/v1/households/{household_id}/completion`
+- `PUT /api/v1/households/{household_id}/location`
+- `GET /api/v1/households/{household_id}/local-context`
+- `GET /api/v1/households/{household_id}/preparation-support`
+- `GET /api/v1/scenarios/basic?household_id={household_id}`
+- `POST /api/v1/households/{household_id}/tests`
+- `GET /api/v1/households/{household_id}/tests/{test_run_id}`
+
 
 ## Local backend setup
 
@@ -51,7 +79,12 @@ docker compose ps
 docker compose down
 ```
 
-The API is exposed on `http://localhost:8000` by default. The backend uses the Compose service name `mysql` for database networking. MySQL data is stored in the named `mysql_data` volume and survives ordinary `docker compose down` and restart operations.
+The API is exposed on `http://localhost:8000` by default. The backend uses the
+Compose service name `mysql` for database networking. MySQL data is stored in the
+named `mysql_data` volume and survives ordinary `docker compose down` and restart
+operations. To run the full stack without calls to official services, set
+`APP_DATA_MODE=mock` in `.env`; BPA, CFA district, and fire-history lookups still
+use the real processed Data files.
 
 ## Testing
 
@@ -62,18 +95,21 @@ cd backend
 pytest
 ```
 
-The current tests are intentionally independent of MySQL. Database integration tests can introduce a disposable test database when the persistence layer exists.
+Most tests use the in-memory repository. MySQL integration tests run when
+`MYSQL_TEST_URL` points to a disposable database initialized with
+`database/init/001_initial_schema.sql`; they are skipped otherwise. Never point
+these cleanup-based tests at a database containing data that must be retained.
 
 ## CI/CD
 
-Backend CI runs tests and validates the FastAPI import for relevant pushes to `main` and pull requests. Frontend CI will be added after the frontend team initializes Vue and defines its scripts and tooling.
+Backend CI runs tests and validates the FastAPI import for relevant pushes to
+`main` and pull requests. The initialized Frontend currently has no dedicated CI
+workflow; its available verification command is `npm run build`.
 
 The deployment workflow is a manual, non-deploying scaffold. It does not connect to EC2 or use deployment credentials. A future deployment may authenticate to a provisioned EC2 instance, update code or container images, run `docker compose up -d --build`, and perform health checks.
 
 ## Remaining work
-
-- Initialize the Vue frontend, then add its Dockerfile and CI workflow.
-- Define the application database schema, migrations, and any development seed data.
+- Add migrations before evolving the initial schema beyond Iteration 1.
 - Decide and implement the AI architecture.
 - Add a production Nginx configuration after routing and domains are known.
 - Provision AWS EC2 and configure reviewed deployment credentials/secrets.

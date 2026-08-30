@@ -1,16 +1,14 @@
 -- FIT5120 FIREBREAK
 -- Iteration 1 initial application database schema
 
-USE fit5120;
-
-
 -- =========================================================
 -- 1. Household
 -- =========================================================
 
 CREATE TABLE household (
     household_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    display_name VARCHAR(150) NOT NULL,
+    public_id VARCHAR(64) NOT NULL UNIQUE,
+    display_name VARCHAR(150),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP
@@ -23,6 +21,7 @@ CREATE TABLE household (
 
 CREATE TABLE household_member (
     member_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(64) NOT NULL UNIQUE,
     household_id BIGINT UNSIGNED NOT NULL,
     display_name VARCHAR(150) NOT NULL,
     is_dependant BOOLEAN NOT NULL DEFAULT FALSE,
@@ -45,6 +44,7 @@ CREATE TABLE household_member (
 
 CREATE TABLE animal (
     animal_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(64) NOT NULL UNIQUE,
     household_id BIGINT UNSIGNED NOT NULL,
     display_name VARCHAR(150),
     category VARCHAR(50) NOT NULL,
@@ -67,9 +67,10 @@ CREATE TABLE animal (
 
 CREATE TABLE transport (
     transport_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(64) NOT NULL UNIQUE,
     household_id BIGINT UNSIGNED NOT NULL,
     transport_type VARCHAR(100) NOT NULL,
-    display_name VARCHAR(150) NOT NULL,
+    display_name VARCHAR(150),
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -113,6 +114,7 @@ CREATE TABLE transport_driver (
 
 CREATE TABLE destination (
     destination_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(64) NOT NULL UNIQUE,
     household_id BIGINT UNSIGNED NOT NULL,
     display_name VARCHAR(150) NOT NULL,
     address VARCHAR(255),
@@ -143,6 +145,7 @@ CREATE TABLE destination (
 
 CREATE TABLE household_arrangement (
     household_id BIGINT UNSIGNED PRIMARY KEY,
+    has_private_transport BOOLEAN,
 
     primary_transport_id BIGINT UNSIGNED,
     backup_transport_id BIGINT UNSIGNED,
@@ -195,9 +198,10 @@ CREATE TABLE household_arrangement (
 
 CREATE TABLE responsibility (
     responsibility_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(64) NOT NULL UNIQUE,
     household_id BIGINT UNSIGNED NOT NULL,
     task_name VARCHAR(200) NOT NULL,
-    primary_member_id BIGINT UNSIGNED NOT NULL,
+    primary_member_id BIGINT UNSIGNED,
     backup_member_id BIGINT UNSIGNED,
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -210,7 +214,7 @@ CREATE TABLE responsibility (
     CONSTRAINT fk_responsibility_primary_member
         FOREIGN KEY (primary_member_id)
         REFERENCES household_member(member_id)
-        ON DELETE RESTRICT,
+        ON DELETE SET NULL,
 
     CONSTRAINT fk_responsibility_backup_member
         FOREIGN KEY (backup_member_id)
@@ -230,7 +234,7 @@ CREATE TABLE responsibility (
 
 CREATE TABLE household_location (
     household_id BIGINT UNSIGNED PRIMARY KEY,
-    address VARCHAR(255),
+    address VARCHAR(300),
     suburb VARCHAR(150),
     postcode VARCHAR(10),
     latitude DECIMAL(9,6) NOT NULL,
@@ -257,17 +261,19 @@ CREATE TABLE household_location (
 
 CREATE TABLE test_run (
     test_run_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    public_id VARCHAR(64) NOT NULL UNIQUE,
     household_id BIGINT UNSIGNED NOT NULL,
     scenario_id VARCHAR(100) NOT NULL,
 
     overall_status ENUM(
-        'passed',
-        'affected',
-        'failed'
+        'pass',
+        'needs_attention'
     ) NOT NULL,
 
     result_reason TEXT,
-    tested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    first_problem_section VARCHAR(50),
+    first_problem_message TEXT,
+    tested_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     CONSTRAINT fk_test_run_household
         FOREIGN KEY (household_id)
@@ -286,12 +292,13 @@ CREATE TABLE test_run (
 CREATE TABLE test_check_result (
     check_result_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     test_run_id BIGINT UNSIGNED NOT NULL,
+    check_order SMALLINT UNSIGNED NOT NULL,
     check_code VARCHAR(100) NOT NULL,
 
     status ENUM(
-        'passed',
-        'affected',
-        'failed'
+        'pass',
+        'fail',
+        'not_checked'
     ) NOT NULL,
 
     message TEXT,
@@ -301,6 +308,8 @@ CREATE TABLE test_check_result (
         REFERENCES test_run(test_run_id)
         ON DELETE CASCADE,
 
+    CONSTRAINT uq_check_result_order
+        UNIQUE (test_run_id, check_order),
+
     INDEX idx_check_result_test_run (test_run_id)
 );
-
