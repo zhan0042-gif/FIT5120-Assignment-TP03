@@ -75,7 +75,7 @@ Deploy secrets (SSH key / SSM role ARN) are added to GitHub Actions Secrets at t
 ## 7. Open decisions (need team input)
 
 - **Domain** — **DECIDED (temporary): `cubesix.me`.** Reusing the earlier project's domain. Easy to change later (DNS + certbot, ~10 min) if the team prefers a new domain.
-- **Auth model** — Nginx basic auth vs application-level auth for I1 (see `threat-model.md` T1).
+- **Auth model** — **DECIDED: no application-level login (no registration/signup).** The I1 prototype uses **Nginx basic auth** as the only gate. Consequence: no per-user authorization in the backend, so the IDOR risk (threat-model T2) is **accepted for the prototype/demo**. Revisit if real multi-user data is introduced.
 - **Database** — keep MySQL in Docker, or move to RDS (costs more; safer for sensitive data)?
 - **Images** — build on the server, or push to GitHub Container Registry and pull?
 

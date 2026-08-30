@@ -26,7 +26,7 @@ Key properties to note:
 ## 2. Risk list
 
 - **T1 — Unauthenticated access to household data** — Backend API — **High** — auth layer / Nginx basic auth over HTTPS; document auth model before deploy
-- **T2 — IDOR: access another household by ID** — `GET/PUT /api/v1/households/{id}` — **High** — ownership/authorization check on every household-scoped endpoint
+- **T2 — IDOR: access another household by ID** — `GET/PUT /api/v1/households/{id}` — **High** — **DECIDED (I1): no app-level login, so no per-user ownership check. Risk accepted for prototype/demo; add ownership checks if multi-user data is introduced later.**
 - **T3 — SQL injection via input fields** — Backend / DB — **High** — parameterized queries / ORM only; never build SQL by string
 - **T4 — XSS via user-entered names/roles** — Frontend — Medium — escape all output; validate input length/type
 - **T5 — Location / PII exposure (breach or leak)** — Backend, logs, DB — **High** — minimisation (see privacy-requirements); no PII in logs; least-privilege DB user; restrict access
@@ -46,7 +46,7 @@ Key properties to note:
 
 ## 4. Open questions
 
-- Is backend application-level auth in scope for I1, or is Nginx basic auth enough for the prototype? (Decision needed from the team.)
+- ~~Is backend application-level auth in scope for I1?~~ **DECIDED: no application-level login for I1** — Nginx basic auth only; T2 accepted for the demo.
 - Which external API keys will I1 actually need? (Vicmap may not need a key; CFA/BOM feeds are keyless RSS.)
 
 ## 5. When to re-review
