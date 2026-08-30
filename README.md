@@ -4,7 +4,7 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Project structure
 
-- `frontend/` is reserved for the frontend team's Vue application; it has not been initialized.
+- `frontend/` contains the Vue 3 + Vite + TypeScript application for Iteration 1, integrated with the FastAPI backend.
 - `backend/` contains the runnable FastAPI application, its layered package structure, tests, dependencies, and Dockerfile.
 - `database/` contains the Iteration 1 MySQL application schema and reserves locations for migrations and future development seed data.
 - `ai/` reserves a location for later AI processing and integrations; no AI architecture is selected.
@@ -22,7 +22,27 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Current status
 
+
 The backend scaffold and `/api/health` endpoint are implemented, and MySQL is configured for Docker-based development with the Iteration 1 application schema and persistent storage. The frontend has not been initialized, AI functionality has not been designed, and EC2 deployment is not active.
+
+The backend provides the `/api/health` endpoint and an Iteration 1 API under
+`/api/v1`. Household plans, locations, completion checks, local context,
+preparation support, and basic scenario tests run end-to-end. Normal runtime
+uses official Vicmap and BOM providers; set `APP_DATA_MODE=mock` explicitly for
+offline provider-isolated development and tests. Persistence remains process-local,
+and spatial classification remains temporary pending Database and DS integration.
+
+The Iteration 1 endpoints are:
+
+- `POST /api/v1/households`
+- `PUT|GET /api/v1/households/{household_id}/plan`
+- `GET /api/v1/households/{household_id}/completion`
+- `PUT /api/v1/households/{household_id}/location`
+- `GET /api/v1/households/{household_id}/local-context`
+- `GET /api/v1/households/{household_id}/preparation-support`
+- `GET /api/v1/scenarios/basic`
+- `POST /api/v1/households/{household_id}/tests`
+
 
 ## Local backend setup
 
@@ -71,7 +91,6 @@ Backend CI runs tests and validates the FastAPI import for relevant pushes to `m
 The deployment workflow is a manual, non-deploying scaffold. It does not connect to EC2 or use deployment credentials. A future deployment may authenticate to a provisioned EC2 instance, update code or container images, run `docker compose up -d --build`, and perform health checks.
 
 ## Remaining work
-
 - Initialize the Vue frontend, then add its Dockerfile and CI workflow.
 - Integrate the Backend persistence repository and add migrations or development seed data when required.
 - Decide and implement the AI architecture.
