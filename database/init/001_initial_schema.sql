@@ -10,7 +10,7 @@ USE fit5120;
 
 CREATE TABLE household (
     household_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    household_name VARCHAR(150) NOT NULL,
+    display_name VARCHAR(150) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP
@@ -24,10 +24,10 @@ CREATE TABLE household (
 CREATE TABLE household_member (
     member_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     household_id BIGINT UNSIGNED NOT NULL,
-    member_name VARCHAR(150) NOT NULL,
-    age_group VARCHAR(50),
-    needs_assistance BOOLEAN NOT NULL DEFAULT FALSE,
-    support_needs TEXT,
+    display_name VARCHAR(150) NOT NULL,
+    is_dependant BOOLEAN NOT NULL DEFAULT FALSE,
+    mobility_support_required BOOLEAN NOT NULL DEFAULT FALSE,
+    support_notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_member_household
@@ -46,7 +46,8 @@ CREATE TABLE household_member (
 CREATE TABLE animal (
     animal_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     household_id BIGINT UNSIGNED NOT NULL,
-    animal_name VARCHAR(150),
+    display_name VARCHAR(150),
+    category VARCHAR(50) NOT NULL,
     animal_type VARCHAR(100) NOT NULL,
     support_notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -67,8 +68,8 @@ CREATE TABLE animal (
 CREATE TABLE transport (
     transport_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     household_id BIGINT UNSIGNED NOT NULL,
-    transport_name VARCHAR(150) NOT NULL,
-    transport_type VARCHAR(100),
+    transport_type VARCHAR(100) NOT NULL,
+    display_name VARCHAR(150) NOT NULL,
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -83,7 +84,7 @@ CREATE TABLE transport (
 
 -- =========================================================
 -- 5. Transport Driver
--- Maps household members to vehicles/transport they can drive
+-- Maps household members to transport they can drive/use
 -- =========================================================
 
 CREATE TABLE transport_driver (
@@ -113,7 +114,7 @@ CREATE TABLE transport_driver (
 CREATE TABLE destination (
     destination_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     household_id BIGINT UNSIGNED NOT NULL,
-    destination_name VARCHAR(150) NOT NULL,
+    display_name VARCHAR(150) NOT NULL,
     address VARCHAR(255),
     latitude DECIMAL(9,6),
     longitude DECIMAL(9,6),
@@ -137,68 +138,54 @@ CREATE TABLE destination (
 
 -- =========================================================
 -- 7. Household Arrangement
--- Stores primary / backup transport and destination choices
+-- One current primary/backup arrangement record per household
 -- =========================================================
 
 CREATE TABLE household_arrangement (
-    arrangement_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    household_id BIGINT UNSIGNED NOT NULL,
+    household_id BIGINT UNSIGNED PRIMARY KEY,
 
-    arrangement_type ENUM(
-        'transport',
-        'destination'
-    ) NOT NULL,
+    primary_transport_id BIGINT UNSIGNED,
+    backup_transport_id BIGINT UNSIGNED,
 
-    priority_type ENUM(
-        'primary',
-        'backup'
-    ) NOT NULL,
+    primary_destination_id BIGINT UNSIGNED,
+    backup_destination_id BIGINT UNSIGNED,
 
-    transport_id BIGINT UNSIGNED,
-    destination_id BIGINT UNSIGNED,
-
+    meeting_point VARCHAR(255),
     notes TEXT,
+
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_arrangement_household
         FOREIGN KEY (household_id)
         REFERENCES household(household_id)
         ON DELETE CASCADE,
 
-    CONSTRAINT fk_arrangement_transport
-        FOREIGN KEY (transport_id)
+    CONSTRAINT fk_arrangement_primary_transport
+        FOREIGN KEY (primary_transport_id)
         REFERENCES transport(transport_id)
-        ON DELETE CASCADE,
+        ON DELETE SET NULL,
 
-    CONSTRAINT fk_arrangement_destination
-        FOREIGN KEY (destination_id)
+    CONSTRAINT fk_arrangement_backup_transport
+        FOREIGN KEY (backup_transport_id)
+        REFERENCES transport(transport_id)
+        ON DELETE SET NULL,
+
+    CONSTRAINT fk_arrangement_primary_destination
+        FOREIGN KEY (primary_destination_id)
         REFERENCES destination(destination_id)
-        ON DELETE CASCADE,
+        ON DELETE SET NULL,
 
-    CONSTRAINT chk_arrangement_reference
-        CHECK (
-            (
-                arrangement_type = 'transport'
-                AND transport_id IS NOT NULL
-                AND destination_id IS NULL
-            )
-            OR
-            (
-                arrangement_type = 'destination'
-                AND destination_id IS NOT NULL
-                AND transport_id IS NULL
-            )
-        ),
+    CONSTRAINT fk_arrangement_backup_destination
+        FOREIGN KEY (backup_destination_id)
+        REFERENCES destination(destination_id)
+        ON DELETE SET NULL,
 
-    CONSTRAINT uq_household_arrangement
-        UNIQUE (
-            household_id,
-            arrangement_type,
-            priority_type
-        ),
-
-    INDEX idx_arrangement_transport (transport_id),
-    INDEX idx_arrangement_destination (destination_id)
+    INDEX idx_arrangement_primary_transport (primary_transport_id),
+    INDEX idx_arrangement_backup_transport (backup_transport_id),
+    INDEX idx_arrangement_primary_destination (primary_destination_id),
+    INDEX idx_arrangement_backup_destination (backup_destination_id)
 );
 
 
@@ -209,7 +196,7 @@ CREATE TABLE household_arrangement (
 CREATE TABLE responsibility (
     responsibility_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     household_id BIGINT UNSIGNED NOT NULL,
-    responsibility_name VARCHAR(200) NOT NULL,
+    task_name VARCHAR(200) NOT NULL,
     primary_member_id BIGINT UNSIGNED NOT NULL,
     backup_member_id BIGINT UNSIGNED,
     notes TEXT,
@@ -230,18 +217,19 @@ CREATE TABLE responsibility (
         REFERENCES household_member(member_id)
         ON DELETE SET NULL,
 
-    INDEX idx_responsibility_household (household_id)
+    INDEX idx_responsibility_household (household_id),
+    INDEX idx_responsibility_primary_member (primary_member_id),
+    INDEX idx_responsibility_backup_member (backup_member_id)
 );
 
 
 -- =========================================================
 -- 9. Household Location
--- Stores household coordinates used by the data lookup layer
+-- Stores household coordinates used by the Data layer
 -- =========================================================
 
 CREATE TABLE household_location (
-    location_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-    household_id BIGINT UNSIGNED NOT NULL,
+    household_id BIGINT UNSIGNED PRIMARY KEY,
     address VARCHAR(255),
     suburb VARCHAR(150),
     postcode VARCHAR(10),
@@ -254,9 +242,6 @@ CREATE TABLE household_location (
         FOREIGN KEY (household_id)
         REFERENCES household(household_id)
         ON DELETE CASCADE,
-
-    CONSTRAINT uq_household_location
-        UNIQUE (household_id),
 
     CONSTRAINT chk_location_latitude
         CHECK (latitude BETWEEN -90 AND 90),
@@ -273,8 +258,7 @@ CREATE TABLE household_location (
 CREATE TABLE test_run (
     test_run_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     household_id BIGINT UNSIGNED NOT NULL,
-    scenario_code VARCHAR(100) NOT NULL,
-    scenario_name VARCHAR(200) NOT NULL,
+    scenario_id VARCHAR(100) NOT NULL,
 
     overall_status ENUM(
         'passed',
@@ -282,8 +266,8 @@ CREATE TABLE test_run (
         'failed'
     ) NOT NULL,
 
-    first_problem TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    result_reason TEXT,
+    tested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_test_run_household
         FOREIGN KEY (household_id)
@@ -291,7 +275,7 @@ CREATE TABLE test_run (
         ON DELETE CASCADE,
 
     INDEX idx_test_run_household (household_id),
-    INDEX idx_test_run_created (created_at)
+    INDEX idx_test_run_tested_at (tested_at)
 );
 
 
@@ -303,16 +287,14 @@ CREATE TABLE test_check_result (
     check_result_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     test_run_id BIGINT UNSIGNED NOT NULL,
     check_code VARCHAR(100) NOT NULL,
-    check_name VARCHAR(200) NOT NULL,
 
-    check_status ENUM(
+    status ENUM(
         'passed',
         'affected',
         'failed'
     ) NOT NULL,
 
-    result_message TEXT,
-    sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+    message TEXT,
 
     CONSTRAINT fk_check_result_test_run
         FOREIGN KEY (test_run_id)
