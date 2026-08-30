@@ -4,6 +4,11 @@ MySQL 8.4 is used as the application database for the FIT5120 FIREBREAK project.
 
 The database runs locally through Docker Compose.
 
+See [`docs/iteration1-integration-contract.md`](../docs/iteration1-integration-contract.md)
+for the API/domain mapping, aggregate transaction semantics, and cross-component
+ownership contract. This README remains the source for database setup and schema
+details.
+
 ## Iteration 1 Schema
 
 The initial Iteration 1 schema is defined in:

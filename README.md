@@ -1,6 +1,8 @@
 # FIT5120 Full-Stack Project
 
-This repository contains the initial backend and infrastructure foundation for a university team project. It deliberately keeps the current architecture small and leaves other project streams to their owners.
+This repository contains the Iteration 1 full-stack implementation for the
+FIT5120 FIREBREAK university team project. The current architecture remains
+deliberately small and keeps future project streams outside the I1 contract.
 
 ## Project structure
 
@@ -27,6 +29,10 @@ processed spatial Data layer are integrated. Household plans, locations,
 completion checks, local context, preparation support, and basic scenario tests
 run end-to-end under `/api/v1`.
 
+See [`docs/iteration1-integration-contract.md`](docs/iteration1-integration-contract.md)
+for the human-readable API, business-rule, persistence, ownership, and provider
+contract.
+
 Normal runtime uses MySQL, the processed BPA/CFA district/fire-history datasets,
 and official Vicmap/BOM providers. Set `APP_DATA_MODE=mock` for deterministic
 offline address, fire-danger, and weather responses. Unit tests additionally set
@@ -41,8 +47,9 @@ The Iteration 1 endpoints are:
 - `PUT /api/v1/households/{household_id}/location`
 - `GET /api/v1/households/{household_id}/local-context`
 - `GET /api/v1/households/{household_id}/preparation-support`
-- `GET /api/v1/scenarios/basic`
+- `GET /api/v1/scenarios/basic?household_id={household_id}`
 - `POST /api/v1/households/{household_id}/tests`
+- `GET /api/v1/households/{household_id}/tests/{test_run_id}`
 
 
 ## Local backend setup
@@ -95,7 +102,9 @@ these cleanup-based tests at a database containing data that must be retained.
 
 ## CI/CD
 
-Backend CI runs tests and validates the FastAPI import for relevant pushes to `main` and pull requests. Frontend CI will be added after the frontend team initializes Vue and defines its scripts and tooling.
+Backend CI runs tests and validates the FastAPI import for relevant pushes to
+`main` and pull requests. The initialized Frontend currently has no dedicated CI
+workflow; its available verification command is `npm run build`.
 
 The deployment workflow is a manual, non-deploying scaffold. It does not connect to EC2 or use deployment credentials. A future deployment may authenticate to a provisioned EC2 instance, update code or container images, run `docker compose up -d --build`, and perform health checks.
 
