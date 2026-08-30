@@ -33,6 +33,10 @@ class ExternalDataUnavailable(ApplicationError):
     pass
 
 
+class DatabaseUnavailable(ApplicationError):
+    pass
+
+
 class AddressResolutionError(ApplicationError):
     pass
 

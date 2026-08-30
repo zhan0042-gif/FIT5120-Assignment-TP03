@@ -1,10 +1,16 @@
 services:
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     environment:
+      APP_DATA_MODE: ${APP_DATA_MODE:-live}
+      APP_REPOSITORY_MODE: ${APP_REPOSITORY_MODE:-mysql}
+      APP_SPATIAL_MODE: ${APP_SPATIAL_MODE:-data}
       DATABASE_HOST: ${DATABASE_HOST:-mysql}
       DATABASE_PORT: ${DATABASE_PORT:-3306}
+      DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-5}
+      DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-10}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-fit5120}
       MYSQL_USER: ${MYSQL_USER:-fit5120_app}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change_me}

@@ -1,15 +1,17 @@
 import geopandas as gpd
+from pathlib import Path
 from shapely.geometry import Point
 
-from fire_history_lookup import get_fire_history_context
+from .fire_history_lookup import get_fire_history_context
 
 
 # --------------------------------------------------
 # Load processed application-ready datasets
 # --------------------------------------------------
 
-BPA_PATH = "data/processed/bpa.parquet"
-FIRE_DISTRICT_PATH = "data/processed/fire_district.parquet"
+PROCESSED_DATA_DIR = Path(__file__).resolve().parents[1] / "processed"
+BPA_PATH = PROCESSED_DATA_DIR / "bpa.parquet"
+FIRE_DISTRICT_PATH = PROCESSED_DATA_DIR / "fire_district.parquet"
 
 bpa = gpd.read_parquet(BPA_PATH)
 fire_district = gpd.read_parquet(FIRE_DISTRICT_PATH)

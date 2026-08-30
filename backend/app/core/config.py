@@ -24,6 +24,20 @@ def data_mode() -> str:
     return mode
 
 
+def repository_mode() -> str:
+    mode = os.getenv("APP_REPOSITORY_MODE", "mysql").strip().lower()
+    if mode not in {"memory", "mysql"}:
+        raise RuntimeError("APP_REPOSITORY_MODE must be either 'memory' or 'mysql'.")
+    return mode
+
+
+def spatial_mode() -> str:
+    mode = os.getenv("APP_SPATIAL_MODE", "data").strip().lower()
+    if mode not in {"mock", "data"}:
+        raise RuntimeError("APP_SPATIAL_MODE must be either 'mock' or 'data'.")
+    return mode
+
+
 def build_external_providers(mode: str | None = None) -> ExternalProviders:
     selected = (mode or data_mode()).strip().lower()
     if selected == "mock":

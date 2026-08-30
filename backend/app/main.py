@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.api.router import router as api_router
 from app.core.exceptions import (
     AddressResolutionError,
+    DatabaseUnavailable,
     ExternalDataUnavailable,
     HouseholdNotFound,
     LocationNotFound,
@@ -59,8 +60,9 @@ async def plan_validation_handler(
 
 
 @app.exception_handler(ExternalDataUnavailable)
-async def external_data_handler(
-    request: Request, exc: ExternalDataUnavailable
+@app.exception_handler(DatabaseUnavailable)
+async def service_unavailable_handler(
+    request: Request, exc: Exception
 ) -> JSONResponse:
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

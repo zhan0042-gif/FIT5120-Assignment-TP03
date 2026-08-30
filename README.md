@@ -13,7 +13,7 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Technology stack
 
-- Vue 3 + Vite + TypeScript (planned frontend)
+- Vue 3 + Vite + TypeScript
 - Python 3.12 + FastAPI (backend)
 - MySQL 8
 - Docker + Docker Compose
@@ -22,15 +22,16 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Current status
 
+The Iteration 1 Vue frontend, FastAPI API, MySQL application persistence, and
+processed spatial Data layer are integrated. Household plans, locations,
+completion checks, local context, preparation support, and basic scenario tests
+run end-to-end under `/api/v1`.
 
-The backend scaffold and `/api/health` endpoint are implemented, and MySQL is configured for Docker-based development with the Iteration 1 application schema and persistent storage. The frontend has not been initialized, AI functionality has not been designed, and EC2 deployment is not active.
-
-The backend provides the `/api/health` endpoint and an Iteration 1 API under
-`/api/v1`. Household plans, locations, completion checks, local context,
-preparation support, and basic scenario tests run end-to-end. Normal runtime
-uses official Vicmap and BOM providers; set `APP_DATA_MODE=mock` explicitly for
-offline provider-isolated development and tests. Persistence remains process-local,
-and spatial classification remains temporary pending Database and DS integration.
+Normal runtime uses MySQL, the processed BPA/CFA district/fire-history datasets,
+and official Vicmap/BOM providers. Set `APP_DATA_MODE=mock` for deterministic
+offline address, fire-danger, and weather responses. Unit tests additionally set
+`APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock`; these modes are test and
+development fallbacks rather than the full-stack defaults.
 
 The Iteration 1 endpoints are:
 
@@ -71,7 +72,12 @@ docker compose ps
 docker compose down
 ```
 
-The API is exposed on `http://localhost:8000` by default. The backend uses the Compose service name `mysql` for database networking. MySQL data is stored in the named `mysql_data` volume and survives ordinary `docker compose down` and restart operations.
+The API is exposed on `http://localhost:8000` by default. The backend uses the
+Compose service name `mysql` for database networking. MySQL data is stored in the
+named `mysql_data` volume and survives ordinary `docker compose down` and restart
+operations. To run the full stack without calls to official services, set
+`APP_DATA_MODE=mock` in `.env`; BPA, CFA district, and fire-history lookups still
+use the real processed Data files.
 
 ## Testing
 
@@ -82,7 +88,10 @@ cd backend
 pytest
 ```
 
-The current tests are intentionally independent of MySQL. Database integration tests can introduce a disposable test database when the persistence layer exists.
+Most tests use the in-memory repository. MySQL integration tests run when
+`MYSQL_TEST_URL` points to a disposable database initialized with
+`database/init/001_initial_schema.sql`; they are skipped otherwise. Never point
+these cleanup-based tests at a database containing data that must be retained.
 
 ## CI/CD
 
@@ -91,8 +100,7 @@ Backend CI runs tests and validates the FastAPI import for relevant pushes to `m
 The deployment workflow is a manual, non-deploying scaffold. It does not connect to EC2 or use deployment credentials. A future deployment may authenticate to a provisioned EC2 instance, update code or container images, run `docker compose up -d --build`, and perform health checks.
 
 ## Remaining work
-- Initialize the Vue frontend, then add its Dockerfile and CI workflow.
-- Integrate the Backend persistence repository and add migrations or development seed data when required.
+- Add migrations before evolving the initial schema beyond Iteration 1.
 - Decide and implement the AI architecture.
 - Add a production Nginx configuration after routing and domains are known.
 - Provision AWS EC2 and configure reviewed deployment credentials/secrets.

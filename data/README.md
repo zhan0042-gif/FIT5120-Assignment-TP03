@@ -576,10 +576,10 @@ It combines the current Iteration 1 spatial context into one application-ready r
 }
 ~~~
 
-Backend can import:
+From the repository root, Backend imports:
 
 ~~~python
-from location_context import get_location_context
+from data.scripts.location_context import get_location_context
 ~~~
 
 and call:

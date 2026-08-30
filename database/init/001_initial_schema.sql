@@ -271,7 +271,9 @@ CREATE TABLE test_run (
     ) NOT NULL,
 
     result_reason TEXT,
-    tested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    first_problem_section VARCHAR(50),
+    first_problem_message TEXT,
+    tested_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
 
     CONSTRAINT fk_test_run_household
         FOREIGN KEY (household_id)
@@ -290,6 +292,7 @@ CREATE TABLE test_run (
 CREATE TABLE test_check_result (
     check_result_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     test_run_id BIGINT UNSIGNED NOT NULL,
+    check_order SMALLINT UNSIGNED NOT NULL,
     check_code VARCHAR(100) NOT NULL,
 
     status ENUM(
@@ -304,6 +307,9 @@ CREATE TABLE test_check_result (
         FOREIGN KEY (test_run_id)
         REFERENCES test_run(test_run_id)
         ON DELETE CASCADE,
+
+    CONSTRAINT uq_check_result_order
+        UNIQUE (test_run_id, check_order),
 
     INDEX idx_check_result_test_run (test_run_id)
 );

@@ -33,7 +33,7 @@ API-exposed domain entities use two ID layers:
 - an internal `BIGINT UNSIGNED AUTO_INCREMENT` primary key for database joins and foreign keys
 - a stable `public_id VARCHAR(64) NOT NULL UNIQUE` supplied by Backend and returned through the API
 
-Backend Repository code will look up a row by `public_id`, use its internal numeric key for relational operations, and map `public_id` back to the corresponding API ID when reading data.
+Backend Repository code looks up a row by `public_id`, uses its internal numeric key for relational operations, and maps `public_id` back to the corresponding API ID when reading data.
 
 | Table | Public ID maps to |
 |---|---|
@@ -180,6 +180,8 @@ Main fields:
 - `scenario_id`
 - `overall_status`
 - `result_reason`
+- `first_problem_section`
+- `first_problem_message`
 - `tested_at`
 
 ### test_check_result
@@ -190,6 +192,7 @@ Main fields:
 
 - `check_result_id`
 - `test_run_id`
+- `check_order`
 - `check_code`
 - `status`
 - `message`
@@ -239,13 +242,14 @@ Live Fire Danger Rating and weather information are also not stored as static da
 
 Database foreign keys guarantee that referenced members, transports, and destinations exist. To keep the Iteration 1 relational model simple, the database does not use triggers or composite household-scoped foreign keys to prove that every referenced row belongs to the same household.
 
-Backend Repository integration must reject cross-household references by checking that:
+The MySQL Backend Repository rejects cross-household references by checking that:
 
 - each driver member belongs to the transport's household
 - arrangement transports and destinations belong to the current household
 - responsibility members belong to the current household
 
-These ownership checks are mandatory before writes are committed. Persistence integration tests must cover them.
+These ownership checks run before plan replacement writes are committed and are
+covered by the MySQL integration tests.
 
 ## Data That Does Not Need an Iteration 1 Table
 
@@ -316,6 +320,10 @@ Database: value of MYSQL_DATABASE
 ```
 
 Use the credentials configured in the local `.env` file.
+
+Backend reads `DATABASE_HOST`, `DATABASE_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`,
+`MYSQL_PASSWORD`, `DATABASE_POOL_SIZE`, and `DATABASE_MAX_OVERFLOW`. SQLAlchemy
+uses the PyMySQL driver with pooled, pre-pinged connections.
 
 Do not commit `.env` or real deployment credentials.
 
@@ -399,6 +407,16 @@ For a clean local database, verify:
 - canonical scenario test statuses can be inserted successfully
 - deleting members clears responsibility assignments
 - deleting a household cascades through its Iteration 1 application records
+
+Backend MySQL integration tests require an isolated disposable database:
+
+```bash
+cd backend
+MYSQL_TEST_URL='mysql+pymysql://user:password@127.0.0.1:3306/database?charset=utf8mb4' pytest tests/test_mysql_repository.py
+```
+
+The test fixture deletes household data before and after each test. Do not use a
+shared or valuable development database for this command.
 
 ## Migrations
 

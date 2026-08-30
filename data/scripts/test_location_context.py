@@ -1,6 +1,6 @@
 import json
 
-from location_context import get_location_context
+from data.scripts.location_context import get_location_context
 
 
 test_latitude = -37.89002627699995

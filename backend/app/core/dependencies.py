@@ -1,6 +1,12 @@
 """Central dependency wiring for the Iteration 1 runtime."""
 
-from app.core.config import build_external_providers
+from app.core.config import (
+    build_external_providers,
+    repository_mode,
+    spatial_mode,
+)
+from app.core.database import create_database_engine
+from app.providers.data_spatial import DataSpatialProvider
 from app.providers.interfaces import (
     AddressClient,
     FireDangerClient,
@@ -9,11 +15,18 @@ from app.providers.interfaces import (
 )
 from app.providers.mock import MockSpatialProvider
 from app.repositories.households import HouseholdRepository, InMemoryHouseholdRepository
+from app.repositories.mysql import MySQLHouseholdRepository
 
 
-_repository = InMemoryHouseholdRepository()
+_repository: HouseholdRepository = (
+    InMemoryHouseholdRepository()
+    if repository_mode() == "memory"
+    else MySQLHouseholdRepository(create_database_engine())
+)
 _external_providers = build_external_providers()
-_spatial_provider = MockSpatialProvider()
+_spatial_provider: SpatialProvider = (
+    MockSpatialProvider() if spatial_mode() == "mock" else DataSpatialProvider()
+)
 
 
 def get_household_repository() -> HouseholdRepository:

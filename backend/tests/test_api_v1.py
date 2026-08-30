@@ -11,7 +11,11 @@ from app.core.dependencies import (
     get_spatial_provider,
     get_weather_client,
 )
-from app.core.exceptions import AddressResolutionError, ExternalDataUnavailable
+from app.core.exceptions import (
+    AddressResolutionError,
+    DatabaseUnavailable,
+    ExternalDataUnavailable,
+)
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
 from app.schemas.households import FireDanger
@@ -30,6 +34,23 @@ def create_household(client: TestClient) -> str:
     response = client.post("/api/v1/households")
     assert response.status_code == 201
     return response.json()["household_id"]
+
+
+class UnavailableRepository:
+    def create_household(self, display_name: str | None = None) -> str:
+        raise DatabaseUnavailable("Application database is unavailable.")
+
+
+def test_database_failure_returns_controlled_503(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_household_repository] = lambda: UnavailableRepository()
+
+    response = client.post("/api/v1/households")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Application database is unavailable."}
 
 
 class NoMatchingAddressClient:
