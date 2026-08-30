@@ -6,7 +6,7 @@ This repository contains the initial backend and infrastructure foundation for a
 
 - `frontend/` is reserved for the frontend team's Vue application; it has not been initialized.
 - `backend/` contains the runnable FastAPI application, its layered package structure, tests, dependencies, and Dockerfile.
-- `database/` reserves locations for MySQL initialization, migrations, and future development seed data.
+- `database/` contains the Iteration 1 MySQL application schema and reserves locations for migrations and future development seed data.
 - `ai/` reserves a location for later AI processing and integrations; no AI architecture is selected.
 - `nginx/` documents the planned reverse-proxy role for a future production deployment.
 - `.github/workflows/` contains backend CI and a non-deploying manual CD scaffold.
@@ -22,7 +22,7 @@ This repository contains the initial backend and infrastructure foundation for a
 
 ## Current status
 
-The backend scaffold and `/api/health` endpoint are implemented, and MySQL is configured for Docker-based development with persistent storage. The frontend has not been initialized, AI functionality and the database schema have not been designed, and EC2 deployment is not active.
+The backend scaffold and `/api/health` endpoint are implemented, and MySQL is configured for Docker-based development with the Iteration 1 application schema and persistent storage. The frontend has not been initialized, AI functionality has not been designed, and EC2 deployment is not active.
 
 ## Local backend setup
 
@@ -73,7 +73,7 @@ The deployment workflow is a manual, non-deploying scaffold. It does not connect
 ## Remaining work
 
 - Initialize the Vue frontend, then add its Dockerfile and CI workflow.
-- Define the application database schema, migrations, and any development seed data.
+- Integrate the Backend persistence repository and add migrations or development seed data when required.
 - Decide and implement the AI architecture.
 - Add a production Nginx configuration after routing and domains are known.
 - Provision AWS EC2 and configure reviewed deployment credentials/secrets.
