@@ -1,6 +1,7 @@
 import geopandas as gpd
 from shapely.geometry import Point
 import pandas as pd
+from fire_history_lookup import get_fire_history_context
 
 
 # Load processed datasets
@@ -36,7 +37,11 @@ def get_fire_district(latitude, longitude, district_gdf):
     return match.iloc[0]["fire_district"]
 
 
-def get_location_context(latitude, longitude):
+def get_location_context(
+    latitude,
+    longitude,
+    fire_history_radius_km=20
+):
     return {
         "location": {
             "latitude": latitude,
@@ -51,8 +56,16 @@ def get_location_context(latitude, longitude):
             latitude,
             longitude,
             fire_district
-        )
+        ),
+        "environmental_context": {
+            "fire_history": get_fire_history_context(
+                latitude,
+                longitude,
+                radius_km=fire_history_radius_km
+            )
+        }
     }
+
 
 
 # Example test
@@ -146,6 +159,31 @@ for _, row in test_cases.iterrows():
     actual_bpa = context["is_bushfire_prone_area"]
     actual_district = context["fire_district"]
 
+    fire_history = context[
+        "environmental_context"
+    ]["fire_history"]
+
+    fire_history_keys_ok = {
+        "historical_fire_record_count",
+        "last_recorded_burn_year",
+        "most_recent_fire_date",
+        "search_radius_km"
+    }.issubset(
+        fire_history.keys()
+    )
+
+    fire_history_count_ok = (
+        isinstance(
+            fire_history["historical_fire_record_count"],
+            int
+        )
+        and fire_history["historical_fire_record_count"] >= 0
+    )
+
+    fire_history_radius_ok = (
+        fire_history["search_radius_km"] == 20
+    )
+
     bpa_ok = actual_bpa == row["expected_bpa"]
     district_ok = actual_district == row["expected_fire_district"]
 
@@ -158,5 +196,11 @@ for _, row in test_cases.iterrows():
         "| BPA match:",
         bpa_ok,
         "| District match:",
-        district_ok
+        district_ok,
+        "| Fire History keys:",
+        fire_history_keys_ok,
+        "| Fire History count:",
+        fire_history_count_ok,
+        "| Radius:",
+        fire_history_radius_ok
     )
