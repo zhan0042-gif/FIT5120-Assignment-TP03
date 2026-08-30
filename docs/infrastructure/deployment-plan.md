@@ -34,7 +34,7 @@ Key points:
 - **MySQL** — `mysql:8.4` service already in `docker-compose.yml`, named volume `mysql_data`. ⏳ Remove `MYSQL_EXPOSED_PORT` for production so the DB is internal only.
 - **Frontend** — Vue build output copied to the server (or served by Nginx container). ⏳ frontend not initialized yet.
 - **Nginx** — config lives in `nginx/` (currently README only). ⏳ write production config when routing is known.
-- **HTTPS** — Let's Encrypt via certbot, auto-renewal cron. ⏳ needs a domain.
+- **HTTPS** — Let's Encrypt via certbot, auto-renewal cron. Domain: **`cubesix.me` (temporary)** — reusing the earlier project's domain; swap later if the team prefers a new one.
 
 ## 3. Networking & security groups
 
@@ -74,7 +74,7 @@ Deploy secrets (SSH key / SSM role ARN) are added to GitHub Actions Secrets at t
 
 ## 7. Open decisions (need team input)
 
-- **Domain** — reuse `cubesix.me` from the earlier project, or a new one?
+- **Domain** — **DECIDED (temporary): `cubesix.me`.** Reusing the earlier project's domain. Easy to change later (DNS + certbot, ~10 min) if the team prefers a new domain.
 - **Auth model** — Nginx basic auth vs application-level auth for I1 (see `threat-model.md` T1).
 - **Database** — keep MySQL in Docker, or move to RDS (costs more; safer for sensitive data)?
 - **Images** — build on the server, or push to GitHub Container Registry and pull?
