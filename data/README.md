@@ -545,3 +545,64 @@ They must not be used to claim that:
 - a location is safe or unsafe
 - a household has a particular bushfire risk level
 - historical fire frequency directly predicts future fire activity
+
+
+---
+
+## Backend Handoff
+
+The main reusable location-context module for Backend integration is:
+
+`data/scripts/location_context.py`
+
+It combines the current Iteration 1 spatial context into one application-ready response:
+
+~~~json
+{
+  "location": {
+    "latitude": -37.89002627699995,
+    "longitude": 144.12595975369607
+  },
+  "is_bushfire_prone_area": true,
+  "fire_district": "Central",
+  "environmental_context": {
+    "fire_history": {
+      "historical_fire_record_count": 58,
+      "last_recorded_burn_year": 2025,
+      "most_recent_fire_date": "2025-02-03",
+      "search_radius_km": 20
+    }
+  }
+}
+~~~
+
+Backend can import:
+
+~~~python
+from location_context import get_location_context
+~~~
+
+and call:
+
+~~~python
+result = get_location_context(
+    latitude,
+    longitude
+)
+~~~
+
+The current response includes:
+
+- Designated Bushfire Prone Area status
+- CFA Fire District
+- historical bushfire context
+
+The Fire History component is contextual only and must not be treated as a personalised bushfire risk score.
+
+Validation for the combined response is implemented in:
+
+`data/scripts/test_location_context.py`
+
+Broader spatial fixture validation remains in:
+
+`data/scripts/test_spatial_lookup.py`
