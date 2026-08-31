@@ -13,7 +13,7 @@
 
 ## 2. Access control
 
-- [ ] Auth model decided and implemented (Nginx basic auth and/or application-level auth) — see threat-model T1/T2
+- [ ] **Auth model (DECIDED):** shared-password site gate — Nginx basic auth on `/` and `/api` — implemented; no per-user login (see threat-model T1/T2)
 - [ ] Default passwords changed; credentials not shared in chat or repo
 - [ ] Database uses a least-privilege app account (not root)
 

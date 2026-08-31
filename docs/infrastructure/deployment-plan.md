@@ -33,7 +33,7 @@ Key points:
 - **Backend** — `backend/Dockerfile` already exists (python:3.12-slim, uvicorn :8000). No change needed.
 - **MySQL** — `mysql:8.4` service already in `docker-compose.yml`, named volume `mysql_data`. ⏳ Remove `MYSQL_EXPOSED_PORT` for production so the DB is internal only.
 - **Frontend** — Vue build output copied to the server (or served by Nginx container). ⏳ frontend not initialized yet.
-- **Nginx** — config lives in `nginx/` (currently README only). ⏳ write production config when routing is known.
+- **Nginx** — config lives in `nginx/` (currently README only). ⏳ write production config when routing is known. Includes a **shared-password basic auth gate** covering `/` and `/api`, so only the team and teaching staff can view the site (see §7).
 - **HTTPS** — Let's Encrypt via certbot, auto-renewal cron. Domain: **`cubesix.me` (temporary)** — reusing the earlier project's domain; swap later if the team prefers a new one.
 
 ## 3. Networking & security groups
@@ -45,11 +45,10 @@ Key points:
 
 ## 4. Secret flow
 
-| Environment | Where secrets live |
-|---|---|
-| Local dev | `.env` at repo root (`chmod 600`), gitignored |
-| CI/CD | GitHub Actions Secrets (never in workflow files) |
-| Production | `.env` on the server, or **AWS Secrets Manager** for the long term |
+- **Local dev** — `.env` at repo root (`chmod 600`), gitignored
+- **CI/CD** — GitHub Actions Secrets (never in workflow files)
+- **Production** — `.env` on the server, or **AWS Secrets Manager** for the long term
+- **Site gate password** — Nginx basic auth credential (htpasswd) stored on the server only, never committed to the repo
 
 Source of truth for variable names: `.env.example` (see `secret-handling.md`).
 
@@ -75,7 +74,7 @@ Deploy secrets (SSH key / SSM role ARN) are added to GitHub Actions Secrets at t
 ## 7. Open decisions (need team input)
 
 - **Domain** — **DECIDED (temporary): `cubesix.me`.** Reusing the earlier project's domain. Easy to change later (DNS + certbot, ~10 min) if the team prefers a new domain.
-- **Auth model** — Nginx basic auth vs application-level auth for I1 (see `threat-model.md` T1).
+- **Auth model** — **DECIDED (2026-08-31): shared-password site gate.** Nginx basic auth on `/` and `/api` with a shared password, so only the team and teaching staff can view the app. No per-user login for I1 (see `threat-model.md` T1/T2). The gate password is a deployment secret (§4).
 - **Database** — keep MySQL in Docker, or move to RDS (costs more; safer for sensitive data)?
 - **Images** — build on the server, or push to GitHub Container Registry and pull?
 

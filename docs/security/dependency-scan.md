@@ -4,11 +4,9 @@
 
 ## Tools
 
-| Stack | Tool | Where it runs |
-|---|---|---|
-| Backend (Python) | `pip-audit` | local + CI |
-| Frontend (Vue / Node) | `npm audit` | local + CI |
-| Whole repo | GitHub Dependabot (alerts + version updates) | GitHub, automated |
+- **Backend (Python)** — `pip-audit` — local + CI
+- **Frontend (Vue / Node)** — `npm audit` — local + CI
+- **Whole repo** — GitHub Dependabot (alerts + version updates) — GitHub, automated
 
 ## How to run (copy-paste)
 
