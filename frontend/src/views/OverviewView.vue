@@ -42,7 +42,9 @@ const stages = [
           class="journey-stage"
           :class="{ 'is-current': stage.key === currentStage, 'is-done': stages.findIndex((s) => s.key === currentStage) > index }"
         >
-          <span v-if="stage.key === currentStage" class="badge badge-accent journey-tag">Current</span>
+          <div class="journey-tag-row">
+            <span v-if="stage.key === currentStage" class="badge badge-accent">Current</span>
+          </div>
           <div class="journey-bar" />
           <span class="journey-label">{{ stage.label }}</span>
         </div>
@@ -107,13 +109,11 @@ const stages = [
 
 .journey-stage {
   flex: 1;
-  position: relative;
 }
 
-.journey-tag {
-  position: absolute;
-  top: -1.6rem;
-  left: 0;
+.journey-tag-row {
+  min-height: 1.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .journey-bar {
