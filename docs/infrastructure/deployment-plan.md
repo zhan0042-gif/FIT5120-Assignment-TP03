@@ -11,7 +11,7 @@ Single EC2 instance running the existing Docker Compose stack, fronted by Nginx 
                      Internet
                         │  HTTPS 80/443
                         v
-                     Nginx (reverse proxy)
+                     Nginx (reverse proxy + basic auth gate)
                         │
             ┌───────────┴────────────┐
             │  /  → frontend (Vue)   │  /api → backend:8000
@@ -19,19 +19,19 @@ Single EC2 instance running the existing Docker Compose stack, fronted by Nginx 
         frontend static            Backend (FastAPI, container)
                                         │
                                         v
-                                   MySQL (container, internal network only)
+                             RDS (MySQL 8.4, managed, SG-locked to EC2)
 ```
 
 Key points:
 - **One EC2** keeps cost and ops simple for a student prototype (same pattern as our earlier project).
-- **MySQL stays inside the Docker network** — never exposed publicly in production.
+- **Database = AWS RDS (MySQL 8.4)** — managed service, never exposed publicly; the RDS security group allows MySQL from the EC2 only.
 - **Nginx** terminates HTTPS and routes `/api` to FastAPI; frontend is served as static files.
 
 ## 2. Components
 
 - **EC2** — Ubuntu 24.04, t3.micro (⏳ provision when code is runnable). Access via **AWS SSM Session Manager** (no SSH/port 22), as hardened in our earlier project.
 - **Backend** — `backend/Dockerfile` already exists (python:3.12-slim, uvicorn :8000). No change needed.
-- **MySQL** — `mysql:8.4` service already in `docker-compose.yml`, named volume `mysql_data`. ⏳ Remove `MYSQL_EXPOSED_PORT` for production so the DB is internal only.
+- **MySQL / RDS** — **DECIDED: reuse the existing `fit5120-db` RDS (db.t4g.micro, MySQL 8.4).** The `mysql:8.4` service in `docker-compose.yml` stays for local dev only; production points `DATABASE_HOST` at the RDS endpoint. On deploy day: take a safety snapshot → drop the old project's schema → apply `database/init/001_initial_schema.sql` manually (RDS does not auto-run init scripts).
 - **Frontend** — Vue build output copied to the server (or served by Nginx container). ⏳ frontend not initialized yet.
 - **Nginx** — config lives in `nginx/` (currently README only). ⏳ write production config when routing is known. Includes a **shared-password basic auth gate** covering `/` and `/api`, so only the team and teaching staff can view the site (see §7).
 - **HTTPS** — Let's Encrypt via certbot, auto-renewal cron. Domain: **`cubesix.me` (temporary)** — reusing the earlier project's domain; swap later if the team prefers a new one.
@@ -40,7 +40,7 @@ Key points:
 
 - Inbound: **80 + 443 from 0.0.0.0/0** only.
 - **No port 22** — use SSM Session Manager (SSM role `AmazonSSMManagedInstanceCore`).
-- **MySQL port not exposed** on the host in production.
+- **MySQL port not exposed** — RDS has public access off; reachable only from the EC2 security group.
 - Outbound: needed for apt updates, image pulls, and the external APIs (Vicmap / CFA / BOM).
 
 ## 4. Secret flow
@@ -66,16 +66,17 @@ Deploy secrets (SSH key / SSM role ARN) are added to GitHub Actions Secrets at t
 1. ⏳ Provision EC2 (Ubuntu 24.04, t3.micro), attach SSM role, set security groups (80/443 only).
 2. ⏳ Register DNS: point domain → EC2 IP.
 3. Install Docker + Docker Compose plugin on the server.
-4. Copy `.env` (real values) to repo root on server; `chmod 600`.
-5. `docker compose up -d --build`; verify `curl -I https://<domain>/api/health`.
-6. Set up Nginx reverse proxy (`/` → frontend, `/api` → backend:8000) + certbot HTTPS + auto-renew.
-7. Run the security checks in `deployment-checklist.md`; archive evidence.
+4. Copy `.env` (real values, including `DATABASE_HOST` = RDS endpoint) to repo root on server; `chmod 600`.
+5. Prepare RDS: take a safety snapshot → drop the old project's schema → apply `database/init/001_initial_schema.sql` (see §2).
+6. `docker compose up -d --build` (production override: no `mysql` service); verify `curl -I https://<domain>/api/health`.
+7. Set up Nginx reverse proxy (`/` → frontend, `/api` → backend:8000, basic auth gate) + certbot HTTPS + auto-renew.
+8. Run the security checks in `deployment-checklist.md`; archive evidence.
 
 ## 7. Open decisions (need team input)
 
 - **Domain** — **DECIDED (temporary): `cubesix.me`.** Reusing the earlier project's domain. Easy to change later (DNS + certbot, ~10 min) if the team prefers a new domain.
 - **Auth model** — **DECIDED (2026-08-31): shared-password site gate.** Nginx basic auth on `/` and `/api` with a shared password, so only the team and teaching staff can view the app. No per-user login for I1 (see `threat-model.md` T1/T2). The gate password is a deployment secret (§4).
-- **Database** — keep MySQL in Docker, or move to RDS (costs more; safer for sensitive data)?
+- **Database** — **DECIDED (2026-09-01): reuse the existing `fit5120-db` RDS.** Old project data is removed on deploy day (after a safety snapshot); Docker MySQL stays for local dev only (see §2).
 - **Images** — build on the server, or push to GitHub Container Registry and pull?
 
 ## 8. References
