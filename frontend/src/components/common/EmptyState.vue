@@ -1,6 +1,7 @@
-<script setup lang="ts">
-withDefaults(defineProps<{ title?: string; message?: string }>(), {
-  title: 'Nothing here yet',
+<script setup>
+defineProps({
+  title: { type: String, default: 'Nothing here yet' },
+  message: { type: String, default: undefined },
 })
 </script>
 

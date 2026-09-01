@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useHouseholdStore } from '../stores/household'
 import { useLocalContextStore } from '../stores/localContext'
@@ -11,12 +11,11 @@ import TransportForm from '../components/household/TransportForm.vue'
 import ArrangementsForm from '../components/household/ArrangementsForm.vue'
 import ResponsibilitiesForm from '../components/household/ResponsibilitiesForm.vue'
 import CompletionOverview from '../components/completion/CompletionOverview.vue'
-import type { HouseholdPlan } from '../types/household'
 
 const householdStore = useHouseholdStore()
 const localContextStore = useLocalContextStore()
 
-const draft = ref<HouseholdPlan | null>(null)
+const draft = ref(null)
 
 function resetDraft() {
   // structuredClone chokes on Vue's reactive proxies; JSON round-trip is safe
@@ -46,7 +45,7 @@ const hasUnsavedChanges = computed(() => {
 
 const validationErrors = computed(() => {
   if (!draft.value) return []
-  const errors: string[] = []
+  const errors = []
   for (const r of draft.value.responsibilities) {
     if (r.backup_member_id && r.backup_member_id === r.primary_member_id) {
       errors.push(`"${r.task_name || 'A responsibility'}" has the same person set as primary and backup.`)

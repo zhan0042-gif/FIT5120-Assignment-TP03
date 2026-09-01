@@ -1,20 +1,18 @@
-<script setup lang="ts">
+<script setup>
 import { computed } from 'vue'
-import type { Arrangements, Transport } from '../../types/household'
 import { newId } from '../../api/client'
 
-defineProps<{ transports: Transport[] }>()
-const arrangements = defineModel<Arrangements>({ required: true })
+defineProps({ transports: { type: Array, required: true } })
+const arrangements = defineModel({ required: true })
 
-function destinationField(key: 'primary_destination' | 'backup_destination', field: 'display_name' | 'address') {
+function destinationField(key, field) {
   return computed({
     get: () => arrangements.value[key]?.[field] ?? '',
-    set: (value: string) => {
+    set: (value) => {
       if (!arrangements.value[key]) {
         arrangements.value[key] = { destination_id: newId('d'), display_name: '', address: null }
       }
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      arrangements.value[key]![field] = value
+      arrangements.value[key][field] = value
     },
   })
 }

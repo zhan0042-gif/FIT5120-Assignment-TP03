@@ -1,9 +1,9 @@
-<script setup lang="ts">
+<script setup>
 import { computed } from 'vue'
 
-const props = defineProps<{ status: string }>()
+const props = defineProps({ status: { type: String, required: true } })
 
-const LABELS: Record<string, string> = {
+const LABELS = {
   complete: 'Complete',
   needs_information: 'Needs information',
   pass: 'Pass',
@@ -16,7 +16,7 @@ const LABELS: Record<string, string> = {
   warning: 'Warning',
 }
 
-const VARIANTS: Record<string, string> = {
+const VARIANTS = {
   complete: 'badge-success',
   pass: 'badge-success',
   ok: 'badge-success',

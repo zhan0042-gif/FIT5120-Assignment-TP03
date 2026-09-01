@@ -1,11 +1,10 @@
-<script setup lang="ts">
-import type { HouseholdMember, Transport } from '../../types/household'
+<script setup>
 import { newId } from '../../api/client'
 import EmptyState from '../common/EmptyState.vue'
 
-const props = defineProps<{ members: HouseholdMember[] }>()
-const transports = defineModel<Transport[]>('transports', { required: true })
-const hasPrivateTransport = defineModel<boolean | null>('hasPrivateTransport', { required: true })
+const props = defineProps({ members: { type: Array, required: true } })
+const transports = defineModel('transports', { required: true })
+const hasPrivateTransport = defineModel('hasPrivateTransport', { required: true })
 
 function addPrivateTransport() {
   hasPrivateTransport.value = true
@@ -30,21 +29,21 @@ function recordNoPrivateTransport() {
   hasPrivateTransport.value = false
 }
 
-function markPrivateTransport(transport: Transport) {
+function markPrivateTransport(transport) {
   if (transport.transport_type !== 'other') hasPrivateTransport.value = true
 }
 
-function removeTransport(id: string) {
+function removeTransport(id) {
   transports.value = transports.value.filter((t) => t.transport_id !== id)
 }
 
-function toggleDriver(transport: Transport, memberId: string) {
+function toggleDriver(transport, memberId) {
   const idx = transport.driver_member_ids.indexOf(memberId)
   if (idx === -1) transport.driver_member_ids.push(memberId)
   else transport.driver_member_ids.splice(idx, 1)
 }
 
-function memberName(id: string) {
+function memberName(id) {
   return props.members.find((m) => m.member_id === id)?.display_name || 'Unnamed member'
 }
 </script>

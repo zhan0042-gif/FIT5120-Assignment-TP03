@@ -1,6 +1,6 @@
 # Frontend
 
-Vue 3 + Vite + TypeScript app for Iteration 1 ("Build & Check My Preparedness").
+Vue 3 + Vite app for Iteration 1 ("Build & Check My Preparedness").
 
 ## Scope covered
 
@@ -18,7 +18,7 @@ The complete human-readable API and ownership contract is documented in
 [`docs/iteration1-integration-contract.md`](../docs/iteration1-integration-contract.md).
 
 Epic 1 household creation, plan persistence, and completion use the FastAPI
-`/api/v1` endpoints through `src/api/client.ts`. The generated household ID is
+`/api/v1` endpoints through `src/api/client.js`. The generated household ID is
 stored locally so a browser refresh can reload the authoritative plan from the
 backend. Plan data itself is not stored in localStorage.
 
@@ -38,7 +38,7 @@ authoritative in Backend/MySQL.
 ```bash
 npm install
 npm run dev       # starts Vite on http://localhost:5173
-npm run build     # type-checks (vue-tsc) and builds for production
+npm run build     # builds for production
 ```
 
 The Vite development server proxies relative `/api` requests to FastAPI at

@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { ref } from 'vue'
 import { useLocalContextStore } from '../../stores/localContext'
 import LoadingState from '../common/LoadingState.vue'

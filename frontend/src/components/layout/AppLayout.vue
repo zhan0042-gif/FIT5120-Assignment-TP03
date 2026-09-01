@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import AppSidebar from './AppSidebar.vue'
 import { useUiStore } from '../../stores/ui'
 

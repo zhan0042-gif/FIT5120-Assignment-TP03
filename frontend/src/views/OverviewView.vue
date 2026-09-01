@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { computed, onMounted } from 'vue'
 import { useHouseholdStore } from '../stores/household'
 import { useLocalContextStore } from '../stores/localContext'

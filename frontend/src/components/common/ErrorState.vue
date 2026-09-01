@@ -1,9 +1,9 @@
-<script setup lang="ts">
-withDefaults(defineProps<{ message?: string }>(), {
-  message: 'Something went wrong.',
+<script setup>
+defineProps({
+  message: { type: String, default: 'Something went wrong.' },
 })
 
-const emit = defineEmits<{ retry: [] }>()
+const emit = defineEmits(['retry'])
 </script>
 
 <template>

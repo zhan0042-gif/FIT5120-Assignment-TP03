@@ -1,11 +1,10 @@
-<script setup lang="ts">
-import type { PlanCompletion } from '../../types/household'
+<script setup>
 import LoadingState from '../common/LoadingState.vue'
 import StatusBadge from '../common/StatusBadge.vue'
 
-defineProps<{ completion: PlanCompletion | null; loading: boolean }>()
+defineProps({ completion: { type: Object, default: null }, loading: { type: Boolean, required: true } })
 
-const SECTION_LABELS: Record<string, string> = {
+const SECTION_LABELS = {
   household_profile: 'Household profile',
   transport: 'Transport',
   backup_transport: 'Backup transport',

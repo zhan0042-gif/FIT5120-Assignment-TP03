@@ -1,0 +1,121 @@
+const API_ROOT = '/api/v1'
+const HOUSEHOLD_ID_KEY = 'firebreak.household-id.v1'
+
+export class ApiError extends Error {
+  constructor(status, message, validationDetails = []) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.validationDetails = validationDetails
+  }
+}
+
+function validationMessage(items) {
+  const messages = items
+    .map((item) => {
+      const location = item.loc?.slice(1).join('.')
+      return item.msg ? `${location ? `${location}: ` : ''}${item.msg}` : null
+    })
+    .filter((message) => message !== null)
+  return messages.join('; ') || 'The request contains invalid information.'
+}
+
+async function apiError(response) {
+  let body
+  try {
+    body = await response.json()
+  } catch {
+    return new ApiError(response.status, response.statusText || 'The request failed.')
+  }
+
+  if (typeof body === 'object' && body !== null && 'detail' in body) {
+    const detail = body.detail
+    if (typeof detail === 'string') return new ApiError(response.status, detail)
+    if (Array.isArray(detail)) {
+      return new ApiError(response.status, validationMessage(detail), detail)
+    }
+    if (typeof detail === 'object' && detail !== null) {
+      const errors = Array.isArray(detail.errors) ? detail.errors : []
+      const message =
+        typeof detail.message === 'string'
+          ? detail.message
+          : errors.filter((item) => typeof item === 'string').join('; ')
+      return new ApiError(
+        response.status,
+        message || 'The request contains invalid information.',
+        errors,
+      )
+    }
+  }
+  return new ApiError(response.status, response.statusText || 'The request failed.')
+}
+
+async function request(path, init) {
+  const headers = new Headers(init?.headers)
+  if (init?.body !== undefined) headers.set('Content-Type', 'application/json')
+  const response = await fetch(`${API_ROOT}${path}`, { ...init, headers })
+  if (!response.ok) throw await apiError(response)
+  return await response.json()
+}
+
+export function loadStoredHouseholdId() {
+  return localStorage.getItem(HOUSEHOLD_ID_KEY)
+}
+
+export function storeHouseholdId(householdId) {
+  localStorage.setItem(HOUSEHOLD_ID_KEY, householdId)
+}
+
+export function clearStoredHouseholdId() {
+  localStorage.removeItem(HOUSEHOLD_ID_KEY)
+}
+
+export const api = {
+  createHousehold: (input) =>
+    request('/households', {
+      method: 'POST',
+      body: input ? JSON.stringify(input) : undefined,
+    }),
+
+  getHouseholdPlan: (householdId) =>
+    request(`/households/${encodeURIComponent(householdId)}/plan`),
+
+  saveHouseholdPlan: (householdId, plan) =>
+    request(`/households/${encodeURIComponent(householdId)}/plan`, {
+      method: 'PUT',
+      body: JSON.stringify(plan),
+    }),
+
+  getCompletion: (householdId) =>
+    request(`/households/${encodeURIComponent(householdId)}/completion`),
+
+  saveLocation: (householdId, input) =>
+    request(`/households/${encodeURIComponent(householdId)}/location`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
+  getLocalContext: (householdId) =>
+    request(`/households/${encodeURIComponent(householdId)}/local-context`),
+
+  getPreparationSupport: (householdId) =>
+    request(`/households/${encodeURIComponent(householdId)}/preparation-support`),
+
+  getBasicScenarios: (householdId) =>
+    request(`/scenarios/basic?household_id=${encodeURIComponent(householdId)}`),
+
+  runBasicTest: (householdId, scenarioId) =>
+    request(`/households/${encodeURIComponent(householdId)}/tests`, {
+      method: 'POST',
+      body: JSON.stringify({ scenario_id: scenarioId }),
+    }),
+
+  getTestResult: (householdId, testRunId) =>
+    request(
+      `/households/${encodeURIComponent(householdId)}/tests/${encodeURIComponent(testRunId)}`,
+    ),
+}
+
+export function newId(prefix) {
+  return `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`
+}
