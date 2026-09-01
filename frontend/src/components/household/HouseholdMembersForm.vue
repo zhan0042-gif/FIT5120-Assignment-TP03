@@ -1,10 +1,9 @@
-<script setup lang="ts">
-import type { Animal, HouseholdMember } from '../../types/household'
+<script setup>
 import { newId } from '../../api/client'
 import EmptyState from '../common/EmptyState.vue'
 
-const members = defineModel<HouseholdMember[]>('members', { required: true })
-const animals = defineModel<Animal[]>('animals', { required: true })
+const members = defineModel('members', { required: true })
+const animals = defineModel('animals', { required: true })
 
 function addMember() {
   members.value.push({
@@ -16,7 +15,7 @@ function addMember() {
   })
 }
 
-function removeMember(id: string) {
+function removeMember(id) {
   members.value = members.value.filter((m) => m.member_id !== id)
 }
 
@@ -30,7 +29,7 @@ function addAnimal() {
   })
 }
 
-function removeAnimal(id: string) {
+function removeAnimal(id) {
   animals.value = animals.value.filter((animal) => animal.animal_id !== id)
 }
 </script>

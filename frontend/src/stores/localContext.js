@@ -2,23 +2,21 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, api } from '../api/client'
 import { useHouseholdStore } from './household'
-import type { LocalContext, PreparationSupport } from '../types/localContext'
-import type { AsyncStatus } from '../types/async'
 
 export const useLocalContextStore = defineStore('localContext', () => {
   const householdStore = useHouseholdStore()
   const address = ref('')
   const submittedAddress = ref('')
 
-  const context = ref<LocalContext | null>(null)
-  const contextStatus = ref<AsyncStatus>('idle')
-  const contextError = ref<string | null>(null)
+  const context = ref(null)
+  const contextStatus = ref('idle')
+  const contextError = ref(null)
   const contextUnavailable = ref(false)
 
-  const prepSupport = ref<PreparationSupport | null>(null)
-  const prepStatus = ref<AsyncStatus>('idle')
+  const prepSupport = ref(null)
+  const prepStatus = ref('idle')
 
-  async function submitAddress(next: string) {
+  async function submitAddress(next) {
     address.value = next
     submittedAddress.value = next
     contextStatus.value = 'loading'

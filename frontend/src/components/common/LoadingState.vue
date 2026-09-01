@@ -1,5 +1,5 @@
-<script setup lang="ts">
-withDefaults(defineProps<{ message?: string }>(), { message: 'Loading…' })
+<script setup>
+defineProps({ message: { type: String, default: 'Loading…' } })
 </script>
 
 <template>

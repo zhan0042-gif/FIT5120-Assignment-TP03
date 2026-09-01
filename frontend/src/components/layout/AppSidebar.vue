@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script setup>
 import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useLocalContextStore } from '../../stores/localContext'

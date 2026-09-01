@@ -1,18 +1,17 @@
-<script setup lang="ts">
-import type { TestResult } from '../../types/scenario'
+<script setup>
 import StatusBadge from '../common/StatusBadge.vue'
 import { formatAustralianDateTime } from '../../utils/dateTime'
 
-defineProps<{ result: TestResult }>()
+defineProps({ result: { type: Object, required: true } })
 
-const CHECK_LABELS: Record<string, string> = {
+const CHECK_LABELS = {
   backup_transport: 'Backup transport',
   backup_driver: 'Backup driver',
   backup_person: 'Backup person',
   backup_destination: 'Backup destination',
 }
 
-function checkLabel(check: string) {
+function checkLabel(check) {
   return CHECK_LABELS[check] ?? 'Plan check'
 }
 </script>

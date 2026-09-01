@@ -2,19 +2,17 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '../api/client'
 import { useHouseholdStore } from './household'
-import type { Scenario, ScenarioId, TestResult } from '../types/scenario'
-import type { AsyncStatus } from '../types/async'
 
 export const useScenarioStore = defineStore('scenario', () => {
   const householdStore = useHouseholdStore()
-  const scenarios = ref<Scenario[]>([])
-  const scenariosStatus = ref<AsyncStatus>('idle')
-  const scenariosError = ref<string | null>(null)
+  const scenarios = ref([])
+  const scenariosStatus = ref('idle')
+  const scenariosError = ref(null)
 
-  const selectedScenarioId = ref<ScenarioId | null>(null)
-  const result = ref<TestResult | null>(null)
-  const testStatus = ref<AsyncStatus>('idle')
-  const testError = ref<string | null>(null)
+  const selectedScenarioId = ref(null)
+  const result = ref(null)
+  const testStatus = ref('idle')
+  const testError = ref(null)
 
   async function loadScenarios() {
     scenariosStatus.value = 'loading'
@@ -38,7 +36,7 @@ export const useScenarioStore = defineStore('scenario', () => {
     }
   }
 
-  function selectScenario(scenarioId: ScenarioId) {
+  function selectScenario(scenarioId) {
     const scenario = scenarios.value.find((item) => item.scenario_id === scenarioId)
     if (!scenario?.enabled) return
     selectedScenarioId.value = scenarioId

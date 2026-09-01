@@ -8,10 +8,8 @@ import {
   storeHouseholdId,
 } from '../api/client'
 import { createEmptyHouseholdPlan } from '../domain/householdPlan'
-import type { HouseholdPlan, PlanCompletion } from '../types/household'
-import type { AsyncStatus } from '../types/async'
 
-function isMissingHousehold(error: unknown): error is ApiError {
+function isMissingHousehold(error) {
   return (
     error instanceof ApiError &&
     error.status === 404 &&
@@ -19,31 +17,31 @@ function isMissingHousehold(error: unknown): error is ApiError {
   )
 }
 
-function isMissingPlan(error: unknown): error is ApiError {
+function isMissingPlan(error) {
   return error instanceof ApiError && error.status === 404
 }
 
 export const useHouseholdStore = defineStore('household', () => {
-  const householdId = ref<string | null>(loadStoredHouseholdId())
-  const plan = ref<HouseholdPlan | null>(null)
-  const planStatus = ref<AsyncStatus>('idle')
-  const planError = ref<string | null>(null)
+  const householdId = ref(loadStoredHouseholdId())
+  const plan = ref(null)
+  const planStatus = ref('idle')
+  const planError = ref(null)
 
-  const completion = ref<PlanCompletion | null>(null)
-  const completionStatus = ref<AsyncStatus>('idle')
+  const completion = ref(null)
+  const completionStatus = ref('idle')
 
-  const saveStatus = ref<AsyncStatus>('idle')
-  const saveError = ref<string | null>(null)
-  let householdRequest: Promise<string> | null = null
+  const saveStatus = ref('idle')
+  const saveError = ref(null)
+  let householdRequest = null
 
-  async function createAndStoreHousehold(): Promise<string> {
+  async function createAndStoreHousehold() {
     const created = await api.createHousehold()
     householdId.value = created.household_id
     storeHouseholdId(created.household_id)
     return created.household_id
   }
 
-  async function ensureHousehold(): Promise<string> {
+  async function ensureHousehold() {
     if (householdId.value) return householdId.value
     if (!householdRequest) {
       householdRequest = createAndStoreHousehold().finally(() => {
@@ -53,13 +51,13 @@ export const useHouseholdStore = defineStore('household', () => {
     return householdRequest
   }
 
-  async function replaceMissingHousehold(): Promise<string> {
+  async function replaceMissingHousehold() {
     householdId.value = null
     clearStoredHouseholdId()
     return ensureHousehold()
   }
 
-  function setNewPlanState(): void {
+  function setNewPlanState() {
     plan.value = createEmptyHouseholdPlan()
     completion.value = null
     completionStatus.value = 'idle'
@@ -115,7 +113,7 @@ export const useHouseholdStore = defineStore('household', () => {
     }
   }
 
-  async function savePlan(next: HouseholdPlan) {
+  async function savePlan(next) {
     saveStatus.value = 'loading'
     saveError.value = null
     try {

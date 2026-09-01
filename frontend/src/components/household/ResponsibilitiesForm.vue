@@ -1,10 +1,9 @@
-<script setup lang="ts">
-import type { HouseholdMember, Responsibility } from '../../types/household'
+<script setup>
 import { newId } from '../../api/client'
 import EmptyState from '../common/EmptyState.vue'
 
-defineProps<{ members: HouseholdMember[] }>()
-const responsibilities = defineModel<Responsibility[]>({ required: true })
+defineProps({ members: { type: Array, required: true } })
+const responsibilities = defineModel({ required: true })
 
 function addResponsibility() {
   responsibilities.value.push({
@@ -15,11 +14,11 @@ function addResponsibility() {
   })
 }
 
-function removeResponsibility(id: string) {
+function removeResponsibility(id) {
   responsibilities.value = responsibilities.value.filter((r) => r.responsibility_id !== id)
 }
 
-function isConflict(r: Responsibility) {
+function isConflict(r) {
   return !!r.backup_member_id && r.backup_member_id === r.primary_member_id
 }
 </script>

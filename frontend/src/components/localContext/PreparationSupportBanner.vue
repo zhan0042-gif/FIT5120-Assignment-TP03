@@ -1,10 +1,10 @@
-<script setup lang="ts">
+<script setup>
 import { computed } from 'vue'
 import { useLocalContextStore } from '../../stores/localContext'
 
 const store = useLocalContextStore()
 
-const SECTION_LABELS: Record<string, string> = {
+const SECTION_LABELS = {
   backup_transport: 'backup transport',
   backup_destination: 'backup destination',
   responsibilities: 'responsibilities',

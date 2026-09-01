@@ -1,8 +1,9 @@
-<script setup lang="ts">
-import type { Scenario, ScenarioId } from '../../types/scenario'
-
-defineProps<{ scenarios: Scenario[]; selectedId: string | null }>()
-const emit = defineEmits<{ select: [id: ScenarioId] }>()
+<script setup>
+defineProps({
+  scenarios: { type: Array, required: true },
+  selectedId: { type: String, default: null },
+})
+const emit = defineEmits(['select'])
 </script>
 
 <template>

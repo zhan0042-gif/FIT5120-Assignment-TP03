@@ -1,31 +1,8 @@
-import type {
-  HouseholdCreate,
-  HouseholdCreated,
-  HouseholdPlan,
-  PlanCompletion,
-} from '../types/household'
-import type {
-  LocalContext,
-  LocationRequest,
-  PreparationSupport,
-  ResolvedLocation,
-} from '../types/localContext'
-import type { Scenario, ScenarioId, TestResult } from '../types/scenario'
-
 const API_ROOT = '/api/v1'
 const HOUSEHOLD_ID_KEY = 'firebreak.household-id.v1'
 
-interface FastApiValidationItem {
-  msg?: string
-  loc?: Array<string | number>
-  [key: string]: unknown
-}
-
 export class ApiError extends Error {
-  readonly status: number
-  readonly validationDetails: unknown[]
-
-  constructor(status: number, message: string, validationDetails: unknown[] = []) {
+  constructor(status, message, validationDetails = []) {
     super(message)
     this.name = 'ApiError'
     this.status = status
@@ -33,18 +10,18 @@ export class ApiError extends Error {
   }
 }
 
-function validationMessage(items: FastApiValidationItem[]): string {
+function validationMessage(items) {
   const messages = items
     .map((item) => {
       const location = item.loc?.slice(1).join('.')
       return item.msg ? `${location ? `${location}: ` : ''}${item.msg}` : null
     })
-    .filter((message): message is string => message !== null)
+    .filter((message) => message !== null)
   return messages.join('; ') || 'The request contains invalid information.'
 }
 
-async function apiError(response: Response): Promise<ApiError> {
-  let body: unknown
+async function apiError(response) {
+  let body
   try {
     body = await response.json()
   } catch {
@@ -52,22 +29,17 @@ async function apiError(response: Response): Promise<ApiError> {
   }
 
   if (typeof body === 'object' && body !== null && 'detail' in body) {
-    const detail = (body as { detail: unknown }).detail
+    const detail = body.detail
     if (typeof detail === 'string') return new ApiError(response.status, detail)
     if (Array.isArray(detail)) {
-      return new ApiError(
-        response.status,
-        validationMessage(detail as FastApiValidationItem[]),
-        detail,
-      )
+      return new ApiError(response.status, validationMessage(detail), detail)
     }
     if (typeof detail === 'object' && detail !== null) {
-      const businessDetail = detail as { message?: unknown; errors?: unknown }
-      const errors = Array.isArray(businessDetail.errors) ? businessDetail.errors : []
+      const errors = Array.isArray(detail.errors) ? detail.errors : []
       const message =
-        typeof businessDetail.message === 'string'
-          ? businessDetail.message
-          : errors.filter((item): item is string => typeof item === 'string').join('; ')
+        typeof detail.message === 'string'
+          ? detail.message
+          : errors.filter((item) => typeof item === 'string').join('; ')
       return new ApiError(
         response.status,
         message || 'The request contains invalid information.',
@@ -78,75 +50,72 @@ async function apiError(response: Response): Promise<ApiError> {
   return new ApiError(response.status, response.statusText || 'The request failed.')
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request(path, init) {
   const headers = new Headers(init?.headers)
   if (init?.body !== undefined) headers.set('Content-Type', 'application/json')
   const response = await fetch(`${API_ROOT}${path}`, { ...init, headers })
   if (!response.ok) throw await apiError(response)
-  return (await response.json()) as T
+  return await response.json()
 }
 
-export function loadStoredHouseholdId(): string | null {
+export function loadStoredHouseholdId() {
   return localStorage.getItem(HOUSEHOLD_ID_KEY)
 }
 
-export function storeHouseholdId(householdId: string): void {
+export function storeHouseholdId(householdId) {
   localStorage.setItem(HOUSEHOLD_ID_KEY, householdId)
 }
 
-export function clearStoredHouseholdId(): void {
+export function clearStoredHouseholdId() {
   localStorage.removeItem(HOUSEHOLD_ID_KEY)
 }
 
 export const api = {
-  createHousehold: (input?: HouseholdCreate): Promise<HouseholdCreated> =>
+  createHousehold: (input) =>
     request('/households', {
       method: 'POST',
       body: input ? JSON.stringify(input) : undefined,
     }),
 
-  getHouseholdPlan: (householdId: string): Promise<HouseholdPlan> =>
+  getHouseholdPlan: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/plan`),
 
-  saveHouseholdPlan: (householdId: string, plan: HouseholdPlan): Promise<HouseholdPlan> =>
+  saveHouseholdPlan: (householdId, plan) =>
     request(`/households/${encodeURIComponent(householdId)}/plan`, {
       method: 'PUT',
       body: JSON.stringify(plan),
     }),
 
-  getCompletion: (householdId: string): Promise<PlanCompletion> =>
+  getCompletion: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/completion`),
 
-  saveLocation: (
-    householdId: string,
-    input: LocationRequest,
-  ): Promise<ResolvedLocation> =>
+  saveLocation: (householdId, input) =>
     request(`/households/${encodeURIComponent(householdId)}/location`, {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
 
-  getLocalContext: (householdId: string): Promise<LocalContext> =>
+  getLocalContext: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/local-context`),
 
-  getPreparationSupport: (householdId: string): Promise<PreparationSupport> =>
+  getPreparationSupport: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/preparation-support`),
 
-  getBasicScenarios: (householdId: string): Promise<Scenario[]> =>
+  getBasicScenarios: (householdId) =>
     request(`/scenarios/basic?household_id=${encodeURIComponent(householdId)}`),
 
-  runBasicTest: (householdId: string, scenarioId: ScenarioId): Promise<TestResult> =>
+  runBasicTest: (householdId, scenarioId) =>
     request(`/households/${encodeURIComponent(householdId)}/tests`, {
       method: 'POST',
       body: JSON.stringify({ scenario_id: scenarioId }),
     }),
 
-  getTestResult: (householdId: string, testRunId: string): Promise<TestResult> =>
+  getTestResult: (householdId, testRunId) =>
     request(
       `/households/${encodeURIComponent(householdId)}/tests/${encodeURIComponent(testRunId)}`,
     ),
 }
 
-export function newId(prefix: string): string {
+export function newId(prefix) {
   return `${prefix}_${crypto.randomUUID().replaceAll('-', '')}`
 }
