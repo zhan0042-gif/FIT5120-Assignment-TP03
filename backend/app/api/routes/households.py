@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Body, Depends, Query, status
 
 from app.core.dependencies import (
     get_address_client,
@@ -53,7 +53,18 @@ def create_household(
     return HouseholdCreated(household_id=household_id)
 
 
+
+@router.get("/location-suggestions", response_model=list[str])
+def get_location_suggestions(
+    query: Annotated[str, Query(min_length=3, max_length=150)],
+    address_client: Annotated[AddressClient, Depends(get_address_client)],
+) -> list[str]:
+    """Return official Vicmap address candidates without persisting them."""
+
+    return address_client.suggest(query)
+
 @router.put("/{household_id}/plan", response_model=HouseholdPlan)
+
 def save_plan(
     household_id: str, plan: HouseholdPlan, repository: RepositoryDependency
 ) -> HouseholdPlan:

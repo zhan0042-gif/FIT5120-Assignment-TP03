@@ -5,7 +5,7 @@ from xml.etree import ElementTree
 import httpx
 import pytest
 
-from app.core.config import build_external_providers, data_mode
+from app.core.config import build_external_providers
 from app.core.exceptions import AddressResolutionError, ExternalDataUnavailable
 from app.providers.bom import (
     BOMWeatherClient,
@@ -27,7 +27,6 @@ from app.providers.cfa import (
     parse_cfa_feed,
     parse_cfa_fire_danger,
 )
-from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
 from app.providers.vicmap import VicmapAddressClient
 
 
@@ -427,51 +426,9 @@ def test_bom_fire_danger_transport_failure_is_translated() -> None:
         client.get_fire_danger("Central")
 
 
-def test_explicit_provider_modes_do_not_fallback() -> None:
-    assert isinstance(build_external_providers("mock").address, MockAddressClient)
-    assert isinstance(build_external_providers("live").address, VicmapAddressClient)
-    assert isinstance(
-        build_external_providers("live").fire_danger, BOMFireDangerClient
-    )
-    with pytest.raises(RuntimeError, match="either 'mock' or 'live'"):
-        build_external_providers("automatic")
-
-
-def test_absent_data_mode_selects_all_live_official_providers(monkeypatch) -> None:
-    monkeypatch.delenv("APP_DATA_MODE", raising=False)
-
-    providers = build_external_providers()
-
-    assert data_mode() == "live"
-    assert isinstance(providers.address, VicmapAddressClient)
-    assert isinstance(providers.fire_danger, BOMFireDangerClient)
-    assert isinstance(providers.weather, BOMWeatherClient)
-
-
-def test_explicit_live_data_mode_selects_all_live_official_providers(
-    monkeypatch,
-) -> None:
-    monkeypatch.setenv("APP_DATA_MODE", "live")
-
+def test_runtime_always_selects_live_official_providers() -> None:
     providers = build_external_providers()
 
     assert isinstance(providers.address, VicmapAddressClient)
     assert isinstance(providers.fire_danger, BOMFireDangerClient)
     assert isinstance(providers.weather, BOMWeatherClient)
-
-
-def test_explicit_mock_data_mode_remains_deterministic(monkeypatch) -> None:
-    monkeypatch.setenv("APP_DATA_MODE", "mock")
-
-    providers = build_external_providers()
-
-    assert isinstance(providers.address, MockAddressClient)
-    assert isinstance(providers.fire_danger, MockFireDangerClient)
-    assert isinstance(providers.weather, MockWeatherClient)
-
-
-def test_invalid_environment_data_mode_fails_explicitly(monkeypatch) -> None:
-    monkeypatch.setenv("APP_DATA_MODE", "automatic")
-
-    with pytest.raises(RuntimeError, match="either 'mock' or 'live'"):
-        build_external_providers()

@@ -1,10 +1,4 @@
-import os
 from copy import deepcopy
-
-# Tests must opt into deterministic providers before application modules load.
-os.environ["APP_DATA_MODE"] = "mock"
-os.environ["APP_REPOSITORY_MODE"] = "memory"
-os.environ["APP_SPATIAL_MODE"] = "mock"
 
 import pytest
 

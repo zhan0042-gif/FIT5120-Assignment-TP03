@@ -126,6 +126,9 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
+
+  getLocationSuggestions: (query: string): Promise<string[]> =>
+    request(`/households/location-suggestions?query=${encodeURIComponent(query)}`),
   getLocalContext: (householdId: string): Promise<LocalContext> =>
     request(`/households/${encodeURIComponent(householdId)}/local-context`),
 

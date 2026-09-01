@@ -33,11 +33,8 @@ See [`docs/iteration1-integration-contract.md`](docs/iteration1-integration-cont
 for the human-readable API, business-rule, persistence, ownership, and provider
 contract.
 
-Normal runtime uses MySQL, the processed BPA/CFA district/fire-history datasets,
-and official Vicmap/BOM providers. Set `APP_DATA_MODE=mock` for deterministic
-offline address, fire-danger, and weather responses. Unit tests additionally set
-`APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock`; these modes are test and
-development fallbacks rather than the full-stack defaults.
+The application runtime always uses MySQL, processed BPA/CFA district/fire-history
+datasets, and official Vicmap/BOM providers; no mock runtime mode is available.
 
 The Iteration 1 endpoints are:
 
@@ -82,9 +79,7 @@ docker compose down
 The API is exposed on `http://localhost:8000` by default. The backend uses the
 Compose service name `mysql` for database networking. MySQL data is stored in the
 named `mysql_data` volume and survives ordinary `docker compose down` and restart
-operations. To run the full stack without calls to official services, set
-`APP_DATA_MODE=mock` in `.env`; BPA, CFA district, and fire-history lookups still
-use the real processed Data files.
+operations.
 
 ## Testing
 

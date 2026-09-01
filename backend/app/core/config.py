@@ -1,12 +1,10 @@
-"""Central runtime selection for deterministic mock or official live data."""
+"""Live external-provider wiring for the application runtime."""
 
 from dataclasses import dataclass
-import os
 
 from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import AddressClient, FireDangerClient, WeatherClient
-from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
 from app.providers.vicmap import VicmapAddressClient
 
 
@@ -17,39 +15,11 @@ class ExternalProviders:
     weather: WeatherClient
 
 
-def data_mode() -> str:
-    mode = os.getenv("APP_DATA_MODE", "live").strip().lower()
-    if mode not in {"mock", "live"}:
-        raise RuntimeError("APP_DATA_MODE must be either 'mock' or 'live'.")
-    return mode
+def build_external_providers() -> ExternalProviders:
+    """Build the official providers used by every non-test runtime."""
 
-
-def repository_mode() -> str:
-    mode = os.getenv("APP_REPOSITORY_MODE", "mysql").strip().lower()
-    if mode not in {"memory", "mysql"}:
-        raise RuntimeError("APP_REPOSITORY_MODE must be either 'memory' or 'mysql'.")
-    return mode
-
-
-def spatial_mode() -> str:
-    mode = os.getenv("APP_SPATIAL_MODE", "data").strip().lower()
-    if mode not in {"mock", "data"}:
-        raise RuntimeError("APP_SPATIAL_MODE must be either 'mock' or 'data'.")
-    return mode
-
-
-def build_external_providers(mode: str | None = None) -> ExternalProviders:
-    selected = (mode or data_mode()).strip().lower()
-    if selected == "mock":
-        return ExternalProviders(
-            address=MockAddressClient(),
-            fire_danger=MockFireDangerClient(),
-            weather=MockWeatherClient(),
-        )
-    if selected == "live":
-        return ExternalProviders(
-            address=VicmapAddressClient(),
-            fire_danger=BOMFireDangerClient(),
-            weather=BOMWeatherClient(),
-        )
-    raise RuntimeError("Provider mode must be either 'mock' or 'live'.")
+    return ExternalProviders(
+        address=VicmapAddressClient(),
+        fire_danger=BOMFireDangerClient(),
+        weather=BOMWeatherClient(),
+    )

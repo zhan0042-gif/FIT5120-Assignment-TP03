@@ -31,12 +31,29 @@ class VicmapAddressClient:
         self,
         *,
         http_client: httpx.Client | None = None,
-        timeout_seconds: float = 20.0,
+        timeout_seconds: float = 30.0,
     ) -> None:
         self.http_client = http_client or httpx.Client(
             timeout=timeout_seconds,
             follow_redirects=True,
         )
+
+    def suggest(self, query: str, *, limit: int = 5) -> list[str]:
+        """Return official Victorian address labels for a partial query."""
+
+        normalized = _normalize_address(query)
+        if len(normalized) < 3:
+            return []
+        payload = self._query(
+            f"UPPER(ezi_address) LIKE '%{_sql_literal(normalized)}%'",
+            result_limit=max(1, min(limit, 10)),
+        )
+        suggestions: list[str] = []
+        for feature in self._credible_features(payload):
+            address = self._to_location(feature).address
+            if address not in suggestions:
+                suggestions.append(address)
+        return suggestions[:limit]
 
     def resolve(self, address: str) -> HouseholdLocation:
         normalized = _normalize_address(address)
@@ -72,7 +89,7 @@ class VicmapAddressClient:
             )
         return self._resolve_unique(partial_matches)
 
-    def _query(self, where: str) -> dict[str, Any]:
+    def _query(self, where: str, *, result_limit: int = 20) -> dict[str, Any]:
         try:
             response = self.http_client.get(
                 VICMAP_ADDRESS_QUERY_URL,
@@ -81,7 +98,7 @@ class VicmapAddressClient:
                     "outFields": VICMAP_OUT_FIELDS,
                     "returnGeometry": "true",
                     "outSR": "4326",
-                    "resultRecordCount": "20",
+                    "resultRecordCount": str(result_limit),
                     "f": "json",
                 },
             )

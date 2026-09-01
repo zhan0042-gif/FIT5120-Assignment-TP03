@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import { api } from '../../api/client'
 import { useLocalContextStore } from '../../stores/localContext'
 import LoadingState from '../common/LoadingState.vue'
 import ErrorState from '../common/ErrorState.vue'
@@ -8,6 +9,41 @@ import { formatAustralianDateTime } from '../../utils/dateTime'
 const store = useLocalContextStore()
 const draftAddress = ref(store.address)
 
+const suggestions = ref<string[]>([])
+let lookupTimer: ReturnType<typeof setTimeout> | undefined
+let suppressNextLookup = false
+
+watch(draftAddress, (next) => {
+  if (suppressNextLookup) {
+    suppressNextLookup = false
+    return
+  }
+  const query = next.trim()
+  if (lookupTimer) clearTimeout(lookupTimer)
+  if (query.length < 3) {
+    suggestions.value = []
+    return
+  }
+  lookupTimer = setTimeout(async () => {
+    try {
+      const results = await api.getLocationSuggestions(query)
+      if (draftAddress.value.trim() === query) suggestions.value = results
+    } catch {
+      if (draftAddress.value.trim() === query) suggestions.value = []
+    }
+  }, 300)
+})
+
+onBeforeUnmount(() => {
+  if (lookupTimer) clearTimeout(lookupTimer)
+})
+
+function selectSuggestion(address: string) {
+  suppressNextLookup = true
+  draftAddress.value = address
+  suggestions.value = []
+  submit()
+}
 function submit() {
   if (!draftAddress.value.trim()) return
   store.submitAddress(draftAddress.value.trim())
@@ -26,13 +62,24 @@ function submit() {
     <form class="address-form" @submit.prevent="submit">
       <div class="field">
         <label for="address">Household address</label>
-        <input id="address" v-model="draftAddress" type="text" placeholder="e.g. 84 Wattle Track, Wattlebrook VIC" />
+        <input
+          id="address"
+          v-model="draftAddress"
+          type="text"
+          placeholder="Start typing a Victorian address"
+          autocomplete="street-address"
+          aria-autocomplete="list"
+          :aria-expanded="suggestions.length > 0"
+        />
+        <ul v-if="suggestions.length" class="suggestion-list" aria-label="Official Victorian address suggestions">
+          <li v-for="suggestion in suggestions" :key="suggestion"><button type="button" @mousedown.prevent="selectSuggestion(suggestion)">{{ suggestion }}</button></li>
+        </ul>
       </div>
       <button class="btn btn-primary" type="submit" :disabled="store.contextStatus === 'loading' || !draftAddress.trim()">
         {{ store.contextStatus === 'loading' ? 'Checking…' : 'Check location' }}
       </button>
     </form>
-    <p class="hint">Enter a Victorian household address.</p>
+    <p class="hint">Type at least 3 characters, then choose an official Victorian address.</p>
 
     <LoadingState v-if="store.contextStatus === 'loading'" message="Looking up local bushfire and fire-weather data…" />
 
@@ -49,7 +96,7 @@ function submit() {
           <span class="badge" :class="store.context.bushfire_context.is_bushfire_prone_area ? 'badge-accent' : 'badge-neutral'">
             {{ store.context.bushfire_context.is_bushfire_prone_area ? 'Bushfire-prone area' : 'Not a bushfire-prone area' }}
           </span>
-          <span>Temporary spatial context pending DS integration</span>
+          <span>Location context from live data sources</span>
         </div>
         <p class="hint">Fire district: {{ store.context.bushfire_context.fire_district }}.</p>
 
@@ -107,6 +154,43 @@ function submit() {
 .address-form .field {
   flex: 1;
   min-width: 240px;
+  position: relative;
+}
+
+.suggestion-list {
+  position: absolute;
+  z-index: 10;
+  width: 100%;
+  margin: 0.25rem 0 0;
+  padding: 0;
+  list-style: none;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
+  max-height: 14rem;
+  overflow-y: auto;
+}
+
+.suggestion-list li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.suggestion-list button {
+  display: block;
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  color: var(--color-text);
+}
+
+.suggestion-list button:hover,
+.suggestion-list button:focus-visible {
+  background: var(--color-bg-card-muted);
+  outline: none;
 }
 
 .hint {

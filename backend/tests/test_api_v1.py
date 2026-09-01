@@ -17,6 +17,7 @@ from app.core.exceptions import (
     ExternalDataUnavailable,
 )
 from app.main import app
+from app.providers.mock import MockAddressClient, MockFireDangerClient, MockSpatialProvider, MockWeatherClient
 from app.repositories.households import InMemoryHouseholdRepository
 from app.schemas.households import FireDanger
 
@@ -25,6 +26,10 @@ from app.schemas.households import FireDanger
 def api() -> tuple[TestClient, InMemoryHouseholdRepository]:
     repository = InMemoryHouseholdRepository()
     app.dependency_overrides[get_household_repository] = lambda: repository
+    app.dependency_overrides[get_address_client] = MockAddressClient
+    app.dependency_overrides[get_spatial_provider] = MockSpatialProvider
+    app.dependency_overrides[get_fire_danger_client] = MockFireDangerClient
+    app.dependency_overrides[get_weather_client] = MockWeatherClient
     with TestClient(app) as client:
         yield client, repository
     app.dependency_overrides.clear()

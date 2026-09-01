@@ -22,11 +22,8 @@ Epic 1 household creation, plan persistence, and completion use the FastAPI
 stored locally so a browser refresh can reload the authoritative plan from the
 backend. Plan data itself is not stored in localStorage.
 
-Epic 2 and Epic 3 use the FastAPI contracts. The Backend defaults to the real
-processed BPA, CFA district, and fire-history Data layer plus official Vicmap and
-BOM providers. Use `APP_DATA_MODE=mock` on the Backend for deterministic address,
-fire-danger, and weather responses; this does not replace real spatial Data when
-`APP_SPATIAL_MODE=data`.
+Epic 2 and Epic 3 use FastAPI contracts backed by the real processed BPA, CFA
+district, fire-history, Vicmap, and BOM data sources.
 
 API and domain IDs are public strings. Nullable plan fields, including the
 tri-state `has_private_transport`, must be preserved. The browser stores only the
