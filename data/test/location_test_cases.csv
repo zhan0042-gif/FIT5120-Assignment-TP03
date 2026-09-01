@@ -1,0 +1,9 @@
+test_id,latitude,longitude,expected_bpa,expected_fire_district,notes
+T001,-37.89002627699995,144.12595975369607,True,Central,Representative point inside Central and BPA
+T002,-37.86942811157287,145.08100507112738,False,Central,Point inside Central but outside BPA
+T003,-36.43246996499997,144.61002390014875,True,Northern Country,Representative point inside Northern Country and BPA
+T004,-36.368587999719814,145.45283034689194,False,Northern Country,Point inside Northern Country but outside BPA
+T005,-37.35638539249996,148.5196015238087,True,East Gippsland,Representative point inside East Gippsland and BPA
+T006,-37.52856649957061,149.76616757299502,False,East Gippsland,Point inside East Gippsland but outside BPA
+T007,-35.24025174649995,142.26626703118586,True,Mallee,Representative point inside Mallee and BPA
+T008,-34.238459000274375,142.1354409466407,False,Mallee,Point inside Mallee but outside BPA
