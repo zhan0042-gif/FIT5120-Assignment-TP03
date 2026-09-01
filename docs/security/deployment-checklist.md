@@ -41,8 +41,9 @@
 ## 6. Data
 
 - [ ] No addresses / coordinates / support needs in backend logs (privacy-requirements §3)
-- [ ] Database backups configured; deletion protection on RDS (if used)
-- [ ] Encryption at rest (RDS/volumes) enabled
+- [ ] RDS (selected): backups configured; deletion protection enabled
+- [ ] Encryption at rest enabled on RDS
+- [ ] RDS security group allows MySQL from the EC2 only (public access off)
 - [ ] No real personal data in seed/mock data
 
 ## 7. Build / CI
