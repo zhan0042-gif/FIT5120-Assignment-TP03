@@ -123,7 +123,9 @@ def test_complete_household_api_flow(
 
     assert plan_response.status_code == 200
     assert location_response.status_code == 200
-    assert fetched_plan.json() == complete_plan_data
+    assert fetched_plan.json()["arrangements"]["primary_destination"]["verification_status"] == "verified"
+    assert fetched_plan.json()["arrangements"]["primary_destination"]["canonical_address"] == "1 Example Road"
+    assert fetched_plan.json()["arrangements"]["backup_arrangements"][0]["destination"]["verification_status"] == "verified"
     assert completion_response.json()["overall_status"] == "complete"
     assert completion_response.json()["immediate_checks"] == []
     assert context_response.json()["bushfire_context"] == {
@@ -248,7 +250,7 @@ def test_shared_transport_api_save_succeeds_and_returns_immediate_check(
     client, _ = api
     household_id = create_household(client)
     plan = deepcopy(complete_plan_data)
-    plan["arrangements"]["backup_transport_id"] = "t_001"
+    plan["arrangements"]["backup_arrangements"][0]["transport_id"] = "t_001"
 
     save_response = client.put(
         f"/api/v1/households/{household_id}/plan", json=plan
@@ -264,7 +266,7 @@ def test_shared_transport_api_save_succeeds_and_returns_immediate_check(
             "check": "shared_transport_resource",
             "section": "backup_transport",
             "status": "warning",
-            "message": "Primary and backup transport use the same resource.",
+                "message": "All backup arrangements use the primary transport.",
         }
     ]
 
@@ -467,7 +469,7 @@ def test_test_execution_uses_latest_saved_plan_and_persists_both_results(
     client, repository = api
     household_id = create_household(client)
     plan_without_backup = deepcopy(complete_plan_data)
-    plan_without_backup["arrangements"]["backup_transport_id"] = None
+    plan_without_backup["arrangements"]["backup_arrangements"] = []
     client.put(
         f"/api/v1/households/{household_id}/plan", json=plan_without_backup
     )

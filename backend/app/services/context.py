@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta, timezone
 
 from app.core.exceptions import (
-    AddressResolutionError,
     ExternalDataUnavailable,
     HouseholdNotFound,
     LocationNotVerified,
@@ -17,6 +16,7 @@ from app.providers.interfaces import (
 from app.repositories.households import HouseholdRepository
 from app.schemas.households import (
     AddressSuggestion,
+    AddressVerification,
     BushfireContext,
     EnvironmentalContext,
     FireDanger,
@@ -58,22 +58,45 @@ class LocationService:
             raise HouseholdNotFound(f"Household '{household_id}' was not found.")
         saved = HouseholdLocation(address=" ".join(address.split()))
         self.repository.save_location(household_id, saved)
-        try:
-            verified = self.address_client.resolve(selected_address or address)
-        except (AddressResolutionError, ExternalDataUnavailable):
-            return saved
-        except Exception as exc:
-            return saved
-        location = verified.model_copy(
-            update={
-                "address": saved.address,
-                "canonical_address": verified.address,
-                "verification_status": "verified",
-                "verified_at": datetime.now(timezone.utc),
-            }
+        verification = AddressVerificationService(self.address_client).verify(
+            saved.address, selected_address
         )
+        if verification.verification_status == "unverified":
+            return saved
+        location = saved.model_copy(update=verification.model_dump())
         self.repository.save_location(household_id, location)
         return location
+
+
+class AddressVerificationService:
+    """Apply Vicmap verification consistently without blocking manual saves."""
+
+    def __init__(self, address_client: AddressClient) -> None:
+        self.address_client = address_client
+
+    def verify(
+        self, entered_address: str | None, selected_address: str | None = None
+    ) -> AddressVerification:
+        if not entered_address or not entered_address.strip():
+            return AddressVerification()
+        try:
+            verified = self.address_client.resolve(selected_address or entered_address)
+        except Exception:
+            return AddressVerification()
+        return AddressVerification(
+            verification_status="verified",
+            canonical_address=verified.address,
+            unit_number=verified.unit_number,
+            street_number=verified.street_number,
+            street_name=verified.street_name,
+            suburb_or_locality=verified.suburb_or_locality,
+            state=verified.state,
+            postcode=verified.postcode,
+            country=verified.country,
+            latitude=verified.latitude,
+            longitude=verified.longitude,
+            verified_at=datetime.now(timezone.utc),
+        )
 
 
 class LocalContextService:

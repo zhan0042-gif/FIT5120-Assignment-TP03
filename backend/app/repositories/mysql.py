@@ -18,6 +18,7 @@ from app.core.exceptions import (
 from app.schemas.households import (
     Animal,
     Arrangements,
+    BackupArrangement,
     Destination,
     HouseholdLocation,
     HouseholdLocationContext,
@@ -185,14 +186,14 @@ class MySQLHouseholdRepository:
                             """
                             INSERT INTO destination (
                                 public_id, household_id, display_name, address,
-                                unit_number, street_number, street_name,
+                                canonical_address, unit_number, street_number, street_name,
                                 suburb_or_locality, state, postcode, country,
-                                latitude, longitude
+                                latitude, longitude, verification_status, verified_at
                             ) VALUES (
                                 :public_id, :household_id, :display_name, :address,
-                                :unit_number, :street_number, :street_name,
+                                :canonical_address, :unit_number, :street_number, :street_name,
                                 :suburb_or_locality, :state, :postcode, :country,
-                                :latitude, :longitude
+                                :latitude, :longitude, :verification_status, :verified_at
                             )
                             """
                         ),
@@ -201,6 +202,7 @@ class MySQLHouseholdRepository:
                             "household_id": internal_household_id,
                             "display_name": destination.display_name,
                             "address": destination.address,
+                            "canonical_address": destination.canonical_address,
                             "unit_number": destination.unit_number,
                             "street_number": destination.street_number,
                             "street_name": destination.street_name,
@@ -210,6 +212,8 @@ class MySQLHouseholdRepository:
                             "country": destination.country,
                             "latitude": destination.latitude,
                             "longitude": destination.longitude,
+                            "verification_status": destination.verification_status,
+                            "verified_at": self._mysql_datetime(destination.verified_at),
                         },
                     )
                     destination_ids[destination.destination_id] = int(result.lastrowid)
@@ -219,44 +223,41 @@ class MySQLHouseholdRepository:
                     text(
                         """
                         INSERT INTO household_arrangement (
-                            household_id, has_private_transport,
-                            primary_transport_id, backup_transport_id,
-                            primary_destination_id, backup_destination_id,
-                            meeting_point
+                            household_id, has_private_transport, meeting_point
                         ) VALUES (
-                            :household_id, :has_private_transport,
-                            :primary_transport_id, :backup_transport_id,
-                            :primary_destination_id, :backup_destination_id,
-                            :meeting_point
+                            :household_id, :has_private_transport, :meeting_point
                         )
                         """
                     ),
                     {
                         "household_id": internal_household_id,
                         "has_private_transport": plan.has_private_transport,
-                        "primary_transport_id": self._optional_reference(
-                            transport_ids,
-                            arrangements.primary_transport_id,
-                            "primary transport",
-                        ),
-                        "backup_transport_id": self._optional_reference(
-                            transport_ids,
-                            arrangements.backup_transport_id,
-                            "backup transport",
-                        ),
-                        "primary_destination_id": self._optional_destination_reference(
-                            destination_ids,
-                            arrangements.primary_destination,
-                            "primary destination",
-                        ),
-                        "backup_destination_id": self._optional_destination_reference(
-                            destination_ids,
-                            arrangements.backup_destination,
-                            "backup destination",
-                        ),
                         "meeting_point": arrangements.meeting_point,
                     },
                 )
+                self._insert_arrangement_option(
+                    connection,
+                    internal_household_id,
+                    "primary",
+                    0,
+                    arrangements.primary_transport_id,
+                    arrangements.primary_destination,
+                    transport_ids,
+                    destination_ids,
+                )
+                for priority, backup in enumerate(
+                    arrangements.backup_arrangements, start=1
+                ):
+                    self._insert_arrangement_option(
+                        connection,
+                        internal_household_id,
+                        "backup",
+                        priority,
+                        backup.transport_id,
+                        backup.destination,
+                        transport_ids,
+                        destination_ids,
+                    )
 
                 for responsibility in plan.responsibilities:
                     connection.execute(
@@ -353,7 +354,14 @@ class MySQLHouseholdRepository:
                         "verified_at": self._mysql_datetime(location.verified_at),
                     },
                 )
-                if result.rowcount == 0:
+                location_exists = connection.execute(
+                    text(
+                        "SELECT 1 FROM household_location "
+                        "WHERE household_id = :household_id"
+                    ),
+                    {"household_id": internal_household_id},
+                ).first()
+                if result.rowcount == 0 and location_exists is None:
                     connection.execute(
                         text(
                             """
@@ -637,7 +645,7 @@ class MySQLHouseholdRepository:
             item
             for item in (
                 plan.arrangements.primary_destination,
-                plan.arrangements.backup_destination,
+                *(backup.destination for backup in plan.arrangements.backup_arrangements),
             )
             if item is not None
         ]
@@ -681,6 +689,7 @@ class MySQLHouseholdRepository:
         parameters = {"household_id": household_id}
         for table in (
             "responsibility",
+            "household_arrangement_option",
             "household_arrangement",
             "destination",
             "transport",
@@ -799,6 +808,7 @@ class MySQLHouseholdRepository:
                 destination_id=row["public_id"],
                 display_name=row["display_name"],
                 address=row["address"],
+                canonical_address=row["canonical_address"],
                 unit_number=row["unit_number"],
                 street_number=row["street_number"],
                 street_name=row["street_name"],
@@ -808,6 +818,8 @@ class MySQLHouseholdRepository:
                 country=row["country"],
                 latitude=(float(row["latitude"]) if row["latitude"] is not None else None),
                 longitude=(float(row["longitude"]) if row["longitude"] is not None else None),
+                verification_status=row["verification_status"],
+                verified_at=self._as_utc(row["verified_at"]),
             )
             for row in destination_rows
         }
@@ -838,6 +850,20 @@ class MySQLHouseholdRepository:
             for row in responsibility_rows
         ]
 
+        option_rows = connection.execute(
+            text(
+                """
+                SELECT role, priority, transport_id, destination_id
+                FROM household_arrangement_option
+                WHERE household_id = :household_id
+                ORDER BY priority, arrangement_option_id
+                """
+            ),
+            {"household_id": household_id},
+        ).mappings().all()
+        primary = next((row for row in option_rows if row["role"] == "primary"), None)
+        backups = [row for row in option_rows if row["role"] == "backup"]
+
         return HouseholdPlan(
             members=members,
             animals=animals,
@@ -849,20 +875,60 @@ class MySQLHouseholdRepository:
             transports=transports,
             arrangements=Arrangements(
                 primary_transport_id=self._public_reference(
-                    transport_public_ids, arrangement["primary_transport_id"]
-                ),
-                backup_transport_id=self._public_reference(
-                    transport_public_ids, arrangement["backup_transport_id"]
+                    transport_public_ids, primary["transport_id"] if primary else None
                 ),
                 primary_destination=self._destination(
-                    destinations, arrangement["primary_destination_id"]
+                    destinations, primary["destination_id"] if primary else None
                 ),
-                backup_destination=self._destination(
-                    destinations, arrangement["backup_destination_id"]
-                ),
+                backup_arrangements=[
+                    BackupArrangement(
+                        transport_id=self._public_reference(
+                            transport_public_ids, row["transport_id"]
+                        ),
+                        destination=self._destination(destinations, row["destination_id"]),
+                    )
+                    for row in backups
+                ],
                 meeting_point=arrangement["meeting_point"],
             ),
             responsibilities=responsibilities,
+        )
+
+    @classmethod
+    def _insert_arrangement_option(
+        cls,
+        connection: Connection,
+        household_id: int,
+        role: str,
+        priority: int,
+        transport_public_id: str | None,
+        destination: Destination | None,
+        transport_ids: dict[str, int],
+        destination_ids: dict[str, int],
+    ) -> None:
+        if transport_public_id is None and destination is None:
+            return
+        connection.execute(
+            text(
+                """
+                INSERT INTO household_arrangement_option (
+                    household_id, role, priority, transport_id, destination_id
+                ) VALUES (
+                    :household_id, :role, :priority, :transport_id, :destination_id
+                )
+                """
+            ),
+            {
+                "household_id": household_id,
+                "role": role,
+                "priority": priority,
+                "transport_id": cls._optional_reference(
+                    transport_ids, transport_public_id, f"{role} transport"
+                ),
+                "destination_id": cls._optional_destination_reference(
+                    destination_ids, destination, f"{role} destination"
+                ),
+            },
         )
 
     @staticmethod

@@ -70,6 +70,7 @@ const validationErrors = computed(() => {
 async function save() {
   if (!draft.value || validationErrors.value.length > 0) return
   await householdStore.savePlan(draft.value)
+  if (householdStore.saveStatus === 'success') resetDraft()
   await localContextStore.loadPreparationSupport()
 }
 </script>

@@ -1,23 +1,56 @@
 """Household plan validation and completion rules."""
 
 from app.core.exceptions import PlanValidationError
+from app.providers.interfaces import AddressClient
 from app.repositories.households import HouseholdRepository
 from app.schemas.households import (
     CompletionSection,
+    Destination,
     HouseholdPlan,
     ImmediateCheck,
     PlanCompletion,
 )
+from app.services.context import AddressVerificationService
 
 
 class HouseholdPlanService:
-    def __init__(self, repository: HouseholdRepository) -> None:
+    def __init__(
+        self, repository: HouseholdRepository, address_client: AddressClient | None = None
+    ) -> None:
         self.repository = repository
+        self.address_verifier = (
+            AddressVerificationService(address_client) if address_client else None
+        )
 
     def save(self, household_id: str, plan: HouseholdPlan) -> HouseholdPlan:
         self.validate(plan)
+        plan = self._enrich_destinations(plan)
         self.repository.save_plan(household_id, plan)
         return self.repository.get_plan(household_id)
+
+    def _enrich_destinations(self, plan: HouseholdPlan) -> HouseholdPlan:
+        if self.address_verifier is None:
+            return plan
+        arrangements = plan.arrangements.model_copy(deep=True)
+        arrangements.primary_destination = self._enrich_destination(
+            arrangements.primary_destination
+        )
+        for backup in arrangements.backup_arrangements:
+            backup.destination = self._enrich_destination(backup.destination)
+        return plan.model_copy(update={"arrangements": arrangements})
+
+    def _enrich_destination(self, destination: Destination | None) -> Destination | None:
+        if destination is None:
+            return None
+        verification = self.address_verifier.verify(
+            destination.address, destination.selected_address
+        )
+        return destination.model_copy(
+            update={
+                **verification.model_dump(),
+                "selected_address": None,
+            }
+        )
 
     @staticmethod
     def validate(plan: HouseholdPlan) -> None:
@@ -52,16 +85,16 @@ class HouseholdPlanService:
             and arrangements.primary_transport_id not in known_transports
         ):
             errors.append("primary_transport_id must reference an existing transport")
-        if (
-            arrangements.backup_transport_id is not None
-            and arrangements.backup_transport_id not in known_transports
-        ):
-            errors.append("backup_transport_id must reference an existing transport")
+        for index, backup in enumerate(arrangements.backup_arrangements, start=1):
+            if backup.transport_id is not None and backup.transport_id not in known_transports:
+                errors.append(
+                    f"backup_arrangements[{index}].transport_id must reference an existing transport"
+                )
         destinations = [
             destination
             for destination in (
                 arrangements.primary_destination,
-                arrangements.backup_destination,
+                *(backup.destination for backup in arrangements.backup_arrangements),
             )
             if destination is not None
         ]
@@ -137,14 +170,14 @@ class PlanCompletionService:
             "transport": explicitly_no_private_transport
             or bool(plan.transports and arrangements.primary_transport_id),
             "backup_transport": explicitly_no_private_transport
-            or bool(arrangements.backup_transport_id),
+            or any(backup.transport_id for backup in arrangements.backup_arrangements),
             "primary_destination": bool(
                 arrangements.primary_destination
                 and arrangements.primary_destination.display_name.strip()
             ),
-            "backup_destination": bool(
-                arrangements.backup_destination
-                and arrangements.backup_destination.display_name.strip()
+            "backup_destination": any(
+                backup.destination and backup.destination.display_name.strip()
+                for backup in arrangements.backup_arrangements
             ),
             "responsibilities": bool(plan.responsibilities)
             and all(
@@ -176,27 +209,41 @@ class ImmediateCheckService:
         arrangements = plan.arrangements
         checks: list[ImmediateCheck] = []
 
+        backup_transport_ids = [
+            backup.transport_id
+            for backup in arrangements.backup_arrangements
+            if backup.transport_id is not None
+        ]
+        independent_backup_transport = any(
+            transport_id != arrangements.primary_transport_id
+            for transport_id in backup_transport_ids
+        )
         if (
             arrangements.primary_transport_id is not None
-            and arrangements.backup_transport_id is None
+            and not backup_transport_ids
         ):
             checks.append(
                 ImmediateCheck(
                     check="missing_backup_transport",
                     section="backup_transport",
-                    message="No backup transport is set.",
+                    message="No independent backup transport is set.",
                 )
             )
 
         if (
             arrangements.primary_destination is not None
-            and arrangements.backup_destination is None
+            and not any(
+                self._meaningfully_different_destination(
+                    arrangements.primary_destination, backup.destination
+                )
+                for backup in arrangements.backup_arrangements
+            )
         ):
             checks.append(
                 ImmediateCheck(
                     check="missing_backup_destination",
                     section="backup_destination",
-                    message="No backup destination is set.",
+                    message="No independent backup destination is set.",
                 )
             )
 
@@ -217,14 +264,14 @@ class ImmediateCheckService:
 
         if (
             arrangements.primary_transport_id is not None
-            and arrangements.backup_transport_id
-            == arrangements.primary_transport_id
+            and backup_transport_ids
+            and not independent_backup_transport
         ):
             checks.append(
                 ImmediateCheck(
                     check="shared_transport_resource",
                     section="backup_transport",
-                    message="Primary and backup transport use the same resource.",
+                    message="All backup arrangements use the primary transport.",
                 )
             )
 
@@ -236,3 +283,12 @@ class ImmediateCheckService:
         if task:
             return f'No backup person is assigned for "{task}".'
         return "A responsibility has no backup person assigned."
+
+    @staticmethod
+    def _meaningfully_different_destination(primary, backup) -> bool:
+        return bool(
+            backup
+            and backup.destination_id != primary.destination_id
+            and (backup.address or "").strip().casefold()
+            != (primary.address or "").strip().casefold()
+        )

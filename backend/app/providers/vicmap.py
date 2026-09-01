@@ -62,7 +62,11 @@ class VicmapAddressClient:
         if len(exact_matches) == 1:
             return self._to_location(exact_matches[0])
         if len(exact_matches) > 1:
-            return self._resolve_unique(exact_matches)
+            # Multiple official features may share one exact ezi_address (for
+            # example unit/building records). The canonical address itself is
+            # still exact, so use an official feature instead of treating the
+            # selected suggestion as an ambiguous free-text prefix.
+            return self._to_location(exact_matches[0])
 
         partial = self._query(f"ezi_address LIKE '{_sql_literal(normalized)}%'")
         partial_matches = self._credible_features(partial)

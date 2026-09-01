@@ -91,6 +91,35 @@ def test_vicmap_exact_match_returns_standardized_wgs84_location() -> None:
     assert result.country == "Australia"
 
 
+def test_selected_exact_suggestion_with_duplicate_official_features_verifies() -> None:
+    first = vicmap_feature(
+        address="84 WATTLE TRACK WARRANDYTE 3113",
+        longitude=145.2229,
+        latitude=-37.7379,
+    )
+    second = vicmap_feature(
+        address="84 WATTLE TRACK WARRANDYTE 3113",
+        longitude=145.2230,
+        latitude=-37.7380,
+    )
+    for feature in (first, second):
+        feature["attributes"]["postcode"] = "3113"
+        feature["attributes"]["locality_name"] = "WARRANDYTE"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "ezi_address = '84 WATTLE TRACK WARRANDYTE 3113'" in request.url.params["where"]
+        return httpx.Response(200, json={"features": [first, second]})
+
+    client = VicmapAddressClient(
+        http_client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+    result = client.resolve("84 WATTLE TRACK WARRANDYTE VIC 3113")
+
+    assert result.address == "84 WATTLE TRACK WARRANDYTE VIC 3113"
+    assert result.latitude == pytest.approx(-37.7379)
+
+
 def test_vicmap_suggestions_use_official_structured_results() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert "LIKE" in request.url.params["where"]

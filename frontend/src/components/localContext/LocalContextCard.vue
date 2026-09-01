@@ -1,84 +1,16 @@
 <script setup>
-import { onBeforeUnmount, ref, watch } from 'vue'
-import { api } from '../../api/client'
+import { ref } from 'vue'
 import { useLocalContextStore } from '../../stores/localContext'
 import LoadingState from '../common/LoadingState.vue'
 import ErrorState from '../common/ErrorState.vue'
 import { formatAustralianDateTime } from '../../utils/dateTime'
+import AddressAutocompleteInput from '../common/AddressAutocompleteInput.vue'
 
 const store = useLocalContextStore()
 const draftAddress = ref(store.address)
-const suggestions = ref([])
-const suggestionStatus = ref('idle')
-const activeSuggestion = ref(-1)
-let lookupTimer
-let requestSequence = 0
-let selectingSuggestion = false
-
-function isMeaningfulAddressQuery(query) {
-  return query.length >= 4 && /\d/.test(query) && /[a-z]/i.test(query)
-}
-
-watch(draftAddress, (next) => {
-  if (selectingSuggestion) {
-    selectingSuggestion = false
-    return
-  }
-  if (lookupTimer) clearTimeout(lookupTimer)
-  const query = next.trim()
-  activeSuggestion.value = -1
-  if (!isMeaningfulAddressQuery(query)) {
-    requestSequence += 1
-    suggestions.value = []
-    suggestionStatus.value = 'idle'
-    return
-  }
-  suggestionStatus.value = 'loading'
-  const sequence = ++requestSequence
-  lookupTimer = setTimeout(async () => {
-    try {
-      const results = await api.getAddressSuggestions(query)
-      if (sequence !== requestSequence || draftAddress.value.trim() !== query) return
-      suggestions.value = results
-      suggestionStatus.value = results.length ? 'success' : 'empty'
-    } catch {
-      if (sequence !== requestSequence) return
-      suggestions.value = []
-      suggestionStatus.value = 'error'
-    }
-  }, 350)
-})
-
-onBeforeUnmount(() => {
-  if (lookupTimer) clearTimeout(lookupTimer)
-  requestSequence += 1
-})
 
 function selectSuggestion(suggestion) {
-  selectingSuggestion = true
-  requestSequence += 1
-  draftAddress.value = suggestion.address
-  suggestions.value = []
-  suggestionStatus.value = 'idle'
-  activeSuggestion.value = -1
   store.submitAddress(suggestion.address, suggestion.address)
-}
-
-function addressKeydown(event) {
-  if (!suggestions.value.length) return
-  if (event.key === 'ArrowDown') {
-    event.preventDefault()
-    activeSuggestion.value = (activeSuggestion.value + 1) % suggestions.value.length
-  } else if (event.key === 'ArrowUp') {
-    event.preventDefault()
-    activeSuggestion.value = activeSuggestion.value <= 0 ? suggestions.value.length - 1 : activeSuggestion.value - 1
-  } else if (event.key === 'Enter' && activeSuggestion.value >= 0) {
-    event.preventDefault()
-    selectSuggestion(suggestions.value[activeSuggestion.value])
-  } else if (event.key === 'Escape') {
-    suggestions.value = []
-    activeSuggestion.value = -1
-  }
 }
 
 function submit() {
@@ -97,31 +29,13 @@ function submit() {
     </div>
 
     <form class="address-form" @submit.prevent="submit">
-      <div class="field">
-        <label for="address">Household address</label>
-        <input
-          id="address"
-          v-model="draftAddress"
-          type="text"
-          placeholder="Start typing a Victorian street address"
-          autocomplete="street-address"
-          aria-autocomplete="list"
-          :aria-expanded="suggestions.length > 0"
-          :aria-activedescendant="activeSuggestion >= 0 ? `address-suggestion-${activeSuggestion}` : undefined"
-          @keydown="addressKeydown"
-        />
-        <ul v-if="suggestions.length" class="suggestion-list" role="listbox" aria-label="Victorian address suggestions">
-          <li v-for="(suggestion, index) in suggestions" :id="`address-suggestion-${index}`" :key="`${suggestion.address}-${suggestion.latitude}-${suggestion.longitude}`" role="option" :aria-selected="index === activeSuggestion">
-            <button type="button" :class="{ 'is-active': index === activeSuggestion }" @mousedown.prevent="selectSuggestion(suggestion)">
-              <span>{{ suggestion.address }}</span>
-              <small>{{ suggestion.suburb_or_locality }} · {{ suggestion.state }} {{ suggestion.postcode }}</small>
-            </button>
-          </li>
-        </ul>
-        <span v-if="suggestionStatus === 'loading'" class="field-help">Finding official Victorian addresses…</span>
-        <span v-else-if="suggestionStatus === 'empty'" class="field-help">No matching address yet. Add the street number, locality or postcode.</span>
-        <span v-else-if="suggestionStatus === 'error'" class="field-error">Address suggestions are unavailable. You can still enter a complete address and check it.</span>
-      </div>
+      <AddressAutocompleteInput
+        v-model="draftAddress"
+        class="field"
+        label="Household address"
+        placeholder="Start typing a Victorian street address"
+        @select="selectSuggestion"
+      />
       <button class="btn btn-primary" type="submit" :disabled="store.saveStatus === 'loading' || !draftAddress.trim()">
         {{ store.saveStatus === 'loading' ? 'Saving…' : 'Save address' }}
       </button>
@@ -223,57 +137,10 @@ function submit() {
   position: relative;
 }
 
-.field-help {
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-}
-
 .address-status {
   display: flex;
   gap: 0.6rem;
   margin: 0.5rem 0;
-  color: var(--color-text-muted);
-}
-
-.suggestion-list {
-  position: absolute;
-  z-index: 20;
-  top: 100%;
-  width: 100%;
-  max-height: 16rem;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0.25rem 0 0;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-bg-card);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14);
-}
-
-.suggestion-list li + li {
-  border-top: 1px solid var(--color-border);
-}
-
-.suggestion-list button {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  gap: 0.15rem;
-  border: 0;
-  padding: 0.65rem 0.75rem;
-  background: transparent;
-  color: var(--color-text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.suggestion-list button:hover,
-.suggestion-list button.is-active {
-  background: var(--color-bg-card-muted);
-}
-
-.suggestion-list small {
   color: var(--color-text-muted);
 }
 

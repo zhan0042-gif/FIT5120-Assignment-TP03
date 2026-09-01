@@ -112,6 +112,7 @@ class Destination(BaseModel):
     destination_id: EntityId
     display_name: str = ""
     address: str | None = None
+    canonical_address: str | None = None
     unit_number: str | None = Field(default=None, max_length=30)
     street_number: str | None = Field(default=None, max_length=30)
     street_name: str | None = Field(default=None, max_length=150)
@@ -121,13 +122,41 @@ class Destination(BaseModel):
     country: Literal["Australia"] | None = "Australia"
     latitude: Annotated[float | None, Field(ge=-90, le=90, allow_inf_nan=False)] = None
     longitude: Annotated[float | None, Field(ge=-180, le=180, allow_inf_nan=False)] = None
+    verification_status: Literal["verified", "unverified"] = "unverified"
+    verified_at: datetime | None = None
+    selected_address: str | None = Field(default=None, exclude=True)
+
+
+class AddressVerification(BaseModel):
+    """Official enrichment result that can be applied to any saved address."""
+
+    verification_status: Literal["verified", "unverified"] = "unverified"
+    canonical_address: str | None = None
+    unit_number: str | None = None
+    street_number: str | None = None
+    street_name: str | None = None
+    suburb_or_locality: str | None = None
+    state: Literal["VIC"] | None = None
+    postcode: str | None = None
+    country: Literal["Australia"] | None = None
+    latitude: Annotated[float | None, Field(ge=-90, le=90, allow_inf_nan=False)] = None
+    longitude: Annotated[float | None, Field(ge=-180, le=180, allow_inf_nan=False)] = None
+    verified_at: datetime | None = None
+
+
+class BackupArrangement(BaseModel):
+    """One ordered fallback transport and/or destination option."""
+
+    transport_id: EntityId | None = None
+    destination: Destination | None = None
 
 
 class Arrangements(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     primary_transport_id: EntityId | None = None
-    backup_transport_id: EntityId | None = None
     primary_destination: Destination | None = None
-    backup_destination: Destination | None = None
+    backup_arrangements: list[BackupArrangement] = Field(default_factory=list)
     meeting_point: str | None = None
 
 

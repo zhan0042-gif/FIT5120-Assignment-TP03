@@ -64,7 +64,6 @@ def complete_plan_data() -> dict:
         ],
         "arrangements": {
             "primary_transport_id": "t_001",
-            "backup_transport_id": "t_002",
             "primary_destination": {
                 "destination_id": "d_001",
                 "display_name": "Relative's House",
@@ -79,9 +78,12 @@ def complete_plan_data() -> dict:
                     "latitude": None,
                     "longitude": None,
             },
-            "backup_destination": {
-                "destination_id": "d_002",
-                "display_name": "Community Centre",
+            "backup_arrangements": [
+                {
+                    "transport_id": "t_002",
+                    "destination": {
+                        "destination_id": "d_002",
+                        "display_name": "Community Centre",
                     "address": "2 Safe Street",
                     "unit_number": None,
                     "street_number": "2",
@@ -91,8 +93,10 @@ def complete_plan_data() -> dict:
                     "postcode": "3799",
                     "country": "Australia",
                     "latitude": None,
-                    "longitude": None,
-            },
+                        "longitude": None,
+                    },
+                }
+            ],
             "meeting_point": "Front gate",
         },
         "responsibilities": [

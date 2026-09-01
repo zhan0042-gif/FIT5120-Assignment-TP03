@@ -126,6 +126,7 @@ CREATE TABLE destination (
     household_id BIGINT UNSIGNED NOT NULL,
     display_name VARCHAR(150) NOT NULL,
     address VARCHAR(255),
+    canonical_address VARCHAR(300) NULL,
     unit_number VARCHAR(30),
     street_number VARCHAR(30),
     street_name VARCHAR(150),
@@ -135,6 +136,8 @@ CREATE TABLE destination (
     country VARCHAR(100) DEFAULT 'Australia',
     latitude DECIMAL(9,6),
     longitude DECIMAL(9,6),
+    verification_status ENUM('verified', 'unverified') NOT NULL DEFAULT 'unverified',
+    verified_at TIMESTAMP NULL,
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -155,18 +158,12 @@ CREATE TABLE destination (
 
 -- =========================================================
 -- 7. Household Arrangement
--- One current primary/backup arrangement record per household
+-- Household-level arrangement metadata. Options are stored separately below.
 -- =========================================================
 
 CREATE TABLE household_arrangement (
     household_id BIGINT UNSIGNED PRIMARY KEY,
     has_private_transport BOOLEAN,
-
-    primary_transport_id BIGINT UNSIGNED,
-    backup_transport_id BIGINT UNSIGNED,
-
-    primary_destination_id BIGINT UNSIGNED,
-    backup_destination_id BIGINT UNSIGNED,
 
     meeting_point VARCHAR(255),
     notes TEXT,
@@ -178,37 +175,49 @@ CREATE TABLE household_arrangement (
     CONSTRAINT fk_arrangement_household
         FOREIGN KEY (household_id)
         REFERENCES household(household_id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT fk_arrangement_primary_transport
-        FOREIGN KEY (primary_transport_id)
-        REFERENCES transport(transport_id)
-        ON DELETE SET NULL,
-
-    CONSTRAINT fk_arrangement_backup_transport
-        FOREIGN KEY (backup_transport_id)
-        REFERENCES transport(transport_id)
-        ON DELETE SET NULL,
-
-    CONSTRAINT fk_arrangement_primary_destination
-        FOREIGN KEY (primary_destination_id)
-        REFERENCES destination(destination_id)
-        ON DELETE SET NULL,
-
-    CONSTRAINT fk_arrangement_backup_destination
-        FOREIGN KEY (backup_destination_id)
-        REFERENCES destination(destination_id)
-        ON DELETE SET NULL,
-
-    INDEX idx_arrangement_primary_transport (primary_transport_id),
-    INDEX idx_arrangement_backup_transport (backup_transport_id),
-    INDEX idx_arrangement_primary_destination (primary_destination_id),
-    INDEX idx_arrangement_backup_destination (backup_destination_id)
+        ON DELETE CASCADE
 );
 
 
 -- =========================================================
--- 8. Responsibility
+-- 8. Household Arrangement Option
+-- One primary option at priority 0 and zero or more ordered backups.
+-- =========================================================
+
+CREATE TABLE household_arrangement_option (
+    arrangement_option_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    household_id BIGINT UNSIGNED NOT NULL,
+    role ENUM('primary', 'backup') NOT NULL,
+    priority SMALLINT UNSIGNED NOT NULL,
+    transport_id BIGINT UNSIGNED NULL,
+    destination_id BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_arrangement_option_household
+        FOREIGN KEY (household_id)
+        REFERENCES household(household_id)
+        ON DELETE CASCADE,
+    CONSTRAINT fk_arrangement_option_transport
+        FOREIGN KEY (transport_id)
+        REFERENCES transport(transport_id)
+        ON DELETE SET NULL,
+    CONSTRAINT fk_arrangement_option_destination
+        FOREIGN KEY (destination_id)
+        REFERENCES destination(destination_id)
+        ON DELETE SET NULL,
+    CONSTRAINT chk_arrangement_option_role_priority
+        CHECK (
+            (role = 'primary' AND priority = 0)
+            OR (role = 'backup' AND priority >= 1)
+        ),
+    UNIQUE KEY uq_arrangement_option_role_priority (household_id, role, priority),
+    INDEX idx_arrangement_option_transport (transport_id),
+    INDEX idx_arrangement_option_destination (destination_id)
+);
+
+
+-- =========================================================
+-- 9. Responsibility
 -- =========================================================
 
 CREATE TABLE responsibility (

@@ -55,9 +55,12 @@ def create_household(
 
 @router.put("/{household_id}/plan", response_model=HouseholdPlan)
 def save_plan(
-    household_id: str, plan: HouseholdPlan, repository: RepositoryDependency
+    household_id: str,
+    plan: HouseholdPlan,
+    repository: RepositoryDependency,
+    address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> HouseholdPlan:
-    return HouseholdPlanService(repository).save(household_id, plan)
+    return HouseholdPlanService(repository, address_client).save(household_id, plan)
 
 
 @router.get("/{household_id}/plan", response_model=HouseholdPlan)

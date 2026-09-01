@@ -66,6 +66,30 @@ def test_household_and_complete_plan_round_trip_use_public_ids(
         assert connection.execute(text("SELECT COUNT(*) FROM transport_driver")).scalar_one() == 3
 
 
+def test_multiple_backup_arrangements_round_trip_in_priority_order(
+    mysql_repository, complete_plan_data: dict
+) -> None:
+    repository, engine = mysql_repository
+    plan_data = deepcopy(complete_plan_data)
+    plan_data["arrangements"]["backup_arrangements"].insert(
+        0, {"transport_id": "t_001", "destination": None}
+    )
+    plan = HouseholdPlan.model_validate(plan_data)
+    household_id = repository.create_household()
+
+    repository.save_plan(household_id, plan)
+
+    assert repository.get_plan(household_id) == plan
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT role, priority FROM household_arrangement_option "
+                "ORDER BY priority"
+            )
+        ).all()
+    assert rows == [("primary", 0), ("backup", 1), ("backup", 2)]
+
+
 @pytest.mark.parametrize("has_private_transport", [None, False, True])
 def test_incomplete_plan_preserves_private_transport_tristate(
     mysql_repository, has_private_transport: bool | None
@@ -214,6 +238,7 @@ def test_location_upsert_round_trip(mysql_repository) -> None:
     )
 
     repository.save_location(household_id, first)
+    repository.save_location(household_id, first)
     repository.save_location(household_id, updated)
 
     assert repository.get_location(household_id) == updated
@@ -308,10 +333,12 @@ def test_api_services_use_the_persisted_plan_without_mutating_it(
             household_id = create_response.json()["household_id"]
             assert create_response.status_code == 201
 
-            assert client.put(
+            saved_plan_response = client.put(
                 f"/api/v1/households/{household_id}/plan",
                 json=complete_plan_data,
-            ).status_code == 200
+            )
+            assert saved_plan_response.status_code == 200
+            saved_plan = saved_plan_response.json()
             assert client.put(
                 f"/api/v1/households/{household_id}/location",
                 json={"address": "Warrandyte VIC 3113"},
@@ -345,7 +372,7 @@ def test_api_services_use_the_persisted_plan_without_mutating_it(
             }
             assert client.get(
                 f"/api/v1/households/{household_id}/plan"
-            ).json() == complete_plan_data
+            ).json() == saved_plan
 
         with engine.connect() as connection:
             assert connection.execute(text("SELECT COUNT(*) FROM test_run")).scalar_one() == 1

@@ -135,9 +135,15 @@ class BasicScenarioService:
         plan: HouseholdPlan,
     ) -> tuple[list[ScenarioCheck], FirstProblem | None, str]:
         primary_id = plan.arrangements.primary_transport_id
-        backup_id = plan.arrangements.backup_transport_id
         transports = {item.transport_id: item for item in plan.transports}
-        if not backup_id or backup_id == primary_id or backup_id not in transports:
+        eligible_backups = [
+            transports[backup.transport_id]
+            for backup in plan.arrangements.backup_arrangements
+            if backup.transport_id
+            and backup.transport_id != primary_id
+            and backup.transport_id in transports
+        ]
+        if not eligible_backups:
             return [
                 ScenarioCheck(
                     check="backup_transport",
@@ -154,10 +160,16 @@ class BasicScenarioService:
                 message="Your plan needs a usable backup transport arrangement.",
             ), "The primary transport is unavailable and no independent backup transport is recorded."
 
-        backup = transports[backup_id]
         member_ids = {member.member_id for member in plan.members}
-        valid_backup_drivers = set(backup.driver_member_ids) & member_ids
-        if not valid_backup_drivers:
+        driver_capable_backup = next(
+            (
+                backup
+                for backup in eligible_backups
+                if set(backup.driver_member_ids) & member_ids
+            ),
+            None,
+        )
+        if driver_capable_backup is None:
             return [
                 ScenarioCheck(
                     check="backup_transport",
@@ -167,12 +179,12 @@ class BasicScenarioService:
                 ScenarioCheck(
                     check="backup_driver",
                     status="fail",
-                    message="The backup transport has no valid driver.",
+                message="No independent backup transport has a valid driver.",
                 ),
             ], FirstProblem(
                 section="transport",
                 message="Assign a valid driver to the backup transport.",
-            ), "An independent backup transport is recorded, but it has no valid recorded driver."
+            ), "Independent backup transport is recorded, but none has a valid recorded driver."
         return [
             ScenarioCheck(
                 check="backup_transport",
@@ -182,7 +194,7 @@ class BasicScenarioService:
             ScenarioCheck(
                 check="backup_driver",
                 status="pass",
-                message="The backup transport has a valid driver.",
+                message="An independent backup transport has a valid driver.",
             ),
         ], None, "An independent backup transport with a valid recorded driver is recorded."
 
@@ -227,13 +239,12 @@ class BasicScenarioService:
         plan: HouseholdPlan,
     ) -> tuple[list[ScenarioCheck], FirstProblem | None, str]:
         primary = plan.arrangements.primary_destination
-        backup = plan.arrangements.backup_destination
-        meaningfully_different = bool(
-            primary
-            and backup
-            and backup.destination_id != primary.destination_id
-            and (backup.address or "").strip().casefold()
+        meaningfully_different = any(
+            backup.destination
+            and backup.destination.destination_id != primary.destination_id
+            and (backup.destination.address or "").strip().casefold()
             != (primary.address or "").strip().casefold()
+            for backup in plan.arrangements.backup_arrangements
         )
         if not meaningfully_different:
             return [
