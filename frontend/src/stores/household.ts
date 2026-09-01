@@ -1,10 +1,30 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { api } from '../api/client'
+import {
+  ApiError,
+  api,
+  clearStoredHouseholdId,
+  loadStoredHouseholdId,
+  storeHouseholdId,
+} from '../api/client'
+import { createEmptyHouseholdPlan } from '../domain/householdPlan'
 import type { HouseholdPlan, PlanCompletion } from '../types/household'
 import type { AsyncStatus } from '../types/async'
 
+function isMissingHousehold(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    error.status === 404 &&
+    error.message.includes('was not found')
+  )
+}
+
+function isMissingPlan(error: unknown): error is ApiError {
+  return error instanceof ApiError && error.status === 404
+}
+
 export const useHouseholdStore = defineStore('household', () => {
+  const householdId = ref<string | null>(loadStoredHouseholdId())
   const plan = ref<HouseholdPlan | null>(null)
   const planStatus = ref<AsyncStatus>('idle')
   const planError = ref<string | null>(null)
@@ -14,26 +34,83 @@ export const useHouseholdStore = defineStore('household', () => {
 
   const saveStatus = ref<AsyncStatus>('idle')
   const saveError = ref<string | null>(null)
+  let householdRequest: Promise<string> | null = null
+
+  async function createAndStoreHousehold(): Promise<string> {
+    const created = await api.createHousehold()
+    householdId.value = created.household_id
+    storeHouseholdId(created.household_id)
+    return created.household_id
+  }
+
+  async function ensureHousehold(): Promise<string> {
+    if (householdId.value) return householdId.value
+    if (!householdRequest) {
+      householdRequest = createAndStoreHousehold().finally(() => {
+        householdRequest = null
+      })
+    }
+    return householdRequest
+  }
+
+  async function replaceMissingHousehold(): Promise<string> {
+    householdId.value = null
+    clearStoredHouseholdId()
+    return ensureHousehold()
+  }
+
+  function setNewPlanState(): void {
+    plan.value = createEmptyHouseholdPlan()
+    completion.value = null
+    completionStatus.value = 'idle'
+    planStatus.value = 'success'
+  }
 
   async function loadPlan() {
     planStatus.value = 'loading'
     planError.value = null
     try {
-      plan.value = await api.getHouseholdPlan()
+      let id = await ensureHousehold()
+      try {
+        plan.value = await api.getHouseholdPlan(id)
+      } catch (error) {
+        if (isMissingHousehold(error)) {
+          id = await replaceMissingHousehold()
+          setNewPlanState()
+          return
+        }
+        if (isMissingPlan(error)) {
+          setNewPlanState()
+          return
+        }
+        throw error
+      }
       planStatus.value = 'success'
       await loadCompletion()
-    } catch (err) {
+    } catch (error) {
       planStatus.value = 'error'
-      planError.value = err instanceof Error ? err.message : 'Failed to load the household plan.'
+      planError.value =
+        error instanceof Error ? error.message : 'Failed to load the household plan.'
     }
   }
 
   async function loadCompletion() {
     completionStatus.value = 'loading'
     try {
-      completion.value = await api.getCompletion()
+      const id = await ensureHousehold()
+      completion.value = await api.getCompletion(id)
       completionStatus.value = 'success'
-    } catch {
+    } catch (error) {
+      if (isMissingHousehold(error)) {
+        await replaceMissingHousehold()
+        setNewPlanState()
+        return
+      }
+      if (isMissingPlan(error)) {
+        completion.value = null
+        completionStatus.value = 'idle'
+        return
+      }
       completionStatus.value = 'error'
     }
   }
@@ -42,14 +119,33 @@ export const useHouseholdStore = defineStore('household', () => {
     saveStatus.value = 'loading'
     saveError.value = null
     try {
-      plan.value = await api.saveHouseholdPlan(next)
+      let id = await ensureHousehold()
+      try {
+        plan.value = await api.saveHouseholdPlan(id, next)
+      } catch (error) {
+        if (!isMissingHousehold(error)) throw error
+        id = await replaceMissingHousehold()
+        plan.value = await api.saveHouseholdPlan(id, next)
+      }
       saveStatus.value = 'success'
       await loadCompletion()
-    } catch (err) {
+    } catch (error) {
       saveStatus.value = 'error'
-      saveError.value = err instanceof Error ? err.message : 'Failed to save the household plan.'
+      saveError.value = error instanceof Error ? error.message : 'Failed to save the household plan.'
     }
   }
 
-  return { plan, planStatus, planError, completion, completionStatus, saveStatus, saveError, loadPlan, savePlan }
+  return {
+    householdId,
+    plan,
+    planStatus,
+    planError,
+    completion,
+    completionStatus,
+    saveStatus,
+    saveError,
+    ensureHousehold,
+    loadPlan,
+    savePlan,
+  }
 })

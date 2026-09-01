@@ -24,7 +24,6 @@ const navItems = [
   { to: '/', label: 'Overview', icon: '◆' },
   { to: '/plan', label: 'Plan builder', icon: '▤' },
   { to: '/scenarios', label: 'Scenario tester', icon: '▲' },
-  { to: '/review', label: 'Review & reminders', icon: '◔' },
 ]
 </script>
 
@@ -32,38 +31,32 @@ const navItems = [
   <div v-if="uiStore.mobileMenuOpen" class="sidebar-backdrop" @click="uiStore.closeMobileMenu"></div>
 
   <aside class="sidebar" :class="{ 'is-collapsed': uiStore.sidebarCollapsed, 'is-open': uiStore.mobileMenuOpen }">
-    <div class="sidebar-top">
-      <div class="sidebar-top-row">
-        <div class="logo">
-          <span class="logo-dash">—</span>
-          <span class="logo-text">FIREBREAK</span>
-        </div>
-        <button
-          class="icon-btn collapse-btn"
-          type="button"
-          :aria-label="uiStore.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
-          @click="uiStore.toggleCollapsed"
-        >
-          {{ uiStore.sidebarCollapsed ? '»' : '«' }}
-        </button>
-        <button class="icon-btn close-btn" type="button" aria-label="Close menu" @click="uiStore.closeMobileMenu">✕</button>
-      </div>
-
-      <nav class="nav">
-        <router-link
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          class="nav-item"
-          active-class="is-active"
-          exact-active-class="is-active"
-          :title="item.label"
-        >
-          <span class="nav-icon">{{ item.icon }}</span>
-          <span class="nav-label">{{ item.label }}</span>
-        </router-link>
-      </nav>
+    <div class="sidebar-controls">
+      <button
+        class="icon-btn collapse-btn"
+        type="button"
+        :aria-label="uiStore.sidebarCollapsed ? 'Expand menu' : 'Collapse menu'"
+        @click="uiStore.toggleCollapsed"
+      >
+        {{ uiStore.sidebarCollapsed ? '»' : '«' }}
+      </button>
+      <button class="icon-btn close-btn" type="button" aria-label="Close menu" @click="uiStore.closeMobileMenu">✕</button>
     </div>
+
+    <nav class="nav">
+      <router-link
+        v-for="item in navItems"
+        :key="item.to"
+        :to="item.to"
+        class="nav-item"
+        active-class="is-active"
+        exact-active-class="is-active"
+        :title="item.label"
+      >
+        <span class="nav-icon">{{ item.icon }}</span>
+        <span class="nav-label">{{ item.label }}</span>
+      </router-link>
+    </nav>
 
     <div class="sidebar-bottom">
       <p class="location-address">{{ localContextStore.submittedAddress || 'Location not set' }}</p>
@@ -83,35 +76,20 @@ const navItems = [
   flex: 0 0 240px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   padding: 1.75rem 1.25rem;
   transition: width 0.2s ease;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-.sidebar-top-row {
+.sidebar-controls {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.4rem;
-  margin-bottom: 2rem;
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  font-size: 0.95rem;
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-}
-
-.logo-dash {
-  color: var(--color-accent);
+  flex: 0 0 auto;
 }
 
 .icon-btn {
@@ -142,6 +120,7 @@ const navItems = [
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  margin-top: 1rem;
 }
 
 .nav-item {
@@ -152,7 +131,7 @@ const navItems = [
   border-radius: var(--radius);
   text-decoration: none;
   color: var(--color-text-inverse-muted);
-  font-size: 0.85rem;
+  font-size: 0.875rem;
   white-space: nowrap;
 }
 
@@ -179,8 +158,10 @@ const navItems = [
 }
 
 .sidebar-bottom {
+  flex: 0 0 auto;
+  margin-top: auto;
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--color-text-inverse-muted);
   border-top: 1px solid rgba(255, 255, 255, 0.1);
   padding-top: 1rem;
@@ -201,7 +182,6 @@ const navItems = [
     flex-basis: 72px;
   }
 
-  .sidebar.is-collapsed .logo-text,
   .sidebar.is-collapsed .nav-label,
   .sidebar.is-collapsed .sidebar-bottom {
     display: none;
@@ -212,7 +192,7 @@ const navItems = [
     padding-inline: 0;
   }
 
-  .sidebar.is-collapsed .sidebar-top-row {
+  .sidebar.is-collapsed .sidebar-controls {
     justify-content: center;
   }
 }
@@ -249,7 +229,6 @@ const navItems = [
     flex-basis: 268px;
   }
 
-  .sidebar.is-collapsed .logo-text,
   .sidebar.is-collapsed .nav-label,
   .sidebar.is-collapsed .sidebar-bottom {
     display: block;

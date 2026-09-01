@@ -28,7 +28,6 @@ function isConflict(r: Responsibility) {
   <section class="card">
     <div class="card-header">
       <div>
-        <p class="eyebrow">Epic 1 · US1.4</p>
         <h3 class="card-title">Responsibilities & backup people</h3>
       </div>
       <span class="badge" :class="responsibilities.length ? 'badge-success' : 'badge-neutral'">
@@ -39,7 +38,7 @@ function isConflict(r: Responsibility) {
     <EmptyState
       v-if="responsibilities.length === 0"
       title="No responsibilities assigned"
-      message="Assign key tasks like driving, collecting pets or coordinating children."
+      message="Assign key tasks like driving, caring for animals or coordinating children."
     >
       <button class="btn btn-primary btn-sm" type="button" :disabled="members.length === 0" @click="addResponsibility">
         Add responsibility
@@ -86,8 +85,12 @@ function isConflict(r: Responsibility) {
   gap: 0.75rem;
 }
 
+.resp-row > .btn-danger {
+  align-self: flex-end;
+}
+
 .hint {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
 }
 </style>

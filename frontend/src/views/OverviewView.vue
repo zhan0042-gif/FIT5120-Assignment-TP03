@@ -18,7 +18,6 @@ const currentStage = computed(() => {
 const stages = [
   { key: 'build', label: 'Build Plan' },
   { key: 'test', label: 'Test & Strengthen' },
-  { key: 'maintain', label: 'Maintain' },
 ]
 </script>
 
@@ -27,8 +26,8 @@ const stages = [
     <p class="eyebrow">Household plan</p>
     <h1 class="headline">Your bushfire plan, tested — not just written</h1>
     <p class="subhead">
-      Firebreak helps households build a practical bushfire plan, test it against unexpected disruptions, and keep
-      it current as circumstances change.
+      Firebreak helps households build a practical bushfire plan, understand local conditions, and test the plan
+      against unexpected disruptions.
     </p>
 
     <section class="card">
@@ -42,9 +41,7 @@ const stages = [
           class="journey-stage"
           :class="{ 'is-current': stage.key === currentStage, 'is-done': stages.findIndex((s) => s.key === currentStage) > index }"
         >
-          <div class="journey-tag-row">
-            <span v-if="stage.key === currentStage" class="badge badge-accent">Current</span>
-          </div>
+          <span v-if="stage.key === currentStage" class="badge badge-accent journey-tag">Current</span>
           <div class="journey-bar" />
           <span class="journey-label">{{ stage.label }}</span>
         </div>
@@ -56,25 +53,16 @@ const stages = [
         <span class="feature-icon">▤</span>
         <h3 class="card-title">Plan builder</h3>
         <p>Build your household profile, primary and backup arrangements, and local bushfire context.</p>
-        <span class="badge badge-neutral">Iteration 1</span>
       </router-link>
       <router-link to="/scenarios" class="card feature-card">
         <span class="feature-icon">▲</span>
         <h3 class="card-title">Scenario tester</h3>
         <p>Test your plan against relevant disruptions and see which arrangements still hold up.</p>
-        <span class="badge badge-neutral">Iteration 1</span>
-      </router-link>
-      <router-link to="/review" class="card feature-card">
-        <span class="feature-icon">◔</span>
-        <h3 class="card-title">Review & reminders</h3>
-        <p>Track improvements, re-test your plan, and keep household arrangements current.</p>
-        <span class="badge badge-accent">Iteration 3</span>
       </router-link>
     </div>
 
     <section class="card callout">
       <p class="eyebrow">Why this exists</p>
-      <p>Around 40% of surveyed residents in bushfire-prone areas do not have a bushfire plan.</p>
       <p>Research also suggests that providing preparedness information alone does not always lead to preparedness action.</p>
     </section>
 
@@ -86,9 +74,8 @@ const stages = [
 
 <style scoped>
 .overview {
-  max-width: 920px;
   width: 100%;
-  margin-inline: auto;
+  min-width: 0;
 }
 
 .headline {
@@ -109,11 +96,13 @@ const stages = [
 
 .journey-stage {
   flex: 1;
+  position: relative;
 }
 
-.journey-tag-row {
-  min-height: 1.5rem;
-  margin-bottom: 0.5rem;
+.journey-tag {
+  position: absolute;
+  top: -1.6rem;
+  left: 0;
 }
 
 .journey-bar {

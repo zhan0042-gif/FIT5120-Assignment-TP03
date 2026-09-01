@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { Scenario } from '../../types/scenario'
+import type { Scenario, ScenarioId } from '../../types/scenario'
 
 defineProps<{ scenarios: Scenario[]; selectedId: string | null }>()
-const emit = defineEmits<{ select: [id: string] }>()
+const emit = defineEmits<{ select: [id: ScenarioId] }>()
 </script>
 
 <template>
@@ -12,10 +12,12 @@ const emit = defineEmits<{ select: [id: string] }>()
         type="button"
         class="scenario-item"
         :class="{ 'is-selected': scenario.scenario_id === selectedId }"
+        :disabled="!scenario.enabled"
+        :title="scenario.disabled_reason ?? undefined"
         @click="emit('select', scenario.scenario_id)"
       >
         <span class="title">{{ scenario.title }}</span>
-        <span class="description">{{ scenario.description }}</span>
+        <span class="description">{{ scenario.disabled_reason ?? scenario.description }}</span>
       </button>
     </li>
   </ul>
@@ -49,7 +51,7 @@ const emit = defineEmits<{ select: [id: string] }>()
 }
 
 .scenario-item .description {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
 }
 

@@ -33,7 +33,6 @@ function clearBackupDestination() {
   <section class="card">
     <div class="card-header">
       <div>
-        <p class="eyebrow">Epic 1 · US1.3</p>
         <h3 class="card-title">Primary & backup arrangements</h3>
       </div>
     </div>
@@ -102,7 +101,7 @@ function clearBackupDestination() {
 }
 
 .hint {
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   color: var(--color-text-muted);
   margin-bottom: 0.75rem;
 }

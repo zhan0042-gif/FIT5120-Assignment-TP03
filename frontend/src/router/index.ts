@@ -21,7 +21,7 @@ const router = createRouter({
     {
       path: '/review',
       name: 'review-reminders',
-      component: () => import('../views/ReviewRemindersView.vue'),
+      redirect: '/',
     },
   ],
 })
