@@ -6,14 +6,18 @@ from typing import Any
 import httpx
 
 from app.core.exceptions import AddressResolutionError, ExternalDataUnavailable
-from app.schemas.households import HouseholdLocation
+from app.schemas.households import AddressSuggestion, HouseholdLocation
 
 
 VICMAP_ADDRESS_QUERY_URL = (
     "https://services-ap1.arcgis.com/P744lA0wf4LlBZ84/arcgis/rest/services/"
     "Vicmap_Address/FeatureServer/0/query"
 )
-VICMAP_OUT_FIELDS = "ezi_address,locality_name,state,postcode"
+VICMAP_OUT_FIELDS = (
+    "ezi_address,blg_unit_prefix_1,blg_unit_id_1,blg_unit_suffix_1,"
+    "house_prefix_1,house_number_1,house_suffix_1,road_name,road_type,"
+    "road_suffix,locality_name,state,postcode"
+)
 
 
 def _normalize_address(value: str) -> str:
@@ -41,49 +45,82 @@ class VicmapAddressClient:
     def resolve(self, address: str) -> HouseholdLocation:
         normalized = _normalize_address(address)
         if not normalized:
-            raise AddressResolutionError("Enter a Victorian household address.")
+            raise AddressResolutionError(
+                "Please select a complete Victorian address from the suggestions."
+            )
         if len(normalized.split()) < 3:
             raise AddressResolutionError(
-                "Enter a more complete Victorian household address."
+                "Please select a complete Victorian address from the suggestions."
             )
 
-        exact = self._query(f"UPPER(ezi_address) = '{_sql_literal(normalized)}'")
+        exact = self._query(f"ezi_address = '{_sql_literal(normalized)}'")
         exact_matches = self._credible_features(exact)
         if exact.get("exceededTransferLimit"):
             raise AddressResolutionError(
-                "The address matches multiple Victorian locations. Enter a full address including locality and postcode."
+                "Please select a complete Victorian address from the suggestions."
             )
         if len(exact_matches) == 1:
             return self._to_location(exact_matches[0])
         if len(exact_matches) > 1:
             return self._resolve_unique(exact_matches)
 
-        partial = self._query(
-            f"UPPER(ezi_address) LIKE '%{_sql_literal(normalized)}%'"
-        )
+        partial = self._query(f"ezi_address LIKE '{_sql_literal(normalized)}%'")
         partial_matches = self._credible_features(partial)
         if partial.get("exceededTransferLimit"):
             raise AddressResolutionError(
-                "The address matches multiple Victorian locations. Enter a full address including locality and postcode."
+                "Please select a complete Victorian address from the suggestions."
             )
         if not partial_matches:
             raise AddressResolutionError(
-                "No matching Victorian household address was found."
+                "Please select a complete Victorian address from the suggestions."
             )
         return self._resolve_unique(partial_matches)
 
-    def _query(self, where: str) -> dict[str, Any]:
+    def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]:
+        """Return official Victorian address candidates for autocomplete."""
+        normalized = _normalize_address(query)
+        if len(normalized) < 3:
+            return []
+        payload = self._query(
+            f"ezi_address LIKE '{_sql_literal(normalized)}%'",
+            result_record_count=max(1, min(limit, 20)),
+            order_by="ezi_address ASC",
+        )
+        suggestions: list[AddressSuggestion] = []
+        seen: set[tuple[str, float, float]] = set()
+        for feature in self._credible_features(payload):
+            suggestion = self._to_suggestion(feature)
+            key = (
+                suggestion.address.casefold(),
+                round(suggestion.latitude, 7),
+                round(suggestion.longitude, 7),
+            )
+            if key not in seen:
+                seen.add(key)
+                suggestions.append(suggestion)
+        return suggestions[:limit]
+
+    def _query(
+        self,
+        where: str,
+        *,
+        result_record_count: int = 20,
+        order_by: str | None = None,
+    ) -> dict[str, Any]:
+        params = {
+            "where": f"({where}) AND state = 'VIC'",
+            "outFields": VICMAP_OUT_FIELDS,
+            "returnGeometry": "true",
+            "outSR": "4326",
+            "resultRecordCount": str(result_record_count),
+            "f": "json",
+        }
+        if order_by is not None:
+            params["orderByFields"] = order_by
         try:
             response = self.http_client.get(
                 VICMAP_ADDRESS_QUERY_URL,
-                params={
-                    "where": f"({where}) AND state = 'VIC'",
-                    "outFields": VICMAP_OUT_FIELDS,
-                    "returnGeometry": "true",
-                    "outSR": "4326",
-                    "resultRecordCount": "20",
-                    "f": "json",
-                },
+                params=params,
             )
             response.raise_for_status()
             payload = response.json()
@@ -151,12 +188,18 @@ class VicmapAddressClient:
             unique[key] = feature
         if len(unique) != 1:
             raise AddressResolutionError(
-                "The address matches multiple Victorian locations. Enter a full address including locality and postcode."
+                "Please select a complete Victorian address from the suggestions."
             )
         return self._to_location(next(iter(unique.values())))
 
     @staticmethod
     def _to_location(feature: dict[str, Any]) -> HouseholdLocation:
+        return HouseholdLocation.model_validate(
+            VicmapAddressClient._to_suggestion(feature).model_dump()
+        )
+
+    @staticmethod
+    def _to_suggestion(feature: dict[str, Any]) -> AddressSuggestion:
         attributes = feature["attributes"]
         geometry = feature["geometry"]
         ezi_address = " ".join(str(attributes["ezi_address"]).split())
@@ -166,8 +209,39 @@ class VicmapAddressClient:
             standardized = f"{prefix} VIC {postcode}"
         else:
             standardized = f"{ezi_address} VIC"
-        return HouseholdLocation(
+
+        def joined(parts: tuple[object, ...], separator: str = "") -> str | None:
+            values = [str(value).strip() for value in parts if value not in (None, "")]
+            return separator.join(values) or None
+
+        return AddressSuggestion(
             address=standardized,
+            unit_number=joined(
+                (
+                    attributes.get("blg_unit_prefix_1"),
+                    attributes.get("blg_unit_id_1"),
+                    attributes.get("blg_unit_suffix_1"),
+                )
+            ),
+            street_number=joined(
+                (
+                    attributes.get("house_prefix_1"),
+                    attributes.get("house_number_1"),
+                    attributes.get("house_suffix_1"),
+                )
+            ),
+            street_name=joined(
+                (
+                    attributes.get("road_name"),
+                    attributes.get("road_type"),
+                    attributes.get("road_suffix"),
+                ),
+                " ",
+            ),
+            suburb_or_locality=str(attributes["locality_name"]).strip().title(),
+            state="VIC",
+            postcode=postcode,
+            country="Australia",
             latitude=float(geometry["y"]),
             longitude=float(geometry["x"]),
         )

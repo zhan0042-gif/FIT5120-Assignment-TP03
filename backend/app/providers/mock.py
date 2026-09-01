@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from app.schemas.households import FireDanger, HouseholdLocation, Weather
+from app.schemas.households import AddressSuggestion, FireDanger, HouseholdLocation, Weather
 
 
 @dataclass(frozen=True)
@@ -15,6 +15,10 @@ class MockSpatialResult:
     fire_history_summary: str | None = None
     vegetation_context: str | None = None
     terrain_context: str | None = None
+    fire_history_record_count: int | None = None
+    fire_history_latest_year: int | None = None
+    fire_history_latest_date: str | None = None
+    fire_history_radius_km: float | None = None
 
 
 class MockAddressClient:
@@ -35,6 +39,20 @@ class MockAddressClient:
             latitude=coordinates[0],
             longitude=coordinates[1],
         )
+
+    def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]:
+        normalized = " ".join(query.strip().split()).casefold()
+        results = []
+        for address, (latitude, longitude) in self._KNOWN_ADDRESSES.items():
+            if normalized in address:
+                results.append(
+                    AddressSuggestion(
+                        address=address.title(),
+                        latitude=latitude,
+                        longitude=longitude,
+                    )
+                )
+        return results[:limit]
 
 
 class MockSpatialProvider:

@@ -46,6 +46,19 @@ const hasUnsavedChanges = computed(() => {
 const validationErrors = computed(() => {
   if (!draft.value) return []
   const errors = []
+  for (const animal of draft.value.animals) {
+    if (!Number.isInteger(animal.quantity) || animal.quantity < 1) {
+      errors.push('Animal quantity must be a whole number of at least 1.')
+    }
+    if (animal.animal_type === 'other' && !animal.animal_type_other?.trim()) {
+      errors.push('Please describe the animal type when Other is selected.')
+    }
+  }
+  for (const transport of draft.value.transports) {
+    if (transport.transport_type === 'other' && !transport.transport_type_other?.trim()) {
+      errors.push('Please describe the transport type when Other is selected.')
+    }
+  }
   for (const r of draft.value.responsibilities) {
     if (r.backup_member_id && r.backup_member_id === r.primary_member_id) {
       errors.push(`"${r.task_name || 'A responsibility'}" has the same person set as primary and backup.`)

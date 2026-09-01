@@ -11,6 +11,7 @@ function addPrivateTransport() {
   transports.value.push({
     transport_id: newId('t'),
     transport_type: 'car',
+    transport_type_other: null,
     display_name: '',
     driver_member_ids: [],
   })
@@ -20,6 +21,7 @@ function addOtherArrangement() {
   transports.value.push({
     transport_id: newId('t'),
     transport_type: 'other',
+    transport_type_other: null,
     display_name: '',
     driver_member_ids: [],
   })
@@ -76,15 +78,21 @@ function memberName(id) {
           <div class="field">
             <label>Type</label>
             <select v-model="transport.transport_type" @change="markPrivateTransport(transport)">
-              <option value="car">Car</option>
-              <option value="motorbike">Motorbike</option>
+              <option value="car">Car / SUV</option>
+              <option value="ute">Ute / Pickup</option>
               <option value="van">Van</option>
+              <option value="motorbike">Motorbike</option>
+              <option value="truck">Truck</option>
               <option value="other">Other</option>
             </select>
           </div>
+          <div v-if="transport.transport_type === 'other'" class="field">
+            <label>Other transport type</label>
+            <input v-model="transport.transport_type_other" type="text" maxlength="100" placeholder="e.g. Community transport arrangement" />
+          </div>
           <div class="field">
-            <label>Name (optional)</label>
-            <input v-model="transport.display_name" type="text" placeholder="e.g. Family Car" />
+            <label>Vehicle name (optional)</label>
+            <input v-model="transport.display_name" type="text" placeholder="e.g. Family Car or Dad's Ute" />
           </div>
         </div>
 

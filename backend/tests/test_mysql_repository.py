@@ -10,7 +10,7 @@ from app.core.dependencies import get_household_repository
 from app.core.exceptions import PlanValidationError, TestResultNotFound as MissingTestResult
 from app.main import app
 from app.repositories.mysql import MySQLHouseholdRepository
-from app.schemas.households import HouseholdLocation, HouseholdPlan
+from app.schemas.households import HouseholdLocation, HouseholdLocationContext, HouseholdPlan
 from app.schemas.scenarios import FirstProblem, ScenarioCheck, ScenarioTestResult
 
 
@@ -45,6 +45,8 @@ def test_household_and_complete_plan_round_trip_use_public_ids(
 
     assert household_id.startswith("hh_")
     assert repository.household_exists(household_id) is True
+    assert repository.get_plan(household_id) == complete_plan
+    repository.save_plan(household_id, repository.get_plan(household_id))
     assert repository.get_plan(household_id) == complete_plan
     with engine.connect() as connection:
         row = connection.execute(
@@ -192,10 +194,23 @@ def test_location_upsert_round_trip(mysql_repository) -> None:
     repository, engine = mysql_repository
     household_id = repository.create_household()
     first = HouseholdLocation(
-        address="Warrandyte VIC 3113", latitude=-37.738, longitude=145.223
+        address="4/84 WATTLE TRACK WARRANDYTE VIC 3113",
+        unit_number="4",
+        street_number="84",
+        street_name="WATTLE TRACK",
+        suburb_or_locality="Warrandyte",
+        postcode="3113",
+        latitude=-37.738,
+        longitude=145.223,
     )
     updated = HouseholdLocation(
-        address="Warburton VIC 3799", latitude=-37.753, longitude=145.69
+        address="12 HIGH STREET WARBURTON VIC 3799",
+        street_number="12",
+        street_name="HIGH STREET",
+        suburb_or_locality="Warburton",
+        postcode="3799",
+        latitude=-37.753,
+        longitude=145.69,
     )
 
     repository.save_location(household_id, first)
@@ -204,6 +219,41 @@ def test_location_upsert_round_trip(mysql_repository) -> None:
     assert repository.get_location(household_id) == updated
     with engine.connect() as connection:
         assert connection.execute(text("SELECT COUNT(*) FROM household_location")).scalar_one() == 1
+
+
+def test_location_context_round_trip_and_location_change_invalidates_it(
+    mysql_repository,
+) -> None:
+    repository, _ = mysql_repository
+    household_id = repository.create_household()
+    location = HouseholdLocation(
+        address="84 YARRA STREET WARRANDYTE VIC 3113",
+        canonical_address="84 YARRA STREET WARRANDYTE VIC 3113",
+        latitude=-37.74,
+        longitude=145.216,
+        verification_status="verified",
+        verified_at=datetime.now(timezone.utc),
+    )
+    context = HouseholdLocationContext(
+        is_bushfire_prone_area=True,
+        fire_district="Central",
+        fire_history_record_count=12,
+        fire_history_latest_year=2025,
+        fire_history_latest_date="2025-05-13",
+        fire_history_radius_km=20,
+        generated_at=datetime.now(timezone.utc),
+    )
+
+    repository.save_location(household_id, location)
+    repository.save_location_context(household_id, context)
+
+    stored = repository.get_location_context(household_id)
+    assert stored is not None
+    assert stored.fire_district == "Central"
+    assert stored.fire_history_record_count == 12
+
+    repository.save_location(household_id, location.model_copy(update={"address": "85 YARRA STREET WARRANDYTE VIC 3113"}))
+    assert repository.get_location_context(household_id) is None
 
 
 def test_scenario_result_round_trip_preserves_order_and_first_problem(

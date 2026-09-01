@@ -18,7 +18,7 @@ from app.core.exceptions import (
 )
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
-from app.schemas.households import FireDanger
+from app.schemas.households import FireDanger, HouseholdLocation
 
 
 @pytest.fixture
@@ -58,7 +58,7 @@ class NoMatchingAddressClient:
         raise AddressResolutionError("No matching Victorian household address was found.")
 
 
-def test_address_resolution_error_returns_controlled_422(
+def test_address_resolution_error_keeps_the_saved_address_unverified(
     api: tuple[TestClient, InMemoryHouseholdRepository],
 ) -> None:
     client, _ = api
@@ -70,10 +70,27 @@ def test_address_resolution_error_returns_controlled_422(
         json={"address": "999 Missing Road Nowhere VIC 3999"},
     )
 
-    assert response.status_code == 422
-    assert response.json()["detail"] == (
-        "No matching Victorian household address was found."
+    assert response.status_code == 200
+    assert response.json()["address"] == "999 Missing Road Nowhere VIC 3999"
+    assert response.json()["verification_status"] == "unverified"
+    assert response.json()["latitude"] is None
+
+
+def test_unverified_location_returns_controlled_context_state(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_address_client] = lambda: NoMatchingAddressClient()
+    household_id = create_household(client)
+    client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={"address": "999 Missing Road Nowhere VIC 3999"},
     )
+
+    response = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert response.status_code == 409
+    assert "address is saved" in response.json()["detail"]
 
 
 def test_complete_household_api_flow(
@@ -299,11 +316,47 @@ def test_location_is_resolved_saved_and_replaced(
     assert first.status_code == 200
     assert first.json() == {
         "address": "Warrandyte VIC 3113",
+        "canonical_address": "Warrandyte VIC 3113",
+        "unit_number": None,
+        "street_number": None,
+        "street_name": None,
+        "suburb_or_locality": None,
+        "state": "VIC",
+        "postcode": None,
+        "country": "Australia",
         "latitude": -37.74,
         "longitude": 145.21,
+        "verification_status": "verified",
+        "verified_at": first.json()["verified_at"],
     }
     assert second.status_code == 200
-    assert repository.get_location(household_id).model_dump() == second.json()
+    assert repository.get_location(household_id) == HouseholdLocation.model_validate(
+        second.json()
+    )
+
+
+def test_address_suggestion_endpoint_returns_provider_candidates(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+
+    response = client.get("/api/v1/locations/suggestions", params={"q": "warr"})
+
+    assert response.status_code == 200
+    assert response.json()[0]["address"] == "Warrandyte Vic 3113"
+    assert response.json()[0]["state"] == "VIC"
+    assert response.json()[0]["country"] == "Australia"
+
+
+def test_address_suggestion_endpoint_ignores_incomplete_query(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+
+    response = client.get("/api/v1/locations/suggestions", params={"q": "84"})
+
+    assert response.status_code == 200
+    assert response.json() == []
 
 
 def test_location_save_for_missing_household_returns_404(

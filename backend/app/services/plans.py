@@ -133,10 +133,7 @@ class PlanCompletionService:
         statuses = {
             "household_profile": bool(plan.members)
             and all(member.display_name.strip() for member in plan.members)
-            and all(
-                animal.display_name.strip() and animal.animal_type.strip()
-                for animal in plan.animals
-            ),
+            and all(animal.animal_type for animal in plan.animals),
             "transport": explicitly_no_private_transport
             or bool(plan.transports and arrangements.primary_transport_id),
             "backup_transport": explicitly_no_private_transport

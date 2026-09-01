@@ -20,6 +20,7 @@ from app.schemas.households import (
     Arrangements,
     Destination,
     HouseholdLocation,
+    HouseholdLocationContext,
     HouseholdMember,
     HouseholdPlan,
     Responsibility,
@@ -86,10 +87,12 @@ class MySQLHouseholdRepository:
                             """
                             INSERT INTO household_member (
                                 public_id, household_id, display_name,
-                                is_dependant, mobility_support_required, support_notes
+                                is_dependant, mobility_support_required, support_notes,
+                                relationship, relationship_other
                             ) VALUES (
                                 :public_id, :household_id, :display_name,
-                                :is_dependant, :mobility_support_required, :support_notes
+                                :is_dependant, :mobility_support_required, :support_notes,
+                                :relationship, :relationship_other
                             )
                             """
                         ),
@@ -100,6 +103,8 @@ class MySQLHouseholdRepository:
                             "is_dependant": member.is_dependant,
                             "mobility_support_required": member.mobility_support_required,
                             "support_notes": member.support_notes,
+                            "relationship": member.relationship,
+                            "relationship_other": member.relationship_other,
                         },
                     )
                     member_ids[member.member_id] = int(result.lastrowid)
@@ -110,10 +115,12 @@ class MySQLHouseholdRepository:
                             """
                             INSERT INTO animal (
                                 public_id, household_id, display_name,
-                                category, animal_type, support_notes
+                                category, animal_type, animal_type_other,
+                                quantity, support_notes
                             ) VALUES (
                                 :public_id, :household_id, :display_name,
-                                :category, :animal_type, :support_notes
+                                :category, :animal_type, :animal_type_other,
+                                :quantity, :support_notes
                             )
                             """
                         ),
@@ -123,6 +130,8 @@ class MySQLHouseholdRepository:
                             "display_name": animal.display_name,
                             "category": animal.category,
                             "animal_type": animal.animal_type,
+                            "animal_type_other": animal.animal_type_other,
+                            "quantity": animal.quantity,
                             "support_notes": animal.support_notes,
                         },
                     )
@@ -133,9 +142,11 @@ class MySQLHouseholdRepository:
                         text(
                             """
                             INSERT INTO transport (
-                                public_id, household_id, transport_type, display_name
+                                public_id, household_id, transport_type,
+                                transport_type_other, display_name
                             ) VALUES (
-                                :public_id, :household_id, :transport_type, :display_name
+                                :public_id, :household_id, :transport_type,
+                                :transport_type_other, :display_name
                             )
                             """
                         ),
@@ -143,6 +154,7 @@ class MySQLHouseholdRepository:
                             "public_id": transport.transport_id,
                             "household_id": internal_household_id,
                             "transport_type": transport.transport_type,
+                            "transport_type_other": transport.transport_type_other,
                             "display_name": transport.display_name,
                         },
                     )
@@ -172,9 +184,15 @@ class MySQLHouseholdRepository:
                         text(
                             """
                             INSERT INTO destination (
-                                public_id, household_id, display_name, address
+                                public_id, household_id, display_name, address,
+                                unit_number, street_number, street_name,
+                                suburb_or_locality, state, postcode, country,
+                                latitude, longitude
                             ) VALUES (
-                                :public_id, :household_id, :display_name, :address
+                                :public_id, :household_id, :display_name, :address,
+                                :unit_number, :street_number, :street_name,
+                                :suburb_or_locality, :state, :postcode, :country,
+                                :latitude, :longitude
                             )
                             """
                         ),
@@ -183,6 +201,15 @@ class MySQLHouseholdRepository:
                             "household_id": internal_household_id,
                             "display_name": destination.display_name,
                             "address": destination.address,
+                            "unit_number": destination.unit_number,
+                            "street_number": destination.street_number,
+                            "street_name": destination.street_name,
+                            "suburb_or_locality": destination.suburb_or_locality,
+                            "state": destination.state,
+                            "postcode": destination.postcode,
+                            "country": destination.country,
+                            "latitude": destination.latitude,
+                            "longitude": destination.longitude,
                         },
                     )
                     destination_ids[destination.destination_id] = int(result.lastrowid)
@@ -298,16 +325,32 @@ class MySQLHouseholdRepository:
                     text(
                         """
                         UPDATE household_location
-                        SET address = :address, latitude = :latitude,
-                            longitude = :longitude
+                        SET address = :address, canonical_address = :canonical_address,
+                            unit_number = :unit_number,
+                            street_number = :street_number, street_name = :street_name,
+                            suburb_or_locality = :suburb_or_locality, state = :state,
+                            postcode = :postcode, country = :country,
+                            latitude = :latitude, longitude = :longitude,
+                            verification_status = :verification_status,
+                            verified_at = :verified_at
                         WHERE household_id = :household_id
                         """
                     ),
                     {
                         "household_id": internal_household_id,
                         "address": location.address,
+                        "canonical_address": location.canonical_address,
+                        "unit_number": location.unit_number,
+                        "street_number": location.street_number,
+                        "street_name": location.street_name,
+                        "suburb_or_locality": location.suburb_or_locality,
+                        "state": location.state,
+                        "postcode": location.postcode,
+                        "country": location.country,
                         "latitude": location.latitude,
                         "longitude": location.longitude,
+                        "verification_status": location.verification_status,
+                        "verified_at": self._mysql_datetime(location.verified_at),
                     },
                 )
                 if result.rowcount == 0:
@@ -315,19 +358,44 @@ class MySQLHouseholdRepository:
                         text(
                             """
                             INSERT INTO household_location (
-                                household_id, address, latitude, longitude
+                                household_id, address, canonical_address,
+                                unit_number, street_number,
+                                street_name, suburb_or_locality, state, postcode,
+                                country, latitude, longitude, verification_status,
+                                verified_at
                             ) VALUES (
-                                :household_id, :address, :latitude, :longitude
+                                :household_id, :address, :canonical_address,
+                                :unit_number, :street_number,
+                                :street_name, :suburb_or_locality, :state, :postcode,
+                                :country, :latitude, :longitude, :verification_status,
+                                :verified_at
                             )
                             """
                         ),
                         {
                             "household_id": internal_household_id,
                             "address": location.address,
+                            "canonical_address": location.canonical_address,
+                            "unit_number": location.unit_number,
+                            "street_number": location.street_number,
+                            "street_name": location.street_name,
+                            "suburb_or_locality": location.suburb_or_locality,
+                            "state": location.state,
+                            "postcode": location.postcode,
+                            "country": location.country,
                             "latitude": location.latitude,
                             "longitude": location.longitude,
+                            "verification_status": location.verification_status,
+                            "verified_at": self._mysql_datetime(location.verified_at),
                         },
                     )
+                connection.execute(
+                    text(
+                        "DELETE FROM household_location_context "
+                        "WHERE household_id = :household_id"
+                    ),
+                    {"household_id": internal_household_id},
+                )
         except SQLAlchemyError as exc:
             self._raise_database_unavailable(exc)
 
@@ -340,7 +408,9 @@ class MySQLHouseholdRepository:
                 row = connection.execute(
                     text(
                         """
-                        SELECT address, latitude, longitude
+                        SELECT address, canonical_address, unit_number, street_number, street_name,
+                               suburb_or_locality, state, postcode, country,
+                               latitude, longitude, verification_status, verified_at
                         FROM household_location
                         WHERE household_id = :household_id
                         """
@@ -353,8 +423,81 @@ class MySQLHouseholdRepository:
                     )
                 return HouseholdLocation(
                     address=row["address"] or "",
-                    latitude=float(row["latitude"]),
-                    longitude=float(row["longitude"]),
+                    canonical_address=row["canonical_address"],
+                    unit_number=row["unit_number"],
+                    street_number=row["street_number"],
+                    street_name=row["street_name"],
+                    suburb_or_locality=row["suburb_or_locality"],
+                    state=row["state"] or "VIC",
+                    postcode=row["postcode"],
+                    country=row["country"] or "Australia",
+                    latitude=(float(row["latitude"]) if row["latitude"] is not None else None),
+                    longitude=(float(row["longitude"]) if row["longitude"] is not None else None),
+                    verification_status=row["verification_status"] or "unverified",
+                    verified_at=self._as_utc(row["verified_at"]),
+                )
+        except SQLAlchemyError as exc:
+            self._raise_database_unavailable(exc)
+
+    def save_location_context(
+        self, household_id: str, context: HouseholdLocationContext
+    ) -> None:
+        try:
+            with self.engine.begin() as connection:
+                internal_household_id = self._household_internal_id(connection, household_id)
+                connection.execute(
+                    text(
+                        """
+                        INSERT INTO household_location_context (
+                            household_id, is_bushfire_prone_area, fire_district,
+                            fire_history_record_count, fire_history_latest_year,
+                            fire_history_latest_date, fire_history_radius_km, generated_at
+                        ) VALUES (
+                            :household_id, :is_bushfire_prone_area, :fire_district,
+                            :fire_history_record_count, :fire_history_latest_year,
+                            :fire_history_latest_date, :fire_history_radius_km, :generated_at
+                        ) ON DUPLICATE KEY UPDATE
+                            is_bushfire_prone_area = VALUES(is_bushfire_prone_area),
+                            fire_district = VALUES(fire_district),
+                            fire_history_record_count = VALUES(fire_history_record_count),
+                            fire_history_latest_year = VALUES(fire_history_latest_year),
+                            fire_history_latest_date = VALUES(fire_history_latest_date),
+                            fire_history_radius_km = VALUES(fire_history_radius_km),
+                            generated_at = VALUES(generated_at)
+                        """
+                    ),
+                    {
+                        "household_id": internal_household_id,
+                        "is_bushfire_prone_area": context.is_bushfire_prone_area,
+                        "fire_district": context.fire_district,
+                        "fire_history_record_count": context.fire_history_record_count,
+                        "fire_history_latest_year": context.fire_history_latest_year,
+                        "fire_history_latest_date": context.fire_history_latest_date,
+                        "fire_history_radius_km": context.fire_history_radius_km,
+                        "generated_at": self._mysql_datetime(context.generated_at),
+                    },
+                )
+        except SQLAlchemyError as exc:
+            self._raise_database_unavailable(exc)
+
+    def get_location_context(self, household_id: str) -> HouseholdLocationContext | None:
+        try:
+            with self.engine.connect() as connection:
+                internal_household_id = self._household_internal_id(connection, household_id)
+                row = connection.execute(
+                    text("SELECT * FROM household_location_context WHERE household_id = :household_id"),
+                    {"household_id": internal_household_id},
+                ).mappings().first()
+                if row is None:
+                    return None
+                return HouseholdLocationContext(
+                    is_bushfire_prone_area=bool(row["is_bushfire_prone_area"]),
+                    fire_district=row["fire_district"],
+                    fire_history_record_count=row["fire_history_record_count"],
+                    fire_history_latest_year=row["fire_history_latest_year"],
+                    fire_history_latest_date=(row["fire_history_latest_date"].isoformat() if row["fire_history_latest_date"] else None),
+                    fire_history_radius_km=(float(row["fire_history_radius_km"]) if row["fire_history_radius_km"] is not None else None),
+                    generated_at=self._as_utc(row["generated_at"]),
                 )
         except SQLAlchemyError as exc:
             self._raise_database_unavailable(exc)
@@ -572,6 +715,8 @@ class MySQLHouseholdRepository:
                 is_dependant=bool(row["is_dependant"]),
                 mobility_support_required=bool(row["mobility_support_required"]),
                 support_notes=row["support_notes"],
+                relationship=row["relationship"],
+                relationship_other=row["relationship_other"],
             )
             for row in member_rows
         ]
@@ -593,6 +738,8 @@ class MySQLHouseholdRepository:
                 animal_type=row["animal_type"],
                 display_name=row["display_name"] or "",
                 support_notes=row["support_notes"],
+                animal_type_other=row["animal_type_other"],
+                quantity=int(row["quantity"]),
             )
             for row in animal_rows
         ]
@@ -628,6 +775,7 @@ class MySQLHouseholdRepository:
                 transport_id=row["public_id"],
                 transport_type=row["transport_type"],
                 display_name=row["display_name"],
+                transport_type_other=row["transport_type_other"],
                 driver_member_ids=driver_ids.get(int(row["transport_id"]), []),
             )
             for row in transport_rows
@@ -651,6 +799,15 @@ class MySQLHouseholdRepository:
                 destination_id=row["public_id"],
                 display_name=row["display_name"],
                 address=row["address"],
+                unit_number=row["unit_number"],
+                street_number=row["street_number"],
+                street_name=row["street_name"],
+                suburb_or_locality=row["suburb_or_locality"],
+                state=row["state"],
+                postcode=row["postcode"],
+                country=row["country"],
+                latitude=(float(row["latitude"]) if row["latitude"] is not None else None),
+                longitude=(float(row["longitude"]) if row["longitude"] is not None else None),
             )
             for row in destination_rows
         }
@@ -798,10 +955,18 @@ class MySQLHouseholdRepository:
         )
 
     @staticmethod
-    def _mysql_datetime(value: datetime) -> datetime:
+    def _mysql_datetime(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
         if value.tzinfo is None:
             return value
         return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+    @staticmethod
+    def _as_utc(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        return value.replace(tzinfo=timezone.utc)
 
     @staticmethod
     def _raise_database_unavailable(exc: SQLAlchemyError) -> None:

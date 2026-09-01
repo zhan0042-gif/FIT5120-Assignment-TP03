@@ -80,8 +80,15 @@ def save_location(
     address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> HouseholdLocation:
     return LocationService(repository, address_client).save(
-        household_id, request.address
+        household_id, request.address, request.selected_address
     )
+
+
+@router.get("/{household_id}/location", response_model=HouseholdLocation)
+def get_location(
+    household_id: str, repository: RepositoryDependency
+) -> HouseholdLocation:
+    return repository.get_location(household_id)
 
 
 def _local_context_service(

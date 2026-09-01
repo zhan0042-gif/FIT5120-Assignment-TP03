@@ -139,6 +139,7 @@ def test_pet_and_livestock_animals_save_and_load_with_optional_support() -> None
                     "animal_type": "dog",
                     "display_name": "Buddy",
                     "support_notes": None,
+                    "quantity": 1,
                 },
                 {
                     "animal_id": "a_stock",
@@ -146,6 +147,7 @@ def test_pet_and_livestock_animals_save_and_load_with_optional_support() -> None
                     "animal_type": "horse",
                     "display_name": "Star",
                     "support_notes": "Needs a float",
+                    "quantity": 4,
                 },
             ]
         }
@@ -158,6 +160,99 @@ def test_pet_and_livestock_animals_save_and_load_with_optional_support() -> None
     assert saved.animals[0].support_notes is None
     assert saved.animals[1].category == "livestock"
     assert saved.animals[1].support_notes == "Needs a float"
+    assert saved.animals[1].quantity == 4
+
+
+def test_member_relationship_is_validated_and_round_trips() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    plan = HouseholdPlan.model_validate(
+        {
+            "members": [
+                {
+                    "member_id": "m_self",
+                    "display_name": "Maya",
+                    "is_dependant": False,
+                    "mobility_support_required": False,
+                    "relationship": "self",
+                },
+                {
+                    "member_id": "m_other",
+                    "display_name": "Lee",
+                    "is_dependant": False,
+                    "mobility_support_required": False,
+                    "relationship": "other",
+                    "relationship_other": "Neighbour",
+                },
+            ]
+        }
+    )
+
+    assert HouseholdPlanService(repository).save(household_id, plan) == plan
+    with pytest.raises(ValidationError, match="relationship"):
+        HouseholdPlan.model_validate(
+            {
+                "members": [
+                    {
+                        "member_id": "m_invalid",
+                        "display_name": "Invalid",
+                        "is_dependant": False,
+                        "mobility_support_required": False,
+                        "relationship": "uncle",
+                    }
+                ]
+            }
+        )
+
+
+def test_animal_quantity_defaults_to_one_and_must_be_positive() -> None:
+    animal = HouseholdPlan.model_validate(
+        {"animals": [{"animal_id": "a_dog", "category": "pet", "animal_type": "dog"}]}
+    ).animals[0]
+    assert animal.quantity == 1
+
+    with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        HouseholdPlan.model_validate(
+            {
+                "animals": [
+                    {
+                        "animal_id": "a_sheep",
+                        "category": "livestock",
+                        "animal_type": "sheep",
+                        "quantity": 0,
+                    }
+                ]
+            }
+        )
+
+
+def test_animal_types_are_controlled_by_category_and_support_other() -> None:
+    custom = HouseholdPlan.model_validate(
+        {
+            "animals": [
+                {
+                    "animal_id": "a_custom",
+                    "category": "pet",
+                    "animal_type": "other",
+                    "animal_type_other": "Ferret",
+                }
+            ]
+        }
+    )
+    assert custom.animals[0].animal_type_other == "Ferret"
+
+    with pytest.raises(ValidationError, match="not valid for category"):
+        HouseholdPlan.model_validate(
+            {
+                "animals": [
+                    {
+                        "animal_id": "a_horse",
+                        "category": "pet",
+                        "animal_type": "horse",
+                    }
+                ]
+            }
+        )
 
 
 def test_duplicate_animal_ids_are_rejected() -> None:

@@ -7,6 +7,8 @@ export const useLocalContextStore = defineStore('localContext', () => {
   const householdStore = useHouseholdStore()
   const address = ref('')
   const submittedAddress = ref('')
+  const location = ref(null)
+  const saveStatus = ref('idle')
 
   const context = ref(null)
   const contextStatus = ref('idle')
@@ -16,23 +18,47 @@ export const useLocalContextStore = defineStore('localContext', () => {
   const prepSupport = ref(null)
   const prepStatus = ref('idle')
 
-  async function submitAddress(next) {
+  async function submitAddress(next, selectedAddress = null) {
     address.value = next
     submittedAddress.value = next
+    saveStatus.value = 'loading'
+    contextStatus.value = 'idle'
+    contextError.value = null
+    contextUnavailable.value = false
+    try {
+      const householdId = await householdStore.ensureHousehold()
+      const saved = await api.saveLocation(householdId, {
+        address: next,
+        selected_address: selectedAddress,
+      })
+      location.value = saved
+      address.value = saved.address
+      submittedAddress.value = saved.address
+      saveStatus.value = 'success'
+      if (saved.verification_status === 'verified') await loadContext()
+      else contextStatus.value = 'unverified'
+    } catch (err) {
+      saveStatus.value = 'error'
+      contextError.value = err instanceof Error ? err.message : 'Could not save the household address.'
+    }
+  }
+
+  async function loadContext() {
     contextStatus.value = 'loading'
     contextError.value = null
     contextUnavailable.value = false
     try {
       const householdId = await householdStore.ensureHousehold()
-      const resolved = await api.saveLocation(householdId, { address: next })
-      address.value = resolved.address
-      submittedAddress.value = resolved.address
       context.value = await api.getLocalContext(householdId)
       contextStatus.value = 'success'
       await loadPreparationSupport()
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        contextStatus.value = 'unverified'
+        return
+      }
       contextStatus.value = 'error'
-      contextError.value = err instanceof Error ? err.message : 'Could not reach the local context service.'
+      contextError.value = err instanceof Error ? err.message : 'Local context is temporarily unavailable.'
       contextUnavailable.value = err instanceof ApiError && err.status === 503
     }
   }
@@ -49,16 +75,14 @@ export const useLocalContextStore = defineStore('localContext', () => {
   }
 
   async function init() {
-    contextStatus.value = 'loading'
-    contextError.value = null
-    contextUnavailable.value = false
     try {
       const householdId = await householdStore.ensureHousehold()
-      context.value = await api.getLocalContext(householdId)
-      address.value = context.value.location.address
-      submittedAddress.value = context.value.location.address
-      contextStatus.value = 'success'
-      await loadPreparationSupport()
+      location.value = await api.getLocation(householdId)
+      address.value = location.value.address
+      submittedAddress.value = location.value.address
+      saveStatus.value = 'success'
+      if (location.value.verification_status === 'verified') await loadContext()
+      else contextStatus.value = 'unverified'
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         context.value = null
@@ -75,6 +99,8 @@ export const useLocalContextStore = defineStore('localContext', () => {
   return {
     address,
     submittedAddress,
+    location,
+    saveStatus,
     context,
     contextStatus,
     contextError,
@@ -82,6 +108,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
     prepSupport,
     prepStatus,
     submitAddress,
+    loadContext,
     loadPreparationSupport,
     init,
   }

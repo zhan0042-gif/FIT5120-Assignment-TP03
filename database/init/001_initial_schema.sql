@@ -27,6 +27,8 @@ CREATE TABLE household_member (
     is_dependant BOOLEAN NOT NULL DEFAULT FALSE,
     mobility_support_required BOOLEAN NOT NULL DEFAULT FALSE,
     support_notes TEXT,
+    relationship VARCHAR(50),
+    relationship_other VARCHAR(100),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_member_household
@@ -49,6 +51,8 @@ CREATE TABLE animal (
     display_name VARCHAR(150),
     category VARCHAR(50) NOT NULL,
     animal_type VARCHAR(100) NOT NULL,
+    animal_type_other VARCHAR(100),
+    quantity INT UNSIGNED NOT NULL DEFAULT 1,
     support_notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -56,6 +60,9 @@ CREATE TABLE animal (
         FOREIGN KEY (household_id)
         REFERENCES household(household_id)
         ON DELETE CASCADE,
+
+    CONSTRAINT chk_animal_quantity
+        CHECK (quantity >= 1),
 
     INDEX idx_animal_household (household_id)
 );
@@ -70,6 +77,7 @@ CREATE TABLE transport (
     public_id VARCHAR(64) NOT NULL UNIQUE,
     household_id BIGINT UNSIGNED NOT NULL,
     transport_type VARCHAR(100) NOT NULL,
+    transport_type_other VARCHAR(100),
     display_name VARCHAR(150),
     notes TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -118,6 +126,13 @@ CREATE TABLE destination (
     household_id BIGINT UNSIGNED NOT NULL,
     display_name VARCHAR(150) NOT NULL,
     address VARCHAR(255),
+    unit_number VARCHAR(30),
+    street_number VARCHAR(30),
+    street_name VARCHAR(150),
+    suburb_or_locality VARCHAR(150),
+    state VARCHAR(3),
+    postcode VARCHAR(10),
+    country VARCHAR(100) DEFAULT 'Australia',
     latitude DECIMAL(9,6),
     longitude DECIMAL(9,6),
     notes TEXT,
@@ -234,11 +249,20 @@ CREATE TABLE responsibility (
 
 CREATE TABLE household_location (
     household_id BIGINT UNSIGNED PRIMARY KEY,
-    address VARCHAR(300),
+    address VARCHAR(300) NOT NULL,
+    canonical_address VARCHAR(300) NULL,
     suburb VARCHAR(150),
     postcode VARCHAR(10),
-    latitude DECIMAL(9,6) NOT NULL,
-    longitude DECIMAL(9,6) NOT NULL,
+    unit_number VARCHAR(30),
+    street_number VARCHAR(30),
+    street_name VARCHAR(150),
+    suburb_or_locality VARCHAR(150),
+    state VARCHAR(3) NOT NULL DEFAULT 'VIC',
+    country VARCHAR(100) NOT NULL DEFAULT 'Australia',
+    latitude DECIMAL(9,6) NULL,
+    longitude DECIMAL(9,6) NULL,
+    verification_status ENUM('verified', 'unverified') NOT NULL DEFAULT 'unverified',
+    verified_at TIMESTAMP NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ON UPDATE CURRENT_TIMESTAMP,
 
@@ -256,7 +280,29 @@ CREATE TABLE household_location (
 
 
 -- =========================================================
--- 10. Basic Scenario Test Run
+-- 10. Derived Household Location Context
+-- One cached GeoParquet result per verified household location.
+-- =========================================================
+
+CREATE TABLE household_location_context (
+    household_id BIGINT UNSIGNED PRIMARY KEY,
+    is_bushfire_prone_area BOOLEAN NOT NULL,
+    fire_district VARCHAR(100) NOT NULL,
+    fire_history_record_count INT UNSIGNED NULL,
+    fire_history_latest_year SMALLINT UNSIGNED NULL,
+    fire_history_latest_date DATE NULL,
+    fire_history_radius_km DECIMAL(6,2) NULL,
+    generated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT fk_location_context_household
+        FOREIGN KEY (household_id)
+        REFERENCES household(household_id)
+        ON DELETE CASCADE
+);
+
+
+-- =========================================================
+-- 11. Basic Scenario Test Run
 -- =========================================================
 
 CREATE TABLE test_run (
@@ -286,7 +332,7 @@ CREATE TABLE test_run (
 
 
 -- =========================================================
--- 11. Scenario Test Check Result
+-- 12. Scenario Test Check Result
 -- =========================================================
 
 CREATE TABLE test_check_result (

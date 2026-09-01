@@ -5,12 +5,41 @@ import { newId } from '../../api/client'
 defineProps({ transports: { type: Array, required: true } })
 const arrangements = defineModel({ required: true })
 
+const TRANSPORT_LABELS = {
+  car: 'Car / SUV',
+  ute: 'Ute / Pickup',
+  van: 'Van',
+  motorbike: 'Motorbike',
+  truck: 'Truck',
+  other: 'Other',
+}
+
+function transportOptionLabel(transport) {
+  const typeLabel = transport.transport_type === 'other' && transport.transport_type_other
+    ? transport.transport_type_other
+    : TRANSPORT_LABELS[transport.transport_type] || 'Other'
+  return transport.display_name ? `${transport.display_name} — ${typeLabel}` : typeLabel
+}
+
 function destinationField(key, field) {
   return computed({
     get: () => arrangements.value[key]?.[field] ?? '',
     set: (value) => {
       if (!arrangements.value[key]) {
-        arrangements.value[key] = { destination_id: newId('d'), display_name: '', address: null }
+        arrangements.value[key] = {
+          destination_id: newId('d'),
+          display_name: '',
+          address: null,
+          unit_number: null,
+          street_number: null,
+          street_name: null,
+          suburb_or_locality: null,
+          state: 'VIC',
+          postcode: null,
+          country: 'Australia',
+          latitude: null,
+          longitude: null,
+        }
       }
       arrangements.value[key][field] = value
     },
@@ -42,7 +71,7 @@ function clearBackupDestination() {
         <select v-model="arrangements.primary_transport_id">
           <option :value="null">Not set</option>
           <option v-for="t in transports" :key="t.transport_id" :value="t.transport_id">
-            {{ t.display_name || t.transport_type }}
+            {{ transportOptionLabel(t) }}
           </option>
         </select>
       </div>
@@ -52,7 +81,7 @@ function clearBackupDestination() {
       </div>
       <div class="field">
         <label>Destination address (optional)</label>
-        <input v-model="primaryAddress" type="text" />
+        <input v-model="primaryAddress" type="text" placeholder="e.g. 1 Main Street, Bendigo VIC 3550" autocomplete="street-address" />
       </div>
     </div>
 
@@ -66,7 +95,7 @@ function clearBackupDestination() {
         <select v-model="arrangements.backup_transport_id">
           <option :value="null">Not set</option>
           <option v-for="t in transports" :key="t.transport_id" :value="t.transport_id">
-            {{ t.display_name || t.transport_type }}
+            {{ transportOptionLabel(t) }}
           </option>
         </select>
       </div>
@@ -76,7 +105,7 @@ function clearBackupDestination() {
       </div>
       <div class="field">
         <label>Destination address (optional)</label>
-        <input v-model="backupAddress" type="text" />
+        <input v-model="backupAddress" type="text" placeholder="e.g. 10 High Street, Ballarat VIC 3350" autocomplete="street-address" />
       </div>
     </div>
     <button v-if="arrangements.backup_destination" class="btn btn-ghost btn-sm" type="button" @click="clearBackupDestination">
