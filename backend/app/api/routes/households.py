@@ -55,9 +55,12 @@ def create_household(
 
 @router.put("/{household_id}/plan", response_model=HouseholdPlan)
 def save_plan(
-    household_id: str, plan: HouseholdPlan, repository: RepositoryDependency
+    household_id: str,
+    plan: HouseholdPlan,
+    repository: RepositoryDependency,
+    address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> HouseholdPlan:
-    return HouseholdPlanService(repository).save(household_id, plan)
+    return HouseholdPlanService(repository, address_client).save(household_id, plan)
 
 
 @router.get("/{household_id}/plan", response_model=HouseholdPlan)
@@ -80,8 +83,15 @@ def save_location(
     address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> HouseholdLocation:
     return LocationService(repository, address_client).save(
-        household_id, request.address
+        household_id, request.address, request.selected_address
     )
+
+
+@router.get("/{household_id}/location", response_model=HouseholdLocation)
+def get_location(
+    household_id: str, repository: RepositoryDependency
+) -> HouseholdLocation:
+    return repository.get_location(household_id)
 
 
 def _local_context_service(

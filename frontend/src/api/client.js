@@ -95,6 +95,12 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
+  getLocation: (householdId) =>
+    request(`/households/${encodeURIComponent(householdId)}/location`),
+
+  getAddressSuggestions: (query) =>
+    request(`/locations/suggestions?q=${encodeURIComponent(query)}`),
+
   getLocalContext: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/local-context`),
 

@@ -29,7 +29,33 @@ CompletionSectionName = Literal[
 FireDangerLevel = Literal[
     "No Rating", "Moderate", "High", "Extreme", "Catastrophic"
 ]
-TransportType = Literal["car", "motorbike", "van", "other"]
+Relationship = Literal[
+    "self",
+    "partner",
+    "child",
+    "parent",
+    "grandparent",
+    "sibling",
+    "other_relative",
+    "friend_or_housemate",
+    "carer",
+    "other",
+]
+AnimalType = Literal[
+    "dog",
+    "cat",
+    "bird",
+    "rabbit",
+    "reptile",
+    "horse",
+    "cattle",
+    "sheep",
+    "goat",
+    "alpaca",
+    "poultry",
+    "other",
+]
+TransportType = Literal["car", "ute", "van", "motorbike", "truck", "other"]
 
 
 class HouseholdCreate(BaseModel):
@@ -48,20 +74,37 @@ class HouseholdMember(BaseModel):
     is_dependant: bool
     mobility_support_required: bool
     support_notes: str | None = None
+    relationship: Relationship | None = None
+    relationship_other: str | None = Field(default=None, max_length=100)
 
 
 class Animal(BaseModel):
     animal_id: EntityId
     category: Literal["pet", "livestock"]
-    animal_type: str = ""
+    animal_type: AnimalType = "other"
+    animal_type_other: str | None = Field(default=None, max_length=100)
     display_name: str = ""
     support_notes: str | None = None
+    quantity: int = Field(default=1, ge=1)
+
+    @model_validator(mode="after")
+    def type_matches_category(self) -> "Animal":
+        allowed = {
+            "pet": {"dog", "cat", "bird", "rabbit", "reptile", "other"},
+            "livestock": {"horse", "cattle", "sheep", "goat", "alpaca", "poultry", "other"},
+        }
+        if self.animal_type not in allowed[self.category]:
+            raise ValueError(
+                f"Animal type '{self.animal_type}' is not valid for category '{self.category}'."
+            )
+        return self
 
 
 class Transport(BaseModel):
     transport_id: EntityId
     transport_type: TransportType
     display_name: str | None = None
+    transport_type_other: str | None = Field(default=None, max_length=100)
     driver_member_ids: list[EntityId] = Field(default_factory=list)
 
 
@@ -69,13 +112,51 @@ class Destination(BaseModel):
     destination_id: EntityId
     display_name: str = ""
     address: str | None = None
+    canonical_address: str | None = None
+    unit_number: str | None = Field(default=None, max_length=30)
+    street_number: str | None = Field(default=None, max_length=30)
+    street_name: str | None = Field(default=None, max_length=150)
+    suburb_or_locality: str | None = Field(default=None, max_length=150)
+    state: Literal["VIC"] | None = None
+    postcode: str | None = Field(default=None, pattern=r"^\d{4}$")
+    country: Literal["Australia"] | None = "Australia"
+    latitude: Annotated[float | None, Field(ge=-90, le=90, allow_inf_nan=False)] = None
+    longitude: Annotated[float | None, Field(ge=-180, le=180, allow_inf_nan=False)] = None
+    verification_status: Literal["verified", "unverified"] = "unverified"
+    verified_at: datetime | None = None
+    selected_address: str | None = Field(default=None, exclude=True)
+
+
+class AddressVerification(BaseModel):
+    """Official enrichment result that can be applied to any saved address."""
+
+    verification_status: Literal["verified", "unverified"] = "unverified"
+    canonical_address: str | None = None
+    unit_number: str | None = None
+    street_number: str | None = None
+    street_name: str | None = None
+    suburb_or_locality: str | None = None
+    state: Literal["VIC"] | None = None
+    postcode: str | None = None
+    country: Literal["Australia"] | None = None
+    latitude: Annotated[float | None, Field(ge=-90, le=90, allow_inf_nan=False)] = None
+    longitude: Annotated[float | None, Field(ge=-180, le=180, allow_inf_nan=False)] = None
+    verified_at: datetime | None = None
+
+
+class BackupArrangement(BaseModel):
+    """One ordered fallback transport and/or destination option."""
+
+    transport_id: EntityId | None = None
+    destination: Destination | None = None
 
 
 class Arrangements(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     primary_transport_id: EntityId | None = None
-    backup_transport_id: EntityId | None = None
     primary_destination: Destination | None = None
-    backup_destination: Destination | None = None
+    backup_arrangements: list[BackupArrangement] = Field(default_factory=list)
     meeting_point: str | None = None
 
 
@@ -99,7 +180,7 @@ class HouseholdPlan(BaseModel):
     @model_validator(mode="after")
     def private_transport_answer_matches_resources(self) -> "HouseholdPlan":
         if self.has_private_transport is False and any(
-            transport.transport_type in {"car", "motorbike", "van"}
+            transport.transport_type in {"car", "ute", "van", "motorbike", "truck"}
             for transport in self.transports
         ):
             raise ValueError(
@@ -113,12 +194,40 @@ class LocationRequest(BaseModel):
         str,
         StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
     ]
+    selected_address: Annotated[
+        str | None,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
+    ] = None
 
 
 class HouseholdLocation(BaseModel):
     address: str
-    latitude: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
-    longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+    canonical_address: str | None = None
+    unit_number: str | None = None
+    street_number: str | None = None
+    street_name: str | None = None
+    suburb_or_locality: str | None = None
+    state: Literal["VIC"] = "VIC"
+    postcode: str | None = Field(default=None, pattern=r"^\d{4}$")
+    country: Literal["Australia"] = "Australia"
+    latitude: Annotated[float | None, Field(ge=-90, le=90, allow_inf_nan=False)] = None
+    longitude: Annotated[float | None, Field(ge=-180, le=180, allow_inf_nan=False)] = None
+    verification_status: Literal["verified", "unverified"] = "unverified"
+    verified_at: datetime | None = None
+
+
+class AddressSuggestion(HouseholdLocation):
+    """A canonical Vicmap address candidate returned by autocomplete."""
+
+
+class HouseholdLocationContext(BaseModel):
+    is_bushfire_prone_area: bool
+    fire_district: NonBlankText
+    fire_history_record_count: int | None = Field(default=None, ge=0)
+    fire_history_latest_year: int | None = None
+    fire_history_latest_date: str | None = None
+    fire_history_radius_km: float | None = Field(default=None, gt=0)
+    generated_at: datetime
 
 
 class CompletionSection(BaseModel):

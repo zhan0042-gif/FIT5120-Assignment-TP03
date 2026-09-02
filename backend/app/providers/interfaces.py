@@ -3,6 +3,7 @@
 from typing import Protocol
 
 from app.schemas.households import (
+    AddressSuggestion,
     FireDanger,
     HouseholdLocation,
     Weather,
@@ -15,10 +16,16 @@ class SpatialResult(Protocol):
     fire_history_summary: str | None
     vegetation_context: str | None
     terrain_context: str | None
+    fire_history_record_count: int | None
+    fire_history_latest_year: int | None
+    fire_history_latest_date: str | None
+    fire_history_radius_km: float | None
 
 
 class AddressClient(Protocol):
     def resolve(self, address: str) -> HouseholdLocation: ...
+
+    def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]: ...
 
 
 class SpatialProvider(Protocol):

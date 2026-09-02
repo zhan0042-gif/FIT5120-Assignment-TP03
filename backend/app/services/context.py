@@ -3,9 +3,9 @@
 from datetime import datetime, timedelta, timezone
 
 from app.core.exceptions import (
-    AddressResolutionError,
     ExternalDataUnavailable,
     HouseholdNotFound,
+    LocationNotVerified,
 )
 from app.providers.interfaces import (
     AddressClient,
@@ -15,10 +15,13 @@ from app.providers.interfaces import (
 )
 from app.repositories.households import HouseholdRepository
 from app.schemas.households import (
+    AddressSuggestion,
+    AddressVerification,
     BushfireContext,
     EnvironmentalContext,
     FireDanger,
     HouseholdLocation,
+    HouseholdLocationContext,
     LocalContext,
     PlanCompletion,
     PreparationSupport,
@@ -26,22 +29,74 @@ from app.schemas.households import (
 )
 
 
+class AddressSuggestionService:
+    """Expose provider-backed suggestions without weakening final resolution checks."""
+
+    def __init__(self, address_client: AddressClient) -> None:
+        self.address_client = address_client
+
+    def suggest(self, query: str) -> list[AddressSuggestion]:
+        if len(query.strip()) < 3:
+            return []
+        try:
+            return self.address_client.suggest(query, limit=8)
+        except ExternalDataUnavailable:
+            raise
+        except Exception as exc:
+            raise ExternalDataUnavailable("Address suggestions are unavailable.") from exc
+
+
 class LocationService:
     def __init__(self, repository: HouseholdRepository, address_client: AddressClient) -> None:
         self.repository = repository
         self.address_client = address_client
 
-    def save(self, household_id: str, address: str) -> HouseholdLocation:
+    def save(
+        self, household_id: str, address: str, selected_address: str | None = None
+    ) -> HouseholdLocation:
         if not self.repository.household_exists(household_id):
             raise HouseholdNotFound(f"Household '{household_id}' was not found.")
-        try:
-            location = self.address_client.resolve(address)
-        except (AddressResolutionError, ExternalDataUnavailable):
-            raise
-        except Exception as exc:
-            raise ExternalDataUnavailable("Address resolution is unavailable.") from exc
+        saved = HouseholdLocation(address=" ".join(address.split()))
+        self.repository.save_location(household_id, saved)
+        verification = AddressVerificationService(self.address_client).verify(
+            saved.address, selected_address
+        )
+        if verification.verification_status == "unverified":
+            return saved
+        location = saved.model_copy(update=verification.model_dump())
         self.repository.save_location(household_id, location)
         return location
+
+
+class AddressVerificationService:
+    """Apply Vicmap verification consistently without blocking manual saves."""
+
+    def __init__(self, address_client: AddressClient) -> None:
+        self.address_client = address_client
+
+    def verify(
+        self, entered_address: str | None, selected_address: str | None = None
+    ) -> AddressVerification:
+        if not entered_address or not entered_address.strip():
+            return AddressVerification()
+        try:
+            verified = self.address_client.resolve(selected_address or entered_address)
+        except Exception:
+            return AddressVerification()
+        return AddressVerification(
+            verification_status="verified",
+            canonical_address=verified.address,
+            unit_number=verified.unit_number,
+            street_number=verified.street_number,
+            street_name=verified.street_name,
+            suburb_or_locality=verified.suburb_or_locality,
+            state=verified.state,
+            postcode=verified.postcode,
+            country=verified.country,
+            latitude=verified.latitude,
+            longitude=verified.longitude,
+            verified_at=datetime.now(timezone.utc),
+        )
 
 
 class LocalContextService:
@@ -59,13 +114,33 @@ class LocalContextService:
 
     def get(self, household_id: str) -> LocalContext:
         location = self.repository.get_location(household_id)
-        try:
-            spatial = self.spatial_provider.get_context(
-                location.latitude, location.longitude
+        if (
+            location.verification_status != "verified"
+            or location.latitude is None
+            or location.longitude is None
+        ):
+            raise LocationNotVerified(
+                "Household address is saved, but local context is not available until the location is verified."
             )
+        try:
+            cached = self.repository.get_location_context(household_id)
+            if cached is None:
+                spatial = self.spatial_provider.get_context(
+                    location.latitude, location.longitude
+                )
+                cached = HouseholdLocationContext(
+                    is_bushfire_prone_area=spatial.is_bushfire_prone_area,
+                    fire_district=spatial.fire_district,
+                    fire_history_record_count=getattr(spatial, "fire_history_record_count", None),
+                    fire_history_latest_year=getattr(spatial, "fire_history_latest_year", None),
+                    fire_history_latest_date=getattr(spatial, "fire_history_latest_date", None),
+                    fire_history_radius_km=getattr(spatial, "fire_history_radius_km", None),
+                    generated_at=datetime.now(timezone.utc),
+                )
+                self.repository.save_location_context(household_id, cached)
             try:
                 fire_danger = self.fire_danger_client.get_fire_danger(
-                    spatial.fire_district
+                    cached.fire_district
                 )
                 PreparationTimingService().ensure_fresh(
                     fire_danger, datetime.now(timezone.utc)
@@ -78,15 +153,13 @@ class LocalContextService:
             return LocalContext(
                 location=location,
                 bushfire_context=BushfireContext(
-                    is_bushfire_prone_area=spatial.is_bushfire_prone_area,
-                    fire_district=spatial.fire_district,
+                    is_bushfire_prone_area=cached.is_bushfire_prone_area,
+                    fire_district=cached.fire_district,
                 ),
                 fire_danger=fire_danger,
                 weather=weather,
                 environmental_context=EnvironmentalContext(
-                    fire_history_summary=spatial.fire_history_summary,
-                    vegetation_context=spatial.vegetation_context,
-                    terrain_context=spatial.terrain_context,
+                    fire_history_summary=self._history_summary(cached),
                 ),
             )
         except ExternalDataUnavailable:
@@ -95,6 +168,23 @@ class LocalContextService:
             raise ExternalDataUnavailable(
                 "Local context provider data is unavailable."
             ) from exc
+
+    @staticmethod
+    def _history_summary(context: HouseholdLocationContext) -> str | None:
+        if context.fire_history_record_count is None or context.fire_history_radius_km is None:
+            return None
+        radius = f"{context.fire_history_radius_km:g}"
+        if context.fire_history_record_count == 0:
+            return f"No historical bushfire records were found within {radius} km."
+        text = (
+            f"{context.fire_history_record_count} historical bushfire record"
+            f"{'s' if context.fire_history_record_count != 1 else ''} were found within {radius} km."
+        )
+        if context.fire_history_latest_year is not None:
+            text += f" The latest recorded burn season was {context.fire_history_latest_year}."
+        if context.fire_history_latest_date:
+            text += f" The most recent dated record was {context.fire_history_latest_date}."
+        return text
 
 
 class PreparationTimingService:
@@ -186,6 +276,14 @@ class PreparationSupportService:
         self, household_id: str, completion: PlanCompletion
     ) -> PreparationSupport:
         location = self.repository.get_location(household_id)
+        if (
+            location.verification_status != "verified"
+            or location.latitude is None
+            or location.longitude is None
+        ):
+            raise LocationNotVerified(
+                "Household address is saved, but preparation support is not available until the location is verified."
+            )
         try:
             spatial = self.spatial_provider.get_context(
                 location.latitude, location.longitude

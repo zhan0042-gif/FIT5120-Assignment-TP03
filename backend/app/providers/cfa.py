@@ -24,7 +24,7 @@ CFA_FEED_URLS = {
     "East Gippsland": "https://www.cfa.vic.gov.au/cfa/rssfeed/eastgippsland-firedistrict_rss.xml",
     "West and South Gippsland": "https://www.cfa.vic.gov.au/cfa/rssfeed/westandsouthgippsland-firedistrict_rss.xml",
 }
-CFA_CACHE_SECONDS = 5 * 60
+CFA_CACHE_SECONDS = 60 * 60
 
 _RATING_MAP: dict[str, FireDangerLevel] = {
     "NO RATING": "No Rating",

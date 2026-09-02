@@ -139,6 +139,7 @@ def test_pet_and_livestock_animals_save_and_load_with_optional_support() -> None
                     "animal_type": "dog",
                     "display_name": "Buddy",
                     "support_notes": None,
+                    "quantity": 1,
                 },
                 {
                     "animal_id": "a_stock",
@@ -146,6 +147,7 @@ def test_pet_and_livestock_animals_save_and_load_with_optional_support() -> None
                     "animal_type": "horse",
                     "display_name": "Star",
                     "support_notes": "Needs a float",
+                    "quantity": 4,
                 },
             ]
         }
@@ -158,6 +160,99 @@ def test_pet_and_livestock_animals_save_and_load_with_optional_support() -> None
     assert saved.animals[0].support_notes is None
     assert saved.animals[1].category == "livestock"
     assert saved.animals[1].support_notes == "Needs a float"
+    assert saved.animals[1].quantity == 4
+
+
+def test_member_relationship_is_validated_and_round_trips() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    plan = HouseholdPlan.model_validate(
+        {
+            "members": [
+                {
+                    "member_id": "m_self",
+                    "display_name": "Maya",
+                    "is_dependant": False,
+                    "mobility_support_required": False,
+                    "relationship": "self",
+                },
+                {
+                    "member_id": "m_other",
+                    "display_name": "Lee",
+                    "is_dependant": False,
+                    "mobility_support_required": False,
+                    "relationship": "other",
+                    "relationship_other": "Neighbour",
+                },
+            ]
+        }
+    )
+
+    assert HouseholdPlanService(repository).save(household_id, plan) == plan
+    with pytest.raises(ValidationError, match="relationship"):
+        HouseholdPlan.model_validate(
+            {
+                "members": [
+                    {
+                        "member_id": "m_invalid",
+                        "display_name": "Invalid",
+                        "is_dependant": False,
+                        "mobility_support_required": False,
+                        "relationship": "uncle",
+                    }
+                ]
+            }
+        )
+
+
+def test_animal_quantity_defaults_to_one_and_must_be_positive() -> None:
+    animal = HouseholdPlan.model_validate(
+        {"animals": [{"animal_id": "a_dog", "category": "pet", "animal_type": "dog"}]}
+    ).animals[0]
+    assert animal.quantity == 1
+
+    with pytest.raises(ValidationError, match="greater than or equal to 1"):
+        HouseholdPlan.model_validate(
+            {
+                "animals": [
+                    {
+                        "animal_id": "a_sheep",
+                        "category": "livestock",
+                        "animal_type": "sheep",
+                        "quantity": 0,
+                    }
+                ]
+            }
+        )
+
+
+def test_animal_types_are_controlled_by_category_and_support_other() -> None:
+    custom = HouseholdPlan.model_validate(
+        {
+            "animals": [
+                {
+                    "animal_id": "a_custom",
+                    "category": "pet",
+                    "animal_type": "other",
+                    "animal_type_other": "Ferret",
+                }
+            ]
+        }
+    )
+    assert custom.animals[0].animal_type_other == "Ferret"
+
+    with pytest.raises(ValidationError, match="not valid for category"):
+        HouseholdPlan.model_validate(
+            {
+                "animals": [
+                    {
+                        "animal_id": "a_horse",
+                        "category": "pet",
+                        "animal_type": "horse",
+                    }
+                ]
+            }
+        )
 
 
 def test_duplicate_animal_ids_are_rejected() -> None:
@@ -185,6 +280,13 @@ def test_optional_reference_must_be_valid_when_supplied() -> None:
         HouseholdPlanService.validate(plan)
 
 
+def test_legacy_fixed_backup_fields_are_rejected() -> None:
+    with pytest.raises(ValidationError, match="backup_transport_id"):
+        HouseholdPlan.model_validate(
+            {"arrangements": {"backup_transport_id": "t_legacy"}}
+        )
+
+
 def test_invalid_driver_member_reference_is_rejected(
     complete_plan_data: dict,
 ) -> None:
@@ -199,14 +301,17 @@ def test_invalid_driver_member_reference_is_rejected(
     ("field", "value", "message"),
     [
         ("primary_transport_id", "missing", "primary_transport_id"),
-        ("backup_transport_id", "missing", "backup_transport_id"),
+        ("backup_arrangements", "missing", "backup_arrangements"),
     ],
 )
 def test_invalid_transport_reference_is_rejected(
     complete_plan_data: dict, field: str, value: str, message: str
 ) -> None:
     data = deepcopy(complete_plan_data)
-    data["arrangements"][field] = value
+    if field == "primary_transport_id":
+        data["arrangements"][field] = value
+    else:
+        data["arrangements"]["backup_arrangements"][0]["transport_id"] = value
 
     with pytest.raises(PlanValidationError, match=message):
         HouseholdPlanService.validate(HouseholdPlan.model_validate(data))
@@ -248,7 +353,7 @@ def test_different_responsibility_backup_person_saves(
 
 def test_duplicate_destination_ids_are_rejected(complete_plan_data: dict) -> None:
     data = deepcopy(complete_plan_data)
-    data["arrangements"]["backup_destination"]["destination_id"] = "d_001"
+    data["arrangements"]["backup_arrangements"][0]["destination"]["destination_id"] = "d_001"
 
     with pytest.raises(PlanValidationError, match="destination_id values must be unique"):
         HouseholdPlanService.validate(HouseholdPlan.model_validate(data))
@@ -265,8 +370,8 @@ def test_complete_plan_completion(complete_plan: HouseholdPlan) -> None:
 @pytest.mark.parametrize(
     ("mutation", "missing_section"),
     [
-        (lambda data: data["arrangements"].update(backup_transport_id=None), "backup_transport"),
-        (lambda data: data["arrangements"].update(backup_destination=None), "backup_destination"),
+        (lambda data: data["arrangements"].update(backup_arrangements=[]), "backup_transport"),
+        (lambda data: data["arrangements"].update(backup_arrangements=[]), "backup_destination"),
         (lambda data: data.update(responsibilities=[]), "responsibilities"),
     ],
 )
@@ -293,8 +398,7 @@ def test_missing_backups_and_people_are_reported_deterministically(
     complete_plan_data: dict,
 ) -> None:
     data = deepcopy(complete_plan_data)
-    data["arrangements"]["backup_transport_id"] = None
-    data["arrangements"]["backup_destination"] = None
+    data["arrangements"]["backup_arrangements"] = []
     data["responsibilities"][0]["backup_member_id"] = None
 
     checks = ImmediateCheckService().evaluate(HouseholdPlan.model_validate(data))
@@ -342,8 +446,7 @@ def test_immediate_check_messages_contain_no_internal_ids(
     complete_plan_data: dict,
 ) -> None:
     data = deepcopy(complete_plan_data)
-    data["arrangements"]["backup_transport_id"] = None
-    data["arrangements"]["backup_destination"] = None
+    data["arrangements"]["backup_arrangements"] = []
     data["responsibilities"][0]["task_name"] = "Collect children"
     data["responsibilities"][0]["backup_member_id"] = None
 
@@ -360,14 +463,14 @@ def test_shared_transport_saves_and_is_reported(
     repository = InMemoryHouseholdRepository()
     household_id = repository.create_household()
     data = deepcopy(complete_plan_data)
-    data["arrangements"]["backup_transport_id"] = "t_001"
+    data["arrangements"]["backup_arrangements"][0]["transport_id"] = "t_001"
 
     saved = HouseholdPlanService(repository).save(
         household_id, HouseholdPlan.model_validate(data)
     )
     checks = ImmediateCheckService().evaluate(saved)
 
-    assert saved.arrangements.backup_transport_id == "t_001"
+    assert saved.arrangements.backup_arrangements[0].transport_id == "t_001"
     assert [check.check for check in checks] == ["shared_transport_resource"]
 
 
@@ -375,7 +478,7 @@ def test_fixing_missing_backup_transport_removes_check(
     complete_plan_data: dict,
 ) -> None:
     data = deepcopy(complete_plan_data)
-    data["arrangements"]["backup_transport_id"] = None
+    data["arrangements"]["backup_arrangements"] = []
     incomplete = HouseholdPlan.model_validate(data)
     fixed = HouseholdPlan.model_validate(complete_plan_data)
 
@@ -385,3 +488,21 @@ def test_fixing_missing_backup_transport_removes_check(
     assert "missing_backup_transport" not in {
         check.check for check in ImmediateCheckService().evaluate(fixed)
     }
+
+
+def test_second_independent_backup_satisfies_completion_and_immediate_checks(
+    complete_plan_data: dict,
+) -> None:
+    data = deepcopy(complete_plan_data)
+    data["arrangements"]["backup_arrangements"].insert(
+        0, {"transport_id": "t_001", "destination": None}
+    )
+
+    plan = HouseholdPlan.model_validate(data)
+    statuses = {
+        section.section: section.status
+        for section in PlanCompletionService().evaluate(plan).sections
+    }
+
+    assert statuses["backup_transport"] == "complete"
+    assert ImmediateCheckService().evaluate(plan) == []

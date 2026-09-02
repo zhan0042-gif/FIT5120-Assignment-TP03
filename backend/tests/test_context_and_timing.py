@@ -161,14 +161,33 @@ class FailingAddressClient:
         raise ValueError("bad provider payload")
 
 
-def test_address_provider_failure_is_translated() -> None:
+def test_address_provider_failure_keeps_the_saved_address_unverified() -> None:
     repository = InMemoryHouseholdRepository()
     household_id = repository.create_household()
 
-    with pytest.raises(ExternalDataUnavailable, match="Address resolution"):
-        LocationService(repository, FailingAddressClient()).save(
-            household_id, "Warrandyte VIC 3113"
-        )
+    location = LocationService(repository, FailingAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+
+    assert location.address == "Warrandyte VIC 3113"
+    assert location.verification_status == "unverified"
+    assert location.latitude is None
+
+
+def test_selected_official_address_is_saved_as_verified() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+
+    location = LocationService(repository, MockAddressClient()).save(
+        household_id,
+        "1 Treasury Place, East Melbourne VIC 3002",
+        "Melbourne VIC 3000",
+    )
+
+    assert location.address == "1 Treasury Place, East Melbourne VIC 3002"
+    assert location.canonical_address == "Melbourne VIC 3000"
+    assert location.verification_status == "verified"
+    assert location.latitude is not None
 
 
 @dataclass(frozen=True)
@@ -182,6 +201,15 @@ class NonProneSpatialResult:
 
 class NonProneSpatialProvider:
     def get_context(self, latitude: float, longitude: float):
+        return NonProneSpatialResult()
+
+
+class CountingSpatialProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def get_context(self, latitude: float, longitude: float):
+        self.calls += 1
         return NonProneSpatialResult()
 
 
@@ -205,6 +233,32 @@ def test_false_bpa_and_missing_optional_context_do_not_block_required_context() 
         "vegetation_context": None,
         "terrain_context": None,
     }
+
+
+def test_static_context_is_cached_and_address_change_invalidates_it() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+    spatial = CountingSpatialProvider()
+    service = LocalContextService(
+        repository, spatial, MockFireDangerClient(), MockWeatherClient()
+    )
+
+    service.get(household_id)
+    service.get(household_id)
+
+    assert spatial.calls == 1
+    assert repository.get_location_context(household_id) is not None
+
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Melbourne VIC 3000"
+    )
+    assert repository.get_location_context(household_id) is None
+
+    service.get(household_id)
+    assert spatial.calls == 2
 
 
 def test_local_context_requires_a_saved_location() -> None:

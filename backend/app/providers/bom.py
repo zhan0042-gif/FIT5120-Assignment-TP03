@@ -18,7 +18,7 @@ BOM_FTP_PATH = "/anon/gen/fwo/IDV60920.xml"
 BOM_SOURCE_URL = f"ftp://{BOM_FTP_HOST}{BOM_FTP_PATH}"
 BOM_COPYRIGHT_URL = "http://www.bom.gov.au/other/copyright.shtml"
 BOM_DISCLAIMER_URL = "http://www.bom.gov.au/other/disclaimer.shtml"
-BOM_CACHE_SECONDS = 10 * 60
+BOM_CACHE_SECONDS = 60 * 60
 BOM_OBSERVATION_MAX_AGE = timedelta(minutes=75)
 BOM_FUTURE_TOLERANCE = timedelta(minutes=5)
 

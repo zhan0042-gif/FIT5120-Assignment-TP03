@@ -79,6 +79,8 @@ Main fields:
 - `is_dependant`
 - `mobility_support_required`
 - `support_notes`
+- `relationship`
+- `relationship_other`
 
 ### animal
 
@@ -92,6 +94,8 @@ Main fields:
 - `display_name`
 - `category`
 - `animal_type`
+- `animal_type_other`
+- `quantity`
 - `support_notes`
 
 ### transport
@@ -104,6 +108,7 @@ Main fields:
 - `public_id`
 - `household_id`
 - `transport_type`
+- `transport_type_other`
 - `display_name`
 
 ### transport_driver
@@ -128,6 +133,7 @@ Main fields:
 - `address`
 - `latitude`
 - `longitude`
+- structured unit, street, locality, state, postcode and country columns
 
 ### household_arrangement
 
@@ -172,6 +178,7 @@ Main fields:
 - `postcode`
 - `latitude`
 - `longitude`
+- structured unit, street, locality, state and country columns
 
 ### test_run
 
@@ -382,6 +389,7 @@ destination
 household
 household_arrangement
 household_location
+household_location_context
 household_member
 responsibility
 test_check_result
@@ -395,7 +403,7 @@ transport_driver
 For a clean local database, verify:
 
 - MySQL starts successfully
-- all 11 tables are created from a clean Docker volume
+- all 12 tables are created from a clean Docker volume
 - foreign key relationships are created successfully
 - internal numeric primary keys and stable public IDs work together
 - duplicate public IDs are rejected
@@ -433,4 +441,43 @@ database/migrations/
 
 is reserved for future schema migrations.
 
-The project currently uses the initial Docker initialization schema for Iteration 1 development.
+Fresh database volumes receive the current schema from `init/001_initial_schema.sql`.
+
+Existing volumes do not rerun Docker entrypoint initialization. To preserve their
+data, apply each numbered upgrade script exactly once in order. For this change:
+
+```bash
+docker compose exec -T mysql sh -c \
+  'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  < database/migrations/002_i1_data_model_ux.sql
+
+docker compose exec -T mysql sh -c \
+  'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  < database/migrations/003_location_verification_and_context_cache.sql
+```
+
+The migration adds nullable/defaulted columns, assigns existing animals a quantity
+of `1`, preserves unrecognised legacy animal types in `animal_type_other`, and
+backfills `suburb_or_locality` from the legacy household-location `suburb` column.
+It does not delete or recreate any table or volume. The script is a numbered,
+one-time upgrade; record its application per environment and do not rerun it.
+
+The existing `address` columns remain the canonical full-address values. Structured
+columns supplement them, so existing integrations and rows remain valid.
+
+Migration 003 preserves saved household addresses even when they are not yet
+officially verified. It backfills coordinate-bearing rows as verified and adds
+`household_location_context`, which stores only each household's derived spatial
+snapshot—not raw open datasets. I1 invalidates that snapshot when the saved
+address changes; invalidation for future processed-dataset revisions is a later
+enhancement.
+
+After applying it, verify with:
+
+```sql
+SHOW TABLES;
+DESCRIBE household_member;
+DESCRIBE animal;
+DESCRIBE destination;
+DESCRIBE household_location;
+```

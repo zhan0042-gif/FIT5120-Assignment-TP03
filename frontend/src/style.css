@@ -104,8 +104,8 @@ textarea {
 }
 
 .card-title {
-  font-size: 1.125rem;
-  font-weight: 700;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
 .field-grid {
@@ -121,7 +121,7 @@ textarea {
 }
 
 .field label {
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -160,7 +160,7 @@ textarea {
 }
 
 .btn {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -209,7 +209,7 @@ textarea {
 .btn-sm {
   padding: 0.45rem 0.75rem;
   min-height: 2.125rem;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
 }
 
 .badge {

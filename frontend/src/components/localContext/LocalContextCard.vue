@@ -1,144 +1,104 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { useLocalContextStore } from '../../stores/localContext'
 import LoadingState from '../common/LoadingState.vue'
 import ErrorState from '../common/ErrorState.vue'
+import AddressAutocompleteInput from '../common/AddressAutocompleteInput.vue'
 import { formatAustralianDateTime } from '../../utils/dateTime'
-
 const store = useLocalContextStore()
 const draftAddress = ref(store.address)
+const editing = ref(!store.submittedAddress)
+watch(() => store.address, (value) => { draftAddress.value = value })
+function selectSuggestion(suggestion) { store.submitAddress(suggestion.address, suggestion.address); editing.value = false }
+async function submit() { if (!draftAddress.value.trim()) return; await store.submitAddress(draftAddress.value.trim()); if (store.saveStatus === 'success') editing.value = false }
 
-function submit() {
-  if (!draftAddress.value.trim()) return
-  store.submitAddress(draftAddress.value.trim())
+function fireHistoryRows(summary) {
+  if (!summary) return []
+  const count = summary.match(/(\d+) historical bushfire records? (?:were|was) found within ([\d.]+) km/i)
+  const noRecords = summary.match(/No historical bushfire records were found within ([\d.]+) km/i)
+  const season = summary.match(/latest recorded burn season was (\d{4})/i)
+  const dated = summary.match(/most recent dated record was (\d{4}-\d{2}-\d{2})/i)
+  const rows = []
+  if (count) rows.push({ label: `Records within ${count[2]} km`, value: count[1] })
+  else if (noRecords) rows.push({ label: `Records within ${noRecords[1]} km`, value: '0' })
+  if (season) rows.push({ label: 'Latest recorded fire season', value: season[1] })
+  if (dated) {
+    const [year, month, day] = dated[1].split('-').map(Number)
+    rows.push({ label: 'Most recent dated fire record', value: new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, day))) })
+  }
+  return rows
 }
-
 </script>
 
 <template>
-  <section class="card">
-    <div class="card-header">
-      <div>
-        <h3 class="card-title">Location & bushfire context</h3>
-      </div>
-    </div>
-
-    <form class="address-form" @submit.prevent="submit">
-      <div class="field">
-        <label for="address">Household address</label>
-        <input id="address" v-model="draftAddress" type="text" placeholder="e.g. 84 Wattle Track, Wattlebrook VIC" />
-      </div>
-      <button class="btn btn-primary" type="submit" :disabled="store.contextStatus === 'loading' || !draftAddress.trim()">
-        {{ store.contextStatus === 'loading' ? 'Checking…' : 'Check location' }}
-      </button>
-    </form>
-    <p class="hint">Enter a Victorian household address.</p>
-
-    <LoadingState v-if="store.contextStatus === 'loading'" message="Looking up local bushfire and fire-weather data…" />
-
-    <div v-else-if="store.contextUnavailable" class="state-block">
-      <p class="state-title">Local information is currently unavailable</p>
-      <p>We couldn't match this address to official Victorian bushfire data, or the latest data isn't available right now.</p>
-    </div>
-
-    <ErrorState v-else-if="store.contextStatus === 'error'" message="Could not load local bushfire context." @retry="submit" />
-
-    <template v-else-if="store.contextStatus === 'success'">
-      <div v-if="store.context" class="context-results">
-        <div class="context-row">
-          <span class="badge" :class="store.context.bushfire_context.is_bushfire_prone_area ? 'badge-accent' : 'badge-neutral'">
-            {{ store.context.bushfire_context.is_bushfire_prone_area ? 'Bushfire-prone area' : 'Not a bushfire-prone area' }}
-          </span>
-          <span>Temporary spatial context pending DS integration</span>
-        </div>
-        <p class="hint">Fire district: {{ store.context.bushfire_context.fire_district }}.</p>
-
-        <template v-if="store.context.fire_danger.availability === 'available'">
-          <div class="fdr-grid">
-            <div v-for="(level, day) in {
-              Today: store.context.fire_danger.today,
-              Tomorrow: store.context.fire_danger.tomorrow,
-              'Day 3': store.context.fire_danger.day_3,
-              'Day 4': store.context.fire_danger.day_4,
-            }" :key="day" class="fdr-cell">
-              <p class="eyebrow">{{ day }}</p>
-              <p class="fdr-level">{{ level }}</p>
-            </div>
-          </div>
-          <p class="hint">
-            Fire Danger Rating issued {{ formatAustralianDateTime(store.context.fire_danger.source_updated_at) }}
-            <template v-if="store.context.fire_danger.source_url">
-              · <a :href="store.context.fire_danger.source_url" target="_blank" rel="noopener noreferrer">Bureau of Meteorology source</a>
-            </template>
-          </p>
-        </template>
-        <p v-else class="hint">{{ store.context.fire_danger.message }}</p>
-
-        <div class="weather-grid">
-          <div><span class="eyebrow">Temp</span><p>{{ store.context.weather.temperature_c }}°C</p></div>
-          <div><span class="eyebrow">Humidity</span><p>{{ store.context.weather.relative_humidity }}%</p></div>
-          <div><span class="eyebrow">Wind</span><p>{{ store.context.weather.wind_speed_kmh }} km/h {{ store.context.weather.wind_direction }}</p></div>
-        </div>
-        <p class="hint">
-          <a href="http://www.bom.gov.au/other/copyright.shtml" target="_blank" rel="noopener noreferrer">Bureau of Meteorology observation</a>
-          from {{ store.context.weather.station_name }} at
-          {{ formatAustralianDateTime(store.context.weather.observed_at) }}
-        </p>
-
-        <p v-if="store.context.environmental_context.vegetation_context || store.context.environmental_context.terrain_context" class="hint">
-          Environment: {{ [store.context.environmental_context.vegetation_context, store.context.environmental_context.terrain_context].filter(Boolean).join(' · ') }}
-        </p>
-      </div>
+  <section class="card address-card">
+    <div class="card-header"><h2 class="card-title">Household address</h2><button v-if="store.location && !editing" class="btn btn-ghost btn-sm" type="button" @click="editing = true">Edit address</button></div>
+    <template v-if="store.location && !editing">
+      <p class="saved-address">{{ store.location.address }}</p>
+      <p class="verification">{{ store.location.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified' }}</p>
     </template>
+    <template v-else>
+      <p v-if="!store.location" class="intro">Add your household address to view local bushfire and weather information for your area.</p>
+      <form class="address-form" @submit.prevent="submit">
+        <AddressAutocompleteInput v-model="draftAddress" class="field" label="Household address" placeholder="Start typing a Victorian street address" @select="selectSuggestion" />
+        <button class="btn btn-accent" type="submit" :disabled="store.saveStatus === 'loading' || !draftAddress.trim()">{{ store.saveStatus === 'loading' ? 'Saving...' : 'Save address' }}</button>
+      </form>
+    </template>
+    <ErrorState v-if="store.saveStatus === 'error'" :message="store.contextError || 'Could not save the household address.'" @retry="submit" />
+  </section>
 
-    <p v-else class="hint">Enter your household address to see local bushfire and fire-weather information.</p>
+  <section class="card local-card">
+    <h2 class="card-title">Local bushfire and weather information</h2>
+    <p v-if="store.contextStatus === 'unverified'" class="state-message">Local information is unavailable until this address is verified.</p>
+    <LoadingState v-else-if="store.contextStatus === 'loading'" message="Loading local information..." />
+    <div v-else-if="store.contextUnavailable" class="state-message">Official local information is temporarily unavailable. Your household address is still saved.</div>
+    <ErrorState v-else-if="store.contextStatus === 'error'" :message="store.contextError || 'Could not load local information.'" @retry="store.loadContext" />
+    <div v-else-if="store.contextStatus === 'success' && store.context" class="context-grid">
+      <div>
+        <h3>Bushfire context</h3>
+        <dl>
+          <div><dt>Bushfire-prone area</dt><dd>{{ store.context.bushfire_context.is_bushfire_prone_area ? 'Yes' : 'No' }}</dd></div>
+          <div><dt>CFA Fire District</dt><dd>{{ store.context.bushfire_context.fire_district }}</dd></div>
+        </dl>
+        <p class="hint">Used to match official fire danger information for your area.</p>
+        <div v-if="store.context.environmental_context.fire_history_summary" class="history">
+          <strong>Historical fire activity</strong>
+          <dl v-if="fireHistoryRows(store.context.environmental_context.fire_history_summary).length">
+            <div v-for="row in fireHistoryRows(store.context.environmental_context.fire_history_summary)" :key="row.label"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>
+          </dl>
+          <p v-else>{{ store.context.environmental_context.fire_history_summary }}</p>
+        </div>
+      </div>
+      <div>
+        <h3>Current conditions</h3>
+        <dl>
+          <div><dt>Temperature</dt><dd>{{ store.context.weather.temperature_c }}°C</dd></div>
+          <div><dt>Humidity</dt><dd>{{ store.context.weather.relative_humidity }}%</dd></div>
+          <div><dt>Wind</dt><dd>{{ store.context.weather.wind_speed_kmh }} km/h {{ store.context.weather.wind_direction }}</dd></div>
+          <div><dt>Fire Danger Rating</dt><dd>{{ store.context.fire_danger.availability === 'available' ? store.context.fire_danger.today : 'Currently unavailable' }}</dd></div>
+        </dl>
+        <p class="hint">Bureau of Meteorology</p>
+        <p class="hint">Last updated: {{ formatAustralianDateTime(store.context.weather.observed_at) }}</p>
+      </div>
+    </div>
+    <p v-else class="state-message">Add and verify your household address to view local information.</p>
   </section>
 </template>
 
 <style scoped>
-.address-form {
-  display: flex;
-  align-items: flex-end;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.4rem;
-}
-
-.address-form .field {
-  flex: 1;
-  min-width: 240px;
-}
-
-.hint {
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-  margin-bottom: 1rem;
-}
-
-.context-row {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.35rem;
-}
-
-.fdr-grid,
-.weather-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
-  gap: 0.75rem;
-  margin: 0.75rem 0;
-}
-
-.fdr-cell,
-.weather-grid > div {
-  background: var(--color-bg-card-muted);
-  border-radius: var(--radius);
-  padding: 0.6rem 0.75rem;
-}
-
-.fdr-level {
-  font-weight: 700;
-  margin-top: 0.2rem;
-}
+.intro, .verification, .hint, .state-message { color: var(--color-text-muted); }
+.saved-address { font-weight: 600; }
+.verification { font-size: 0.9rem; margin-top: 0.25rem; }
+.address-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0.75rem; margin-top: 1rem; }
+.field { min-width: 0; position: relative; }
+.local-card { margin-top: 1.25rem; }
+.local-card > .card-title { margin-bottom: 1rem; }
+.context-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
+h3 { font-size: 1.05rem; margin-bottom: 0.75rem; }
+dl { margin: 0; }
+dl div { display: flex; justify-content: space-between; gap: 1rem; padding: 0.55rem 0; border-bottom: 1px solid var(--color-border); }
+dt { color: var(--color-text-muted); } dd { margin: 0; font-weight: 600; text-align: right; }
+.hint { font-size: 0.875rem; margin-top: 0.65rem; }
+.history { margin-top: 1.25rem; }.history p { margin-top: 0.35rem; }
+@media (max-width: 700px) { .context-grid, .address-form { grid-template-columns: 1fr; } .address-form .btn { width: 100%; } }
 </style>

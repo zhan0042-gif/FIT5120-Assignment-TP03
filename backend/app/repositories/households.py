@@ -10,7 +10,7 @@ from app.core.exceptions import (
     PlanNotFound,
     TestResultNotFound,
 )
-from app.schemas.households import HouseholdLocation, HouseholdPlan
+from app.schemas.households import HouseholdLocation, HouseholdLocationContext, HouseholdPlan
 from app.schemas.scenarios import ScenarioTestResult
 
 
@@ -26,6 +26,12 @@ class HouseholdRepository(Protocol):
     def save_location(self, household_id: str, location: HouseholdLocation) -> None: ...
 
     def get_location(self, household_id: str) -> HouseholdLocation: ...
+
+    def save_location_context(
+        self, household_id: str, context: HouseholdLocationContext
+    ) -> None: ...
+
+    def get_location_context(self, household_id: str) -> HouseholdLocationContext | None: ...
 
     def save_test_result(self, household_id: str, result: ScenarioTestResult) -> None: ...
 
@@ -48,6 +54,7 @@ class InMemoryHouseholdRepository:
             "display_name": display_name,
             "plan": None,
             "location": None,
+            "location_context": None,
             "test_results": [],
         }
         return household_id
@@ -71,13 +78,26 @@ class InMemoryHouseholdRepository:
         return plan.model_copy(deep=True)  # type: ignore[union-attr]
 
     def save_location(self, household_id: str, location: HouseholdLocation) -> None:
-        self._household(household_id)["location"] = location.model_copy(deep=True)
+        household = self._household(household_id)
+        household["location"] = location.model_copy(deep=True)
+        household["location_context"] = None
 
     def get_location(self, household_id: str) -> HouseholdLocation:
         location = self._household(household_id)["location"]
         if location is None:
             raise LocationNotFound(f"Household '{household_id}' does not have a location.")
         return location.model_copy(deep=True)  # type: ignore[union-attr]
+
+    def save_location_context(
+        self, household_id: str, context: HouseholdLocationContext
+    ) -> None:
+        self._household(household_id)["location_context"] = context.model_copy(
+            deep=True
+        )
+
+    def get_location_context(self, household_id: str) -> HouseholdLocationContext | None:
+        context = self._household(household_id)["location_context"]
+        return context.model_copy(deep=True) if context is not None else None  # type: ignore[union-attr]
 
     def save_test_result(self, household_id: str, result: ScenarioTestResult) -> None:
         results = self._household(household_id)["test_results"]

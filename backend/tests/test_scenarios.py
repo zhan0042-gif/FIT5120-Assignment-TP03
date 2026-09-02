@@ -13,7 +13,7 @@ def run(data: dict, scenario_id: str):
 
 
 def test_vehicle_without_backup_fails(complete_plan_data: dict) -> None:
-    complete_plan_data["arrangements"]["backup_transport_id"] = None
+    complete_plan_data["arrangements"]["backup_arrangements"] = []
     result = run(complete_plan_data, "vehicle_unavailable")
 
     assert result.overall_status == "needs_attention"
@@ -27,7 +27,7 @@ def test_vehicle_without_backup_fails(complete_plan_data: dict) -> None:
 def test_vehicle_with_same_primary_and_backup_fails(
     complete_plan_data: dict,
 ) -> None:
-    complete_plan_data["arrangements"]["backup_transport_id"] = "t_001"
+    complete_plan_data["arrangements"]["backup_arrangements"][0]["transport_id"] = "t_001"
 
     result = run(complete_plan_data, "vehicle_unavailable")
 
@@ -54,6 +54,16 @@ def test_vehicle_with_valid_backup_passes(complete_plan_data: dict) -> None:
     assert result.overall_status == "pass"
     assert result.first_problem is None
     assert "independent backup transport" in result.result_reason
+
+
+def test_vehicle_uses_later_backup_when_first_backup_has_no_driver(
+    complete_plan_data: dict,
+) -> None:
+    complete_plan_data["arrangements"]["backup_arrangements"].insert(
+        0, {"transport_id": "t_001", "destination": None}
+    )
+
+    assert run(complete_plan_data, "vehicle_unavailable").overall_status == "pass"
 
 
 @pytest.mark.parametrize("backup_member_id", [None, "m_001", "unknown"])
@@ -95,7 +105,7 @@ def test_person_scenario_uses_latest_repository_plan(
 
 
 def test_destination_without_backup_fails(complete_plan_data: dict) -> None:
-    complete_plan_data["arrangements"]["backup_destination"] = None
+    complete_plan_data["arrangements"]["backup_arrangements"] = []
 
     assert run(complete_plan_data, "destination_unavailable").overall_status == "needs_attention"
 
@@ -106,7 +116,7 @@ def test_irrelevant_destination_scenario_is_rejected() -> None:
 
 
 def test_destination_with_same_address_fails(complete_plan_data: dict) -> None:
-    complete_plan_data["arrangements"]["backup_destination"]["address"] = "1 example road"
+    complete_plan_data["arrangements"]["backup_arrangements"][0]["destination"]["address"] = "1 example road"
 
     assert run(complete_plan_data, "destination_unavailable").overall_status == "needs_attention"
 
@@ -116,6 +126,18 @@ def test_destination_with_valid_backup_passes(complete_plan_data: dict) -> None:
 
     assert result.overall_status == "pass"
     assert result.result_reason == "An independent backup destination is recorded."
+
+
+def test_destination_uses_later_meaningfully_different_backup(
+    complete_plan_data: dict,
+) -> None:
+    primary = deepcopy(complete_plan_data["arrangements"]["primary_destination"])
+    primary["destination_id"] = "d_same"
+    complete_plan_data["arrangements"]["backup_arrangements"].insert(
+        0, {"transport_id": None, "destination": primary}
+    )
+
+    assert run(complete_plan_data, "destination_unavailable").overall_status == "pass"
 
 
 def test_unknown_scenario_is_rejected(complete_plan: HouseholdPlan) -> None:

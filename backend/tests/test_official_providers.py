@@ -52,6 +52,15 @@ def vicmap_feature(
             "locality_name": "EAST MELBOURNE",
             "state": state,
             "postcode": "3002",
+            "blg_unit_prefix_1": None,
+            "blg_unit_id_1": 4,
+            "blg_unit_suffix_1": None,
+            "house_prefix_1": None,
+            "house_number_1": 1,
+            "house_suffix_1": None,
+            "road_name": "TREASURY",
+            "road_type": "PLACE",
+            "road_suffix": None,
         },
         "geometry": {"x": longitude, "y": latitude},
     }
@@ -61,7 +70,8 @@ def test_vicmap_exact_match_returns_standardized_wgs84_location() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["returnGeometry"] == "true"
         assert request.url.params["outSR"] == "4326"
-        assert "UPPER(ezi_address) =" in request.url.params["where"]
+        assert "ezi_address =" in request.url.params["where"]
+        assert "UPPER(" not in request.url.params["where"]
         return httpx.Response(200, json={"features": [vicmap_feature()]})
 
     client = VicmapAddressClient(
@@ -72,6 +82,65 @@ def test_vicmap_exact_match_returns_standardized_wgs84_location() -> None:
     assert result.address == "1 TREASURY PLACE EAST MELBOURNE VIC 3002"
     assert result.latitude == pytest.approx(-37.8132320)
     assert result.longitude == pytest.approx(144.9749477)
+    assert result.unit_number == "4"
+    assert result.street_number == "1"
+    assert result.street_name == "TREASURY PLACE"
+    assert result.suburb_or_locality == "East Melbourne"
+    assert result.state == "VIC"
+    assert result.postcode == "3002"
+    assert result.country == "Australia"
+
+
+def test_selected_exact_suggestion_with_duplicate_official_features_verifies() -> None:
+    first = vicmap_feature(
+        address="84 WATTLE TRACK WARRANDYTE 3113",
+        longitude=145.2229,
+        latitude=-37.7379,
+    )
+    second = vicmap_feature(
+        address="84 WATTLE TRACK WARRANDYTE 3113",
+        longitude=145.2230,
+        latitude=-37.7380,
+    )
+    for feature in (first, second):
+        feature["attributes"]["postcode"] = "3113"
+        feature["attributes"]["locality_name"] = "WARRANDYTE"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "ezi_address = '84 WATTLE TRACK WARRANDYTE 3113'" in request.url.params["where"]
+        return httpx.Response(200, json={"features": [first, second]})
+
+    client = VicmapAddressClient(
+        http_client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+    result = client.resolve("84 WATTLE TRACK WARRANDYTE VIC 3113")
+
+    assert result.address == "84 WATTLE TRACK WARRANDYTE VIC 3113"
+    assert result.latitude == pytest.approx(-37.7379)
+
+
+def test_vicmap_suggestions_use_official_structured_results() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "LIKE" in request.url.params["where"]
+        assert "LIKE '1 TRE%'" in request.url.params["where"]
+        assert "UPPER(" not in request.url.params["where"]
+        assert "LIKE '%" not in request.url.params["where"]
+        assert request.url.params["resultRecordCount"] == "8"
+        assert request.url.params["orderByFields"] == "ezi_address ASC"
+        return httpx.Response(200, json={"features": [vicmap_feature()]})
+
+    client = VicmapAddressClient(
+        http_client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
+
+    suggestions = client.suggest("1 Tre")
+
+    assert [item.address for item in suggestions] == [
+        "1 TREASURY PLACE EAST MELBOURNE VIC 3002"
+    ]
+    assert suggestions[0].street_name == "TREASURY PLACE"
+    assert suggestions[0].latitude == pytest.approx(-37.8132320)
 
 
 def test_vicmap_unique_partial_match_is_accepted() -> None:
@@ -98,7 +167,7 @@ def test_vicmap_no_match_is_controlled() -> None:
     )
     client = VicmapAddressClient(http_client=httpx.Client(transport=transport))
 
-    with pytest.raises(AddressResolutionError, match="No matching Victorian"):
+    with pytest.raises(AddressResolutionError, match="complete Victorian"):
         client.resolve("999 Missing Road Nowhere VIC 3999")
 
 
@@ -121,7 +190,7 @@ def test_vicmap_ambiguous_match_is_rejected() -> None:
     client = VicmapAddressClient(
         http_client=httpx.Client(transport=httpx.MockTransport(handler))
     )
-    with pytest.raises(AddressResolutionError, match="multiple Victorian"):
+    with pytest.raises(AddressResolutionError, match="complete Victorian"):
         client.resolve("1 Treasury Place")
 
 
@@ -133,7 +202,7 @@ def test_vicmap_interstate_result_is_rejected() -> None:
     )
     client = VicmapAddressClient(http_client=httpx.Client(transport=transport))
 
-    with pytest.raises(AddressResolutionError, match="No matching Victorian"):
+    with pytest.raises(AddressResolutionError, match="complete Victorian"):
         client.resolve("1 Treasury Place East Melbourne 3002")
 
 

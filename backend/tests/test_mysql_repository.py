@@ -10,7 +10,7 @@ from app.core.dependencies import get_household_repository
 from app.core.exceptions import PlanValidationError, TestResultNotFound as MissingTestResult
 from app.main import app
 from app.repositories.mysql import MySQLHouseholdRepository
-from app.schemas.households import HouseholdLocation, HouseholdPlan
+from app.schemas.households import HouseholdLocation, HouseholdLocationContext, HouseholdPlan
 from app.schemas.scenarios import FirstProblem, ScenarioCheck, ScenarioTestResult
 
 
@@ -46,6 +46,8 @@ def test_household_and_complete_plan_round_trip_use_public_ids(
     assert household_id.startswith("hh_")
     assert repository.household_exists(household_id) is True
     assert repository.get_plan(household_id) == complete_plan
+    repository.save_plan(household_id, repository.get_plan(household_id))
+    assert repository.get_plan(household_id) == complete_plan
     with engine.connect() as connection:
         row = connection.execute(
             text(
@@ -62,6 +64,30 @@ def test_household_and_complete_plan_round_trip_use_public_ids(
         assert isinstance(stored_member.member_id, int)
         assert stored_member.public_id.startswith("m_")
         assert connection.execute(text("SELECT COUNT(*) FROM transport_driver")).scalar_one() == 3
+
+
+def test_multiple_backup_arrangements_round_trip_in_priority_order(
+    mysql_repository, complete_plan_data: dict
+) -> None:
+    repository, engine = mysql_repository
+    plan_data = deepcopy(complete_plan_data)
+    plan_data["arrangements"]["backup_arrangements"].insert(
+        0, {"transport_id": "t_001", "destination": None}
+    )
+    plan = HouseholdPlan.model_validate(plan_data)
+    household_id = repository.create_household()
+
+    repository.save_plan(household_id, plan)
+
+    assert repository.get_plan(household_id) == plan
+    with engine.connect() as connection:
+        rows = connection.execute(
+            text(
+                "SELECT role, priority FROM household_arrangement_option "
+                "ORDER BY priority"
+            )
+        ).all()
+    assert rows == [("primary", 0), ("backup", 1), ("backup", 2)]
 
 
 @pytest.mark.parametrize("has_private_transport", [None, False, True])
@@ -192,18 +218,67 @@ def test_location_upsert_round_trip(mysql_repository) -> None:
     repository, engine = mysql_repository
     household_id = repository.create_household()
     first = HouseholdLocation(
-        address="Warrandyte VIC 3113", latitude=-37.738, longitude=145.223
+        address="4/84 WATTLE TRACK WARRANDYTE VIC 3113",
+        unit_number="4",
+        street_number="84",
+        street_name="WATTLE TRACK",
+        suburb_or_locality="Warrandyte",
+        postcode="3113",
+        latitude=-37.738,
+        longitude=145.223,
     )
     updated = HouseholdLocation(
-        address="Warburton VIC 3799", latitude=-37.753, longitude=145.69
+        address="12 HIGH STREET WARBURTON VIC 3799",
+        street_number="12",
+        street_name="HIGH STREET",
+        suburb_or_locality="Warburton",
+        postcode="3799",
+        latitude=-37.753,
+        longitude=145.69,
     )
 
+    repository.save_location(household_id, first)
     repository.save_location(household_id, first)
     repository.save_location(household_id, updated)
 
     assert repository.get_location(household_id) == updated
     with engine.connect() as connection:
         assert connection.execute(text("SELECT COUNT(*) FROM household_location")).scalar_one() == 1
+
+
+def test_location_context_round_trip_and_location_change_invalidates_it(
+    mysql_repository,
+) -> None:
+    repository, _ = mysql_repository
+    household_id = repository.create_household()
+    location = HouseholdLocation(
+        address="84 YARRA STREET WARRANDYTE VIC 3113",
+        canonical_address="84 YARRA STREET WARRANDYTE VIC 3113",
+        latitude=-37.74,
+        longitude=145.216,
+        verification_status="verified",
+        verified_at=datetime.now(timezone.utc),
+    )
+    context = HouseholdLocationContext(
+        is_bushfire_prone_area=True,
+        fire_district="Central",
+        fire_history_record_count=12,
+        fire_history_latest_year=2025,
+        fire_history_latest_date="2025-05-13",
+        fire_history_radius_km=20,
+        generated_at=datetime.now(timezone.utc),
+    )
+
+    repository.save_location(household_id, location)
+    repository.save_location_context(household_id, context)
+
+    stored = repository.get_location_context(household_id)
+    assert stored is not None
+    assert stored.fire_district == "Central"
+    assert stored.fire_history_record_count == 12
+
+    repository.save_location(household_id, location.model_copy(update={"address": "85 YARRA STREET WARRANDYTE VIC 3113"}))
+    assert repository.get_location_context(household_id) is None
 
 
 def test_scenario_result_round_trip_preserves_order_and_first_problem(
@@ -258,10 +333,12 @@ def test_api_services_use_the_persisted_plan_without_mutating_it(
             household_id = create_response.json()["household_id"]
             assert create_response.status_code == 201
 
-            assert client.put(
+            saved_plan_response = client.put(
                 f"/api/v1/households/{household_id}/plan",
                 json=complete_plan_data,
-            ).status_code == 200
+            )
+            assert saved_plan_response.status_code == 200
+            saved_plan = saved_plan_response.json()
             assert client.put(
                 f"/api/v1/households/{household_id}/location",
                 json={"address": "Warrandyte VIC 3113"},
@@ -295,7 +372,7 @@ def test_api_services_use_the_persisted_plan_without_mutating_it(
             }
             assert client.get(
                 f"/api/v1/households/{household_id}/plan"
-            ).json() == complete_plan_data
+            ).json() == saved_plan
 
         with engine.connect() as connection:
             assert connection.execute(text("SELECT COUNT(*) FROM test_run")).scalar_one() == 1

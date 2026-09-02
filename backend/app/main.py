@@ -9,6 +9,7 @@ from app.core.exceptions import (
     DatabaseUnavailable,
     ExternalDataUnavailable,
     HouseholdNotFound,
+    LocationNotVerified,
     LocationNotFound,
     PlanNotFound,
     PlanValidationError,
@@ -41,6 +42,15 @@ async def unprocessable_entity_handler(
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(LocationNotVerified)
+async def location_not_verified_handler(
+    request: Request, exc: LocationNotVerified
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)}
     )
 
 

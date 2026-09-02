@@ -5,13 +5,30 @@ import EmptyState from '../common/EmptyState.vue'
 defineProps({ members: { type: Array, required: true } })
 const responsibilities = defineModel({ required: true })
 
+const TASK_PRESETS = [
+  'Prepare emergency kit',
+  'Assist children or dependants',
+  'Collect pets / animals',
+  'Prepare important medication / documents',
+  'Drive the household',
+  'Contact household members',
+]
+
 function addResponsibility() {
   responsibilities.value.push({
     responsibility_id: newId('r'),
-    task_name: '',
+    task_name: TASK_PRESETS[0],
     primary_member_id: null,
     backup_member_id: null,
   })
+}
+
+function selectedTask(taskName) {
+  return TASK_PRESETS.includes(taskName) ? taskName : 'other'
+}
+
+function changeTask(responsibility, value) {
+  responsibility.task_name = value === 'other' ? '' : value
 }
 
 function removeResponsibility(id) {
@@ -50,7 +67,14 @@ function isConflict(r) {
         <div class="field-grid">
           <div class="field">
             <label>Task</label>
-            <input v-model="r.task_name" type="text" placeholder="e.g. Drive household" />
+            <select :value="selectedTask(r.task_name)" @change="changeTask(r, $event.target.value)">
+              <option v-for="task in TASK_PRESETS" :key="task" :value="task">{{ task }}</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div v-if="selectedTask(r.task_name) === 'other'" class="field">
+            <label>Custom task</label>
+            <input v-model="r.task_name" type="text" placeholder="Describe the preparedness task" />
           </div>
           <div class="field">
             <label>Primary person</label>

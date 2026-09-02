@@ -15,7 +15,7 @@ from app.schemas.households import FireDanger, FireDangerLevel
 BOM_FDR_FTP_HOST = "ftp.bom.gov.au"
 BOM_FDR_FTP_PATH = "/anon/gen/fwo/IDV18555.xml"
 BOM_FDR_SOURCE_URL = f"ftp://{BOM_FDR_FTP_HOST}{BOM_FDR_FTP_PATH}"
-BOM_FDR_CACHE_SECONDS = 5 * 60
+BOM_FDR_CACHE_SECONDS = 60 * 60
 BOM_FDR_MAX_AGE = timedelta(hours=24)
 BOM_FDR_FUTURE_TOLERANCE = timedelta(minutes=5)
 

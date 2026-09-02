@@ -17,6 +17,10 @@ class DataSpatialResult:
     fire_history_summary: str | None
     vegetation_context: str | None = None
     terrain_context: str | None = None
+    fire_history_record_count: int | None = None
+    fire_history_latest_year: int | None = None
+    fire_history_latest_date: str | None = None
+    fire_history_radius_km: float | None = None
 
 
 class DataSpatialProvider:
@@ -41,6 +45,22 @@ class DataSpatialProvider:
                 ),
                 fire_district=district,
                 fire_history_summary=self._fire_history_summary(history),
+                fire_history_record_count=(
+                    history.get("historical_fire_record_count")
+                    if isinstance(history, dict) else None
+                ),
+                fire_history_latest_year=(
+                    history.get("last_recorded_burn_year")
+                    if isinstance(history, dict) else None
+                ),
+                fire_history_latest_date=(
+                    history.get("most_recent_fire_date")
+                    if isinstance(history, dict) else None
+                ),
+                fire_history_radius_km=(
+                    history.get("search_radius_km")
+                    if isinstance(history, dict) else None
+                ),
             )
         except ExternalDataUnavailable:
             raise
