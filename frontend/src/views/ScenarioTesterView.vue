@@ -12,6 +12,8 @@ const scenarioStore = useScenarioStore()
 const readyToTest = computed(() => householdStore.plan !== null)
 const noSavedPlan = computed(() => householdStore.planStatus === 'success' && householdStore.completion === null && householdStore.completionStatus === 'idle')
 const selectedScenario = computed(() => scenarioStore.scenarios.find((item) => item.scenario_id === scenarioStore.selectedScenarioId) ?? null)
+// Titles and explanations are presentation mappings only. Availability and the
+// actual scenario outcome remain authoritative backend decisions.
 const selectedDescription = computed(() => ({
   vehicle_unavailable: 'Check whether another recorded transport option and an eligible driver are available.',
   person_unavailable: 'Check whether important responsibilities have a different backup person.',

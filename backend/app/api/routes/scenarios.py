@@ -18,4 +18,5 @@ RepositoryDependency = Annotated[HouseholdRepository, Depends(get_household_repo
 def list_basic_scenarios(
     household_id: str, repository: RepositoryDependency
 ) -> list[BasicScenario]:
+    """List the fixed I1 library with relevance derived from the saved plan."""
     return BasicScenarioService(repository).list_for_household(household_id)

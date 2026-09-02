@@ -47,6 +47,13 @@ class AddressSuggestionService:
 
 
 class LocationService:
+    """Persist entered household locations before attempting official enrichment.
+
+    Persistence and verification are deliberately separate: a failed Vicmap
+    lookup must not discard the address the user entered. Saving a location also
+    invalidates any spatial snapshot derived from its previous coordinates.
+    """
+
     def __init__(self, repository: HouseholdRepository, address_client: AddressClient) -> None:
         self.repository = repository
         self.address_client = address_client
@@ -69,7 +76,12 @@ class LocationService:
 
 
 class AddressVerificationService:
-    """Apply Vicmap verification consistently without blocking manual saves."""
+    """Enrich an address with official canonical fields and coordinates.
+
+    Unverified addresses remain valid saved input but receive no fabricated
+    coordinates. Re-verification returns a complete fresh metadata set, so stale
+    verification details cannot survive an edited address.
+    """
 
     def __init__(self, address_client: AddressClient) -> None:
         self.address_client = address_client
@@ -100,6 +112,14 @@ class AddressVerificationService:
 
 
 class LocalContextService:
+    """Combine verified location context with independent official live data.
+
+    Verified coordinates are required for GeoParquet lookup. The resulting BPA,
+    fire district, and fire-history snapshot is cached per household in MySQL;
+    raw open datasets remain in the Data layer. BOM fire danger and weather are
+    requested dynamically and are not part of that static snapshot.
+    """
+
     def __init__(
         self,
         repository: HouseholdRepository,
@@ -125,6 +145,8 @@ class LocalContextService:
         try:
             cached = self.repository.get_location_context(household_id)
             if cached is None:
+                # Static spatial work is reused until saving a location invalidates
+                # the snapshot; normal reads do not repeat the GeoParquet lookup.
                 spatial = self.spatial_provider.get_context(
                     location.latitude, location.longitude
                 )
@@ -146,6 +168,8 @@ class LocalContextService:
                     fire_danger, datetime.now(timezone.utc)
                 )
             except ExternalDataUnavailable:
+                # Missing or stale FDR is a valid partial response. Static context
+                # and weather remain useful and should not be hidden with it.
                 fire_danger = UnavailableFireDanger()
             weather = self.weather_client.get_weather(
                 location.latitude, location.longitude
@@ -188,7 +212,12 @@ class LocalContextService:
 
 
 class PreparationTimingService:
-    """Recommend review using supplied FDR values and plan completeness."""
+    """Produce rule-based preparation guidance, not a fire prediction.
+
+    Recommendations use authoritative, fresh fire-danger data and may direct the
+    household to incomplete plan sections. Stale, future-dated, or unsupported
+    source data is rejected rather than interpreted as reassuring advice.
+    """
 
     FDR_SEVERITY = {"No Rating": 0, "Moderate": 1, "High": 2, "Extreme": 3, "Catastrophic": 4}
     FIRE_DANGER_MAX_AGE = timedelta(hours=24)
@@ -260,7 +289,11 @@ class PreparationTimingService:
 
 
 class PreparationSupportService:
-    """Combine plan completion and FDR without depending on weather data."""
+    """Combine plan completion and official FDR without depending on weather.
+
+    This boundary keeps preparation advice unavailable when the address cannot
+    be located or the official fire-danger source is not authoritative enough.
+    """
 
     def __init__(
         self,

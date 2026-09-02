@@ -47,6 +47,7 @@ def create_household(
     repository: RepositoryDependency,
     request: HouseholdCreate | None = Body(default=None),
 ) -> HouseholdCreated:
+    """Create the browser-owned household root used by later plan resources."""
     household_id = repository.create_household(
         display_name=request.display_name if request else None
     )
@@ -60,11 +61,13 @@ def save_plan(
     repository: RepositoryDependency,
     address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> HouseholdPlan:
+    """Validate, enrich, and transactionally persist the complete plan aggregate."""
     return HouseholdPlanService(repository, address_client).save(household_id, plan)
 
 
 @router.get("/{household_id}/plan", response_model=HouseholdPlan)
 def get_plan(household_id: str, repository: RepositoryDependency) -> HouseholdPlan:
+    """Return the latest saved aggregate; an absent plan remains a 404 resource."""
     return repository.get_plan(household_id)
 
 
@@ -72,6 +75,7 @@ def get_plan(household_id: str, repository: RepositoryDependency) -> HouseholdPl
 def get_completion(
     household_id: str, repository: RepositoryDependency
 ) -> PlanCompletion:
+    """Derive completion and immediate checks from the latest saved plan."""
     return PlanCompletionService().evaluate(repository.get_plan(household_id))
 
 
@@ -82,6 +86,7 @@ def save_location(
     repository: RepositoryDependency,
     address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> HouseholdLocation:
+    """Save entered address text and attempt non-blocking official verification."""
     return LocationService(repository, address_client).save(
         household_id, request.address, request.selected_address
     )
@@ -91,6 +96,7 @@ def save_location(
 def get_location(
     household_id: str, repository: RepositoryDependency
 ) -> HouseholdLocation:
+    """Return saved address data independently of local-context availability."""
     return repository.get_location(household_id)
 
 
@@ -115,6 +121,7 @@ def get_local_context(
     ],
     weather_client: Annotated[WeatherClient, Depends(get_weather_client)],
 ) -> LocalContext:
+    """Aggregate cached spatial context with current official BOM information."""
     return _local_context_service(
         repository, spatial_provider, fire_danger_client, weather_client
     ).get(household_id)
@@ -129,6 +136,7 @@ def get_preparation_support(
         FireDangerClient, Depends(get_fire_danger_client)
     ],
 ) -> PreparationSupport:
+    """Return rule-based review guidance only when official FDR is usable."""
     plan = repository.get_plan(household_id)
     completion = PlanCompletionService().evaluate(plan)
     return PreparationSupportService(
@@ -146,6 +154,7 @@ def run_preparedness_test(
     request: ScenarioTestRequest,
     repository: RepositoryDependency,
 ) -> ScenarioTestResult:
+    """Run a deterministic scenario against the latest saved plan and store it."""
     return BasicScenarioService(repository).run_for_household(
         household_id, request.scenario_id
     )
@@ -157,4 +166,5 @@ def get_preparedness_test_result(
     test_run_id: str,
     repository: RepositoryDependency,
 ) -> ScenarioTestResult:
+    """Retrieve a stored test result scoped to its owning household."""
     return repository.get_test_result(household_id, test_run_id)

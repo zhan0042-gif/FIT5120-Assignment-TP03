@@ -24,7 +24,13 @@ class DataSpatialResult:
 
 
 class DataSpatialProvider:
-    """Expose Data's combined location lookup through ``SpatialProvider``."""
+    """Expose processed GeoParquet lookups through ``SpatialProvider``.
+
+    The Data layer keeps raw processed datasets outside MySQL. Its combined
+    lookup performs BPA point-in-polygon checks, resolves the CFA district used
+    for FDR matching, and returns historical records as context rather than a
+    personal risk or safety prediction.
+    """
 
     def __init__(self, lookup: LocationLookup | None = None) -> None:
         self._lookup = lookup

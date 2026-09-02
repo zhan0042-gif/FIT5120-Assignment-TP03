@@ -16,6 +16,8 @@ ScenarioId = Literal[
 
 
 class BasicScenario(BaseModel):
+    """A fixed I1 scenario with relevance evaluated for one saved plan."""
+
     scenario_id: ScenarioId
     title: str
     description: str
@@ -41,6 +43,8 @@ class FirstProblem(BaseModel):
 
 
 class ScenarioTestResult(BaseModel):
+    """Persisted outcome kept separate from the plan aggregate it evaluated."""
+
     test_run_id: str
     scenario_id: ScenarioId
     overall_status: Literal["pass", "needs_attention"]

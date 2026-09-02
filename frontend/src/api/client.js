@@ -21,6 +21,8 @@ function validationMessage(items) {
 }
 
 async function apiError(response) {
+  // FastAPI may return a plain message, Pydantic validation items, or the
+  // service-layer error envelope. Normalize all forms for stores/components.
   let body
   try {
     body = await response.json()
@@ -51,6 +53,8 @@ async function apiError(response) {
 }
 
 async function request(path, init) {
+  // This is the single HTTP boundary so every feature receives the same JSON
+  // parsing and typed ApiError behavior.
   const headers = new Headers(init?.headers)
   if (init?.body !== undefined) headers.set('Content-Type', 'application/json')
   const response = await fetch(`${API_ROOT}${path}`, { ...init, headers })
@@ -71,6 +75,7 @@ export function clearStoredHouseholdId() {
 }
 
 export const api = {
+  // Household IDs persist in the browser; plans remain server-owned aggregates.
   createHousehold: (input) =>
     request('/households', {
       method: 'POST',

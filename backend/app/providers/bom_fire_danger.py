@@ -188,6 +188,7 @@ def ensure_bom_fire_danger_is_fresh(
     forecast: BOMFireDangerForecast,
     now: datetime,
 ) -> None:
+    """Reject stale or future-dated official products even when they are cached."""
     age = now.astimezone(timezone.utc) - forecast.source_updated_at.astimezone(
         timezone.utc
     )
@@ -231,6 +232,12 @@ def _download_bom_fire_danger_xml(timeout_seconds: float) -> bytes:
 
 
 class BOMFireDangerClient:
+    """Provide district FDR values from the official BOM forecast product.
+
+    Caching reduces downloads but never overrides validation of the product's
+    issue time. Unavailable or stale FDR remains an expected provider outcome.
+    """
+
     def __init__(
         self,
         *,

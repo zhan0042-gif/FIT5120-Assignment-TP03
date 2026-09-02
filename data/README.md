@@ -343,6 +343,22 @@ The Backend can then use the returned CFA district to retrieve current or foreca
 
 The Data layer does not calculate or predict official Fire Danger Ratings.
 
+## Runtime storage boundary
+
+Processed BPA, CFA Fire District, and Fire History GeoParquet remain the source
+spatial data. They are not copied wholesale into MySQL. After a verified
+household address supplies official coordinates, Backend derives BPA, district,
+and fire-history facts and may store the small household-specific result in its
+`household_location_context` snapshot. That snapshot is reused while the saved
+location is unchanged and is invalidated when the household location is saved;
+it is not a copy of these datasets. Dataset-version invalidation is future work.
+
+Vicmap is used separately for optional address suggestions and verification.
+BOM weather and Fire Danger Rating are dynamic official-provider data, not
+GeoParquet outputs. Fire District is needed by Backend to select the matching
+official Fire Danger Rating; BPA and historical records are contextual and do
+not predict a household's future fire risk.
+
 ---
 
 ## Current Processed Outputs

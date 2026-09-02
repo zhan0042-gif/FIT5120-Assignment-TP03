@@ -83,41 +83,48 @@ function changeAnimalCategory(animal) {
 
     <template v-else>
       <div v-for="member in members" :key="member.member_id" class="member-row">
-        <div class="field-grid">
-          <div class="field">
+        <div class="member-row-header">
+          <span class="member-row-title">{{ member.display_name.trim() || 'Household member' }}</span>
+          <button class="btn btn-danger btn-sm" type="button" @click="removeMember(member.member_id)">Remove</button>
+        </div>
+        <div class="field-grid member-grid" :class="{ 'has-other-relationship': member.relationship === 'other' }">
+          <div class="field member-name">
             <label :for="`${member.member_id}-name`">Name</label>
             <input :id="`${member.member_id}-name`" v-model="member.display_name" type="text" placeholder="e.g. Maya" />
             <span v-if="!member.display_name.trim()" class="field-error">A name helps identify this member in results.</span>
           </div>
-          <div class="field">
+          <div class="field member-relationship">
             <label>Relationship to household</label>
             <select v-model="member.relationship">
               <option :value="null">Prefer not to specify</option>
               <option v-for="[value, label] in RELATIONSHIPS" :key="value" :value="value">{{ label }}</option>
             </select>
           </div>
-          <div v-if="member.relationship === 'other'" class="field">
+          <div v-if="member.relationship === 'other'" class="field member-other-relationship">
             <label>Please specify relationship (optional)</label>
             <input v-model="member.relationship_other" type="text" maxlength="100" placeholder="e.g. Neighbour" />
           </div>
-          <div class="field">
+          <div class="field member-support">
             <label>Other support needs (optional)</label>
             <input v-model="member.support_notes" type="text" placeholder="e.g. Needs medication prepared or help communicating" />
             <span class="field-help">Record only practical information needed for emergency planning.</span>
           </div>
         </div>
         <div class="checkbox-group">
-          <label class="checkbox-row">
-            <input v-model="member.is_dependant" type="checkbox" />
-            Needs help from another household member during an emergency?
-          </label>
-          <span class="field-help checkbox-help">For example, a young child or someone who cannot prepare to leave independently.</span>
-          <label class="checkbox-row">
-            <input v-model="member.mobility_support_required" type="checkbox" />
-            Has limited mobility or needs help moving?
-          </label>
-          <span class="field-help checkbox-help">This means moving or transport support, such as a wheelchair, walking frame, accessible vehicle or help getting into a vehicle.</span>
-          <button class="btn btn-danger btn-sm" type="button" @click="removeMember(member.member_id)">Remove</button>
+          <div class="checkbox-question">
+            <label class="checkbox-row">
+              <input v-model="member.is_dependant" type="checkbox" />
+              Needs help from another household member during an emergency?
+            </label>
+            <span class="field-help checkbox-help">For example, a young child or someone who cannot prepare to leave independently.</span>
+          </div>
+          <div class="checkbox-question">
+            <label class="checkbox-row">
+              <input v-model="member.mobility_support_required" type="checkbox" />
+              Has limited mobility or needs help moving?
+            </label>
+            <span class="field-help checkbox-help">This means moving or transport support, such as a wheelchair, walking frame, accessible vehicle or help getting into a vehicle.</span>
+          </div>
         </div>
       </div>
       <button class="btn btn-ghost btn-sm" type="button" @click="addMember">+ Add another member</button>
@@ -188,10 +195,18 @@ function changeAnimalCategory(animal) {
 }
 
 .checkbox-group {
-  display: flex;
-  align-items: center;
-  gap: 1.25rem;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 1rem;
+}
+
+.checkbox-question {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.checkbox-question .checkbox-row {
+  color: var(--color-text);
+  font-weight: 600;
 }
 
 .field-help {
@@ -200,19 +215,28 @@ function changeAnimalCategory(animal) {
 }
 
 .checkbox-help {
-  flex-basis: 100%;
-  margin-top: -0.8rem;
+  margin-left: 1.6rem;
 }
 
 .member-row > .btn-danger {
   align-self: flex-end;
 }
 
-.checkbox-group > .btn-danger {
-  margin-left: auto;
+.member-row-header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.member-row-title {
+  font-weight: 600;
 }
 
 @media (min-width: 881px) {
+  .member-grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 0.9fr) minmax(0, 1.4fr); }
+  .member-grid.has-other-relationship { grid-template-columns: minmax(0, 0.75fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.35fr); }
+  /* Equal label height keeps all animal inputs aligned when the care label wraps. */
   .animal-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .animal-grid .field > label { align-items: flex-end; display: flex; min-height: 2.7em; }
 }

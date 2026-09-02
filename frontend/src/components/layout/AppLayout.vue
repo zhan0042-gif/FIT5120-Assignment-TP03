@@ -3,9 +3,10 @@
     <header class="app-header">
       <router-link class="app-brand" to="/">FIREBREAK</router-link>
       <nav class="top-nav" aria-label="Primary navigation">
+        <!-- Team-approved task order: edit, review status, then test the saved plan. -->
         <router-link to="/plan">My Plan</router-link>
-        <router-link to="/scenarios">Test My Plan</router-link>
         <router-link to="/overview">Overview</router-link>
+        <router-link to="/scenarios">Test My Plan</router-link>
       </nav>
     </header>
     <main class="content"><router-view /></main>

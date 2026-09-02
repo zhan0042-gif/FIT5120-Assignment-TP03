@@ -1,116 +1,69 @@
-# FIT5120 Full-Stack Project
+# FIREBREAK — Iteration 1
 
-This repository contains the Iteration 1 full-stack implementation for the
-FIT5120 FIREBREAK university team project. The current architecture remains
-deliberately small and keeps future project streams outside the I1 contract.
+FIREBREAK is a household bushfire-preparedness application. It lets a browser-owned household build and save a plan, review its completeness and local context, receive rule-based preparation guidance, and run deterministic checks against its latest saved plan.
 
-## Project structure
+## Architecture
 
-- `frontend/` contains the Vue 3 + Vite + TypeScript application for Iteration 1, integrated with the FastAPI backend.
-- `backend/` contains the runnable FastAPI application, its layered package structure, tests, dependencies, and Dockerfile.
-- `database/` contains the Iteration 1 MySQL application schema and reserves locations for migrations and future development seed data.
-- `ai/` reserves a location for later AI processing and integrations; no AI architecture is selected.
-- `nginx/` documents the planned reverse-proxy role for a future production deployment.
-- `.github/workflows/` contains backend CI and a non-deploying manual CD scaffold.
-
-## Technology stack
-
-- Vue 3 + Vite + TypeScript
-- Python 3.12 + FastAPI (backend)
-- MySQL 8
-- Docker + Docker Compose
-- GitHub Actions
-- AWS EC2 (likely future deployment target)
-
-## Current status
-
-The Iteration 1 Vue frontend, FastAPI API, MySQL application persistence, and
-processed spatial Data layer are integrated. Household plans, locations,
-completion checks, local context, preparation support, and basic scenario tests
-run end-to-end under `/api/v1`.
-
-See [`docs/iteration1-integration-contract.md`](docs/iteration1-integration-contract.md)
-for the human-readable API, business-rule, persistence, ownership, and provider
-contract.
-
-Normal runtime uses MySQL, the processed BPA/CFA district/fire-history datasets,
-and official Vicmap/BOM providers. Set `APP_DATA_MODE=mock` for deterministic
-offline address, fire-danger, and weather responses. Unit tests additionally set
-`APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock`; these modes are test and
-development fallbacks rather than the full-stack defaults.
-
-The Iteration 1 endpoints are:
-
-- `POST /api/v1/households`
-- `PUT|GET /api/v1/households/{household_id}/plan`
-- `GET /api/v1/households/{household_id}/completion`
-- `PUT /api/v1/households/{household_id}/location`
-- `GET /api/v1/households/{household_id}/local-context`
-- `GET /api/v1/households/{household_id}/preparation-support`
-- `GET /api/v1/scenarios/basic?household_id={household_id}`
-- `POST /api/v1/households/{household_id}/tests`
-- `GET /api/v1/households/{household_id}/tests/{test_run_id}`
-
-
-## Local backend setup
-
-Python 3.12 is recommended. From the repository root:
-
-```bash
-python -m venv backend/.venv
+```text
+Vue 3 + Vite frontend
+  -> HTTP JSON API (/api/v1)
+  -> FastAPI routes -> Pydantic schemas -> services
+  -> MySQL repositories       -> MySQL application data
+  -> providers                -> Vicmap, BOM, processed GeoParquet
 ```
 
-Activate the environment, then install dependencies and start the API:
+The frontend handles interaction and presentation. FastAPI routes are the HTTP boundary; schemas define request/response structure; services own business rules; repositories persist application data; and providers obtain official or spatial information. Scenario and preparation-support logic is transparent, rule-based I1 logic, not AI or fire prediction.
 
-```bash
-pip install -r backend/requirements.txt
-uvicorn app.main:app --reload --app-dir backend
-```
+## Application pages
 
-Open `http://localhost:8000/api/health` to verify the service.
+| Route | Purpose |
+|---|---|
+| `/` | Welcome/entry page. A new browser starts a plan; a browser with a locally retained household ID can continue editing or view its overview. |
+| `/plan` | Build and edit household members, animals, transport/drivers, one primary arrangement, zero-to-many ordered backups, responsibilities, meeting point, and immediate plan checks. The Save Plan section is normal page flow at the bottom. |
+| `/overview` | Review derived plan completion, preparation status, household address, local bushfire context, current weather and Fire Danger information, and historical-fire context where available. |
+| `/scenarios` | Run deterministic preparedness scenario tests against the latest saved plan. |
 
-## Docker setup
+The top navigation is **My Plan | Overview | Test My Plan**. I1 has no login or account system: `firebreak.household-id.v1` is a browser-side identifier, while saved plans and results remain in the backend database.
 
-Copy `.env.example` to `.env` and replace the example development passwords before sharing or deploying the environment. Then use:
+## Data boundaries
+
+- **MySQL:** household plans, locations, normalized arrangement options, responsibilities, and persisted scenario results.
+- **Processed GeoParquet:** BPA, CFA Fire District, and Fire History source data. Raw spatial datasets are not copied wholesale into MySQL.
+- **Vicmap:** optional address suggestions and official verification/enrichment.
+- **BOM:** current weather observations and official Fire Danger Rating data.
+- **Backend-derived:** completion, non-blocking immediate checks, preparation support, scenario evaluation, and cached household-specific static spatial context.
+
+Entered household and destination addresses can be saved without successful verification. Verified addresses may gain canonical fields and official coordinates; unverified ones retain entered text with no fabricated coordinates. A verified household location is required before spatial local context can be resolved.
+
+See [the integration contract](docs/iteration1-integration-contract.md), [frontend documentation](frontend/README.md), [database documentation](database/README.md), and [data documentation](data/README.md) for details.
+
+## Local development
+
+Copy `.env.example` to `.env` and set local credentials. Docker starts MySQL and FastAPI:
 
 ```bash
 docker compose up --build
 docker compose ps
-docker compose down
 ```
 
-The API is exposed on `http://localhost:8000` by default. The backend uses the
-Compose service name `mysql` for database networking. MySQL data is stored in the
-named `mysql_data` volume and survives ordinary `docker compose down` and restart
-operations. To run the full stack without calls to official services, set
-`APP_DATA_MODE=mock` in `.env`; BPA, CFA district, and fire-history lookups still
-use the real processed Data files.
+The API is exposed at `http://localhost:8000` and its health check is at `/api/health`. Start the frontend separately:
 
-## Testing
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-After installing backend dependencies, run:
+Vite serves `http://localhost:5173` and proxies `/api` to the configured FastAPI target. The default runtime uses MySQL, processed spatial data, and live official providers. `APP_DATA_MODE=mock` supplies deterministic official-provider substitutes; tests can also select memory persistence and mock spatial data. Required processed GeoParquet files are described in [data/README.md](data/README.md).
+
+## Verification
 
 ```bash
 cd backend
 pytest
+
+cd ../frontend
+npm run build
 ```
 
-Most tests use the in-memory repository. MySQL integration tests run when
-`MYSQL_TEST_URL` points to a disposable database initialized with
-`database/init/001_initial_schema.sql`; they are skipped otherwise. Never point
-these cleanup-based tests at a database containing data that must be retained.
-
-## CI/CD
-
-Backend CI runs tests and validates the FastAPI import for relevant pushes to
-`main` and pull requests. The initialized Frontend currently has no dedicated CI
-workflow; its available verification command is `npm run build`.
-
-The deployment workflow is a manual, non-deploying scaffold. It does not connect to EC2 or use deployment credentials. A future deployment may authenticate to a provisioned EC2 instance, update code or container images, run `docker compose up -d --build`, and perform health checks.
-
-## Remaining work
-- Add migrations before evolving the initial schema beyond Iteration 1.
-- Decide and implement the AI architecture.
-- Add a production Nginx configuration after routing and domains are known.
-- Provision AWS EC2 and configure reviewed deployment credentials/secrets.
-- Replace the manual CD scaffold with an approved production deployment process.
+MySQL integration tests require an isolated `MYSQL_TEST_URL`; tests that need it are skipped when it is absent.

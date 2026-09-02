@@ -22,6 +22,8 @@ function isMissingPlan(error) {
 }
 
 export const useHouseholdStore = defineStore('household', () => {
+  // localStorage identifies the anonymous browser household; the plan itself
+  // is always loaded from and saved to the backend.
   const householdId = ref(loadStoredHouseholdId())
   const plan = ref(null)
   const planStatus = ref('idle')
@@ -42,6 +44,8 @@ export const useHouseholdStore = defineStore('household', () => {
   }
 
   async function ensureHousehold() {
+    // Share an in-flight create request so simultaneous page loads cannot create
+    // multiple households for the same browser.
     if (householdId.value) return householdId.value
     if (!householdRequest) {
       householdRequest = createAndStoreHousehold().finally(() => {
@@ -58,6 +62,7 @@ export const useHouseholdStore = defineStore('household', () => {
   }
 
   function setNewPlanState() {
+    // A missing plan is a valid first-use state, not a failed household load.
     plan.value = createEmptyHouseholdPlan()
     completion.value = null
     completionStatus.value = 'idle'
@@ -114,6 +119,8 @@ export const useHouseholdStore = defineStore('household', () => {
   }
 
   async function savePlan(next) {
+    // Only replace `plan` after a successful response. A failed save therefore
+    // leaves the view draft different from saved state and visibly dirty.
     saveStatus.value = 'loading'
     saveError.value = null
     try {

@@ -2,6 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const router = createRouter({
   history: createWebHistory(),
+  // Each route has one product responsibility: entry, plan editing, status
+  // review, or saved-plan scenario testing. Navigation order lives in AppLayout.
   routes: [
     {
       path: '/',

@@ -32,7 +32,7 @@ Key points:
 - **EC2** — Ubuntu 24.04, t3.micro (⏳ provision when code is runnable). Access via **AWS SSM Session Manager** (no SSH/port 22), as hardened in our earlier project.
 - **Backend** — `backend/Dockerfile` already exists (python:3.12-slim, uvicorn :8000). No change needed.
 - **MySQL / RDS** — **DECIDED: reuse the existing `fit5120-db` RDS (db.t4g.micro, MySQL 8.4).** The `mysql:8.4` service in `docker-compose.yml` stays for local dev only; production points `DATABASE_HOST` at the RDS endpoint. On deploy day: take a safety snapshot → drop the old project's schema → apply `database/init/001_initial_schema.sql` manually (RDS does not auto-run init scripts).
-- **Frontend** — Vue build output copied to the server (or served by Nginx container). ⏳ frontend not initialized yet.
+- **Frontend** — the Vue 3 + Vite frontend is implemented. Its production build output can be copied to the server or served by an Nginx container when production routing is finalized.
 - **Nginx** — config lives in `nginx/` (currently README only). ⏳ write production config when routing is known. Includes a **shared-password basic auth gate** covering `/` and `/api`, so only the team and teaching staff can view the site (see §7).
 - **HTTPS** — Let's Encrypt via certbot, auto-renewal cron. Domain: **`cubesix.me` (temporary)** — reusing the earlier project's domain; swap later if the team prefers a new one.
 

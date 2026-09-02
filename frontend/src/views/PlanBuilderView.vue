@@ -14,8 +14,9 @@ const householdStore = useHouseholdStore()
 const draft = ref(null)
 
 function resetDraft() {
-  // structuredClone chokes on Vue's reactive proxies; JSON round-trip is safe
-  // because HouseholdPlan is plain, JSON-serialisable data.
+  // Child forms edit this detached aggregate. Restoring the server plan after
+  // load/save makes the dirty comparison clean without treating hydration as an
+  // edit. JSON cloning is safe because HouseholdPlan is JSON-serialisable data.
   draft.value = householdStore.plan ? JSON.parse(JSON.stringify(householdStore.plan)) : null
 }
 
@@ -32,6 +33,8 @@ watch(
 )
 
 const hasUnsavedChanges = computed(() => {
+  // A failed save leaves `householdStore.plan` unchanged, so the user's draft
+  // remains dirty and can be retried without losing edits.
   if (!draft.value || !householdStore.plan) return false
   return JSON.stringify(draft.value) !== JSON.stringify(householdStore.plan)
 })
@@ -61,6 +64,8 @@ const validationErrors = computed(() => {
 })
 
 async function save() {
+  // The backend accepts one structurally valid aggregate even when completion
+  // sections are unfinished; completion and checks evaluate saved state later.
   if (!draft.value || validationErrors.value.length > 0) return
   await householdStore.savePlan(draft.value)
   if (householdStore.saveStatus === 'success') resetDraft()
@@ -97,16 +102,17 @@ async function save() {
       <div>
         <p v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</p>
         <p v-else-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</p>
-        <p v-else-if="hasUnsavedChanges" class="hint">You have unsaved changes.</p>
-        <p v-else class="hint">All changes saved.</p>
+        <p v-else-if="hasUnsavedChanges" class="save-message">Unsaved changes</p>
+        <p v-else class="save-message status-text status-success">✓ All changes saved.</p>
       </div>
       <button
-        class="btn btn-accent"
+        class="btn"
+        :class="hasUnsavedChanges ? 'btn-accent' : 'btn-ghost saved-button'"
         type="button"
         :disabled="!hasUnsavedChanges || validationErrors.length > 0 || householdStore.saveStatus === 'loading'"
         @click="save"
       >
-        {{ householdStore.saveStatus === 'loading' ? 'Saving…' : 'Save plan' }}
+        {{ householdStore.saveStatus === 'loading' ? 'Saving…' : hasUnsavedChanges ? 'Save plan' : 'Saved' }}
       </button>
     </div>
   </div>
@@ -114,14 +120,12 @@ async function save() {
 
 <style scoped>
 .plan-builder {
-  --save-bar-clearance: 7rem;
   width: 100%;
   min-width: 0;
 }
 
 .plan-scroll {
   min-width: 0;
-  padding-bottom: calc(var(--save-bar-clearance) + 2rem);
 }
 
 .headline {
@@ -135,9 +139,7 @@ async function save() {
 }
 
 .save-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 10;
+  /* Save belongs to the end of the plan in normal flow; it does not overlay forms. */
   margin-top: 1rem;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
@@ -147,7 +149,7 @@ async function save() {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  box-shadow: 0 4px 14px rgba(20, 23, 28, 0.12);
+  box-shadow: var(--shadow-card);
 }
 
 .hint {
@@ -155,11 +157,19 @@ async function save() {
   color: var(--color-text-muted);
 }
 
-@media (max-width: 520px) {
-  .plan-builder {
-    --save-bar-clearance: 11rem;
-  }
+.save-message {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 
+.saved-button:disabled {
+  background: var(--color-bg-card-muted);
+  border-color: var(--color-border);
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
+@media (max-width: 520px) {
   .save-bar {
     align-items: stretch;
     flex-direction: column;

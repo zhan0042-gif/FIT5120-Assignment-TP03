@@ -31,6 +31,14 @@ def _sql_literal(value: str) -> str:
 
 
 class VicmapAddressClient:
+    """Adapt the official Vicmap ArcGIS layer to the address provider boundary.
+
+    Suggestions use indexed prefix matching for interactive discovery. Final
+    resolution requires a credible exact or unique official feature and takes
+    coordinates only from Vicmap geometry. ArcGIS OBJECTID is intentionally not
+    exposed as a permanent application identifier.
+    """
+
     def __init__(
         self,
         *,
@@ -43,6 +51,7 @@ class VicmapAddressClient:
         )
 
     def resolve(self, address: str) -> HouseholdLocation:
+        """Resolve one complete official address rather than accept a broad prefix."""
         normalized = _normalize_address(address)
         if not normalized:
             raise AddressResolutionError(
@@ -53,6 +62,8 @@ class VicmapAddressClient:
                 "Please select a complete Victorian address from the suggestions."
             )
 
+        # Exact and trailing-wildcard queries allow ArcGIS to use its address
+        # index; a leading wildcard would force slow full-layer scans.
         exact = self._query(f"ezi_address = '{_sql_literal(normalized)}'")
         exact_matches = self._credible_features(exact)
         if exact.get("exceededTransferLimit"):
@@ -81,7 +92,7 @@ class VicmapAddressClient:
         return self._resolve_unique(partial_matches)
 
     def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]:
-        """Return official Victorian address candidates for autocomplete."""
+        """Return partial official candidates for autocomplete, not verification."""
         normalized = _normalize_address(query)
         if len(normalized) < 3:
             return []
