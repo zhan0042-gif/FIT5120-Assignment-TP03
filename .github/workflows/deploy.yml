@@ -70,8 +70,9 @@ jobs:
             --parameters '{
               "commands": [
                 "set -e",
+                "export HOME=/root",
                 "cd /home/ubuntu/FIT5120-Assignment-TP03",
-                "git config --global --add safe.directory /home/ubuntu/FIT5120-Assignment-TP03 || true",
+                "git config --global --add safe.directory /home/ubuntu/FIT5120-Assignment-TP03",
                 "git pull --ff-only origin main",
                 "docker compose up -d --build --no-deps backend",
                 "docker image prune -f",
