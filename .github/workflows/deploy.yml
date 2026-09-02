@@ -1,8 +1,10 @@
 name: Deploy to production
 
 # Runs whenever new code lands on main (a merge or a direct push).
-# The build/deploy actually happens ON the server via AWS SSM Run Command,
-# so no port 22 and no SSH keys are needed.
+# The workflow starts scripts/deploy.sh on the server via AWS SSM, then polls
+# a status file. (A single long, high-output SSM command crashes the SSM
+# document worker, so the deploy runs detached and is monitored.)
+# No port 22 and no SSH keys are needed.
 on:
   push:
     branches: [main]
@@ -10,6 +12,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - "data/**"
+      - "scripts/**"
       - "docker-compose.yml"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
@@ -54,69 +57,83 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-southeast-4
 
-      # The server does: pull latest code -> rebuild backend container ->
-      # rebuild frontend -> update nginx site dir -> health check.
-      # `set -e` makes SSM report Failed on the first error, so a broken
-      # deploy never looks like a success.
-      - name: Send deploy command to server
-        id: send
+      # Start scripts/deploy.sh on the server in the background, then poll a
+      # status file. Running one long, high-output command synchronously
+      # crashes the SSM document worker, so the deploy must be detached and
+      # monitored instead.
+      - name: Start deploy on server (background)
+        id: start
         run: |
           set -euo pipefail
           CMD_ID=$(aws ssm send-command \
             --region ap-southeast-4 \
             --instance-ids i-060c00865b0bf629e \
             --document-name "AWS-RunShellScript" \
-            --comment "Deploy from GitHub Actions" \
+            --comment "Start detached deploy" \
             --parameters '{
               "commands": [
-                "set -e",
                 "export HOME=/root",
                 "cd /home/ubuntu/FIT5120-Assignment-TP03",
                 "git config --global --add safe.directory /home/ubuntu/FIT5120-Assignment-TP03",
                 "git pull --ff-only origin main",
-                "docker compose up -d --build --no-deps backend",
-                "docker image prune -f",
-                "cd frontend && npm ci && npm run build",
-                "sudo cp -r dist/. /var/www/html/",
-                "curl -fsS http://localhost:8000/api/health"
+                "setsid bash /home/ubuntu/FIT5120-Assignment-TP03/scripts/deploy.sh > /var/log/fit5120-deploy.log 2>&1 < /dev/null &",
+                "echo deploy-started"
               ]
             }' \
             --query 'Command.CommandId' \
             --output text)
           echo "command_id=$CMD_ID" >> "$GITHUB_OUTPUT"
-          echo "Sent SSM command: $CMD_ID"
+          echo "Kickoff command: $CMD_ID"
 
-      - name: Wait for deployment to finish
+      - name: Wait for deploy to finish
         env:
           INSTANCE_ID: i-060c00865b0bf629e
         run: |
           set -euo pipefail
+          REGION=ap-southeast-4
+
+          # Run one short command on the server and return its stdout.
+          ssm_run() {
+            local cmd_id state
+            cmd_id=$(aws ssm send-command \
+              --region "$REGION" --instance-ids "$INSTANCE_ID" \
+              --document-name "AWS-RunShellScript" \
+              --parameters "{\"commands\":[\"$1\"]}" \
+              --query 'Command.CommandId' --output text)
+            for _ in $(seq 1 30); do
+              state=$(aws ssm get-command-invocation \
+                --region "$REGION" --command-id "$cmd_id" --instance-id "$INSTANCE_ID" \
+                --query 'Status' --output text 2>/dev/null || echo Pending)
+              case "$state" in Success|Failed|Cancelled|TimedOut) break ;; esac
+              sleep 3
+            done
+            aws ssm get-command-invocation \
+              --region "$REGION" --command-id "$cmd_id" --instance-id "$INSTANCE_ID" \
+              --query 'StandardOutputContent' --output text 2>/dev/null || true
+          }
+
+          # Confirm the background deploy actually started before polling.
+          KICK=$(ssm_run "test -f /var/log/fit5120-deploy.log && echo READY || echo NO_LOG")
+          echo "Kickoff check: $KICK"
+          if [ "$KICK" != "READY" ]; then
+            echo "::error::Deploy was not started (git pull in kickoff failed?)"
+            exit 1
+          fi
+
           for i in $(seq 1 60); do
-            STATUS=$(aws ssm get-command-invocation \
-              --region ap-southeast-4 \
-              --command-id "${{ steps.send.outputs.command_id }}" \
-              --instance-id "$INSTANCE_ID" \
-              --query 'Status' --output text 2>/dev/null || echo "Pending")
-            echo "Deployment status: $STATUS (attempt $i)"
-            case "$STATUS" in
-              Success)
+            RESULT=$(ssm_run "cat /var/log/fit5120-deploy.status 2>/dev/null || echo RUNNING")
+            echo "Poll $i: $RESULT"
+            if [ "$RESULT" != "RUNNING" ]; then
+              if [ "$RESULT" = "0" ]; then
                 echo "Deployment succeeded."
-                aws ssm get-command-invocation --region ap-southeast-4 \
-                  --command-id "${{ steps.send.outputs.command_id }}" \
-                  --instance-id "$INSTANCE_ID" \
-                  --query 'StandardOutputContent' --output text || true
+                ssm_run "tail -n 25 /var/log/fit5120-deploy.log" || true
                 exit 0
-                ;;
-              Failed|Cancelled|TimedOut)
-                echo "::error::Deployment failed ($STATUS)"
-                aws ssm get-command-invocation --region ap-southeast-4 \
-                  --command-id "${{ steps.send.outputs.command_id }}" \
-                  --instance-id "$INSTANCE_ID" \
-                  --query 'StandardErrorContent' --output text || true
-                exit 1
-                ;;
-            esac
-            sleep 10
+              fi
+              echo "::error::Deployment failed (exit code $RESULT)"
+              ssm_run "tail -n 60 /var/log/fit5120-deploy.log" || true
+              exit 1
+            fi
+            sleep 15
           done
-          echo "::error::Deployment timed out after 10 minutes"
+          echo "::error::Deployment timed out after ~15 minutes"
           exit 1
