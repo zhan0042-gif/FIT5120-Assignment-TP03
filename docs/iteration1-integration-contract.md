@@ -1,313 +1,88 @@
 # Iteration 1 Integration Contract
 
-This document is the human-readable source of truth for the FIT5120 FIREBREAK
-Iteration 1 application contract. It describes the current Vue, FastAPI, MySQL,
-Data, and external-provider integration. FastAPI also exposes generated Swagger
-documentation at `/docs` and its OpenAPI schema at `/openapi.json` while the
-Backend is running.
+This is the human-readable contract for the current FIREBREAK I1 implementation. FastAPI provides generated HTTP detail at `/docs` and `/openapi.json`; this document records the application boundaries and business semantics that generated schemas do not explain.
 
-Generated OpenAPI describes HTTP shapes. This document additionally records the
-ownership rules, persistence semantics, nullable business meaning, and
-Data/Database boundaries that are not clear from schemas alone.
+## Boundaries and runtime
 
-## System boundary
-
-| Component | Iteration 1 responsibility |
+| Boundary | Responsibility |
 |---|---|
-| Frontend | Collect and display household-plan information; call the relative `/api/v1` API; retain only the current `household_id` in local storage. |
-| Backend | Validate API input, apply completion/preparation/scenario rules, coordinate providers, and expose public domain IDs. |
-| MySQL | Persist application and household data using internal relational keys plus public IDs. |
-| Data | Process and query BPA, CFA fire-district, and contextual fire-history datasets. |
-| Official providers | Resolve addresses and supply current fire-danger and weather observations/forecasts. |
+| Vue frontend | Presentation, interaction, local household identifier, draft/save state, and relative API calls. |
+| FastAPI routes and Pydantic schemas | HTTP boundary, structural validation, and public JSON contracts. |
+| Services | Plan validation, completion, immediate checks, location/context coordination, preparation support, and scenarios. |
+| Repositories / MySQL | Transactional application persistence. |
+| Providers | Vicmap address lookup; BOM weather and Fire Danger data; processed spatial lookup. |
+| GeoParquet | BPA, CFA Fire District, and Fire History source data—not application tables. |
 
-Large GIS datasets do not belong in MySQL. Completion results, immediate checks,
-the basic scenario library, Fire Danger Ratings, and weather are also not stored
-as dedicated application tables.
+Normal runtime uses MySQL, processed GeoParquet, Vicmap, and BOM. `APP_DATA_MODE=mock` selects deterministic official-provider substitutes; `APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock` are useful controlled development/test modes. They are not the full-stack default.
 
-## HTTP API
+## HTTP endpoints
 
-All application endpoints are under `/api/v1`. JSON field names use `snake_case`.
+All paths are under `/api/v1` and use snake_case JSON.
 
-| Method and path | Purpose | Request | Response and normal status | Important failure behavior |
-|---|---|---|---|---|
-| `POST /api/v1/households` | Create the application aggregate root. | Body may be omitted. Optional `display_name` is a non-empty string or `null`. | `{ "household_id": string }`, `201`. | Invalid body: `422`; database unavailable: `503`. |
-| `PUT /api/v1/households/{household_id}/plan` | Validate and transactionally replace the saved plan aggregate. | `HouseholdPlan`. | Persisted `HouseholdPlan`, `200`. | Unknown household: `404`; invalid references, duplicate IDs, or cross-household IDs: `422`; database unavailable: `503`. |
-| `GET /api/v1/households/{household_id}/plan` | Read the current plan. | None. | `HouseholdPlan`, `200`. | Unknown household or no saved plan: `404`; database unavailable: `503`. |
-| `GET /api/v1/households/{household_id}/completion` | Calculate current section completion and immediate checks. | None. | `PlanCompletion`, `200`. | Unknown household or no saved plan: `404`; database unavailable: `503`. |
-| `PUT /api/v1/households/{household_id}/location` | Resolve a Victorian address and save the latest resolved coordinates. | `{ "address": string }`. | `{ address, latitude, longitude }`, `200`. | Unknown household: `404`; unresolvable/invalid address: `422`; provider or database unavailable: `503`. |
-| `GET /api/v1/households/{household_id}/local-context` | Combine saved location, spatial Data, fire danger, and weather. | None. | `LocalContext`, `200`. | Missing household/location: `404`; spatial or weather provider unavailable: `503`. Fire-danger failure is represented by `fire_danger.availability = "unavailable"`. |
-| `GET /api/v1/households/{household_id}/preparation-support` | Apply the I1 rule-based plan-review timing logic. | None. | `{ status, message, sections_to_review }`, `200`. | Missing plan/location: `404`; unavailable or stale required provider data: `503`. |
-| `GET /api/v1/scenarios/basic?household_id={household_id}` | List the fixed basic scenarios with household-specific relevance. | Required `household_id` query parameter. | Array of `BasicScenario`, `200`. | Missing household/plan: `404`; missing query parameter: `422`. |
-| `POST /api/v1/households/{household_id}/tests` | Run one relevant basic scenario against the latest plan and persist the result. | `{ "scenario_id": string }`. | `ScenarioTestResult`, `201`. | Unknown household/plan or unsupported scenario: `404`; scenario not applicable: `422`; database unavailable: `503`. |
-| `GET /api/v1/households/{household_id}/tests/{test_run_id}` | Read one persisted scenario result for the household. | None. | `ScenarioTestResult`, `200`. | Unknown household or result: `404`; database unavailable: `503`. |
+| Method and path | Current responsibility |
+|---|---|
+| `POST /households` | Create the browser-owned household root; returns `household_id`. |
+| `GET/PUT /households/{household_id}/plan` | Read or transactionally replace the latest saved `HouseholdPlan`. |
+| `GET /households/{household_id}/completion` | Derive current completion and non-blocking immediate checks. |
+| `GET/PUT /households/{household_id}/location` | Read or save entered household address and optional official enrichment. |
+| `GET /locations/suggestions?q=…` | Return Vicmap autocomplete candidates. A suggestion is not itself verification. |
+| `GET /households/{household_id}/local-context` | Return saved location, static spatial context, current weather, and official FDR state. |
+| `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
+| `GET /scenarios/basic?household_id=…` | List fixed I1 scenarios relevant to the saved plan. |
+| `POST /households/{household_id}/tests` | Run one deterministic scenario and persist its result. |
+| `GET /households/{household_id}/tests/{test_run_id}` | Retrieve that stored result. |
 
-FastAPI request-schema validation also returns `422`. Expected application errors
-use a JSON `detail` value. Plan business validation uses:
+Unknown resources return `404`; schema/business validation returns `422`; unavailable persistence/providers use controlled availability errors. Fire Danger has an explicit in-response unavailable state rather than a fabricated rating.
+
+## Saved plan contract
+
+`HouseholdPlan` has `members`, `animals`, nullable tri-state `has_private_transport`, `transports`, `arrangements`, and `responsibilities`. It intentionally accepts an incomplete but structurally valid plan.
 
 ```json
 {
-  "detail": {
-    "message": "The household plan is invalid.",
-    "errors": ["validation message"]
+  "arrangements": {
+    "primary_transport_id": "transport_1",
+    "primary_destination": { "destination_id": "destination_1", "display_name": "Relative's house" },
+    "backup_arrangements": [
+      { "transport_id": "transport_2", "destination": { "destination_id": "destination_2", "display_name": "Community centre" } }
+    ],
+    "meeting_point": null
   }
 }
 ```
 
-Database errors are translated to a generic `503` response; SQL statements,
-credentials, and internal database details are not part of the API contract.
+There is one primary arrangement and zero-to-many ordered backup arrangements. Each backup may carry transport, destination, or both. IDs in this contract are public strings, never MySQL numeric keys. The backend validates duplicate IDs and same-household references before aggregate replacement.
 
-### Location and context response fields
-
-The location PUT returns the standardized `address` and resolved numeric
-`latitude`/`longitude`. `LocalContext` contains:
-
-- `location`: the same saved address and coordinates;
-- `bushfire_context`: `is_bushfire_prone_area` and `fire_district`;
-- `fire_danger`: a discriminated response using `availability`;
-- `weather`: `temperature_c`, `relative_humidity`, `wind_speed_kmh`,
-  `wind_direction`, ISO 8601 `observed_at`, and `station_name`;
-- `environmental_context`: nullable `fire_history_summary`,
-  `vegetation_context`, and `terrain_context`.
-
-When fire danger is available it includes `today`, `tomorrow`, `day_3`, `day_4`,
-ISO 8601 `source_updated_at`, nullable `source_url`, and `message: null`. When it
-is unavailable, the rating/timestamp/source fields are `null` and `message`
-explains the unavailable state. The rating vocabulary is `No Rating`, `Moderate`,
-`High`, `Extreme`, and `Catastrophic`.
-
-## Household Plan aggregate
-
-`HouseholdPlan` is both the plan PUT body and GET response:
-
-| Field | Type and meaning |
-|---|---|
-| `members` | `HouseholdMember[]`; each item has `member_id`, `display_name`, `is_dependant`, `mobility_support_required`, and nullable `support_notes`. |
-| `animals` | `Animal[]`; each item has `animal_id`, `category` (`pet` or `livestock`), `animal_type`, `display_name`, and nullable `support_notes`. The contract uses `animals`, not `pets`. |
-| `has_private_transport` | `boolean | null`; its three states have distinct business meanings described below. |
-| `transports` | `Transport[]`; each item has `transport_id`, `transport_type` (`car`, `motorbike`, `van`, or `other`), nullable `display_name`, and `driver_member_ids`. |
-| `arrangements` | Primary/backup transport IDs, nested primary/backup destinations, and a nullable meeting point. |
-| `responsibilities` | `Responsibility[]`; each item has `responsibility_id`, `task_name`, and nullable primary/backup member IDs. |
-
-A destination contains `destination_id`, `display_name`, and nullable `address`.
-The arrangement fields are exactly:
-
-- `primary_transport_id: string | null`
-- `backup_transport_id: string | null`
-- `primary_destination: Destination | null`
-- `backup_destination: Destination | null`
-- `meeting_point: string | null`
-
-Incomplete plans may be saved. Empty collections and nullable backup fields do not
-make the PUT invalid by themselves. Responsibility assignments may be `null`.
-Reference IDs, when supplied, must identify entities in the same submitted plan,
-IDs within each entity category must be unique, and a responsibility's backup
-member must differ from its primary member. Setting `has_private_transport` to
-`false` while supplying a `car`, `motorbike`, or `van` is invalid.
-
-### Private-transport tri-state
-
-| Value | Meaning |
-|---|---|
-| `null` | The household has not answered the private-transport question. |
-| `true` | The household has private transport. |
-| `false` | The household explicitly has no private transport. |
-
-`null` and `false` must not be collapsed. An explicit `false` with no primary
-transport satisfies the transport and backup-transport completion sections;
-`null` leaves them incomplete.
+Destinations have a meaningful `display_name` and an optional `address`. Both household and destination address payloads can include canonical/structured fields, coordinates, `verification_status`, and `verified_at`; `selected_address` is accepted as a UI selection hint and is not persisted in the response. Persistence is distinct from verification: manual entered address text is retained as `unverified` when official verification cannot enrich it, and no coordinates are invented.
 
 ## Completion and immediate checks
 
-Completion is calculated from the latest saved plan by `PlanCompletionService`.
-It is not persisted. The response contains:
+Completion is dynamically derived from the latest saved plan, not manually ticked or stored as a completion table. It reports the six ordered sections: `household_profile`, `transport`, `backup_transport`, `primary_destination`, `backup_destination`, and `responsibilities`.
 
-- `overall_status`: `complete` or `needs_information`
-- ordered `sections`: `household_profile`, `transport`, `backup_transport`,
-  `primary_destination`, `backup_destination`, and `responsibilities`
-- `immediate_checks`: zero or more warnings
+Incomplete plans remain saveable. Backup completion reflects whether an applicable usable backup exists under the current backend rules; it does not require every optional backup entry to be complete. Immediate checks are backend-owned, non-blocking practical warnings, including missing backup transport/destination/person and shared primary/backup transport resources.
 
-The actual section rules require:
+## Location, context, and freshness
 
-- at least one named member, with names/types for any animals;
-- a recorded transport and primary transport, unless private transport is
-  explicitly answered `false` with no primary transport;
-- a backup transport under the same explicit-no-private-transport exception;
-- named primary and backup destinations;
-- at least one responsibility, with a task and primary member for every item.
-
-`ImmediateCheckService` currently emits:
-
-| Check | Condition |
-|---|---|
-| `missing_backup_transport` | A primary transport exists but no backup transport is set. |
-| `missing_backup_destination` | A primary destination exists but no backup destination is set. |
-| `missing_backup_person` | A responsibility has a primary member but no backup member. |
-| `shared_transport_resource` | Primary and backup transport IDs are the same. |
-
-These warnings are deliberately simple checks, not risk scores or predictions.
-
-## Preparation support
-
-Preparation support is calculated on request from plan completion plus current and
-forecast Fire Danger Ratings. It returns `review_recommended` when information is
-missing, ratings are at least `High`, or forecast ratings escalate; otherwise it
-returns `up_to_date`. Required Fire Danger data must have an aware issue timestamp
-and be no more than 24 hours old. This is plan-review support, not a bushfire
-prediction or evacuation instruction.
-
-## Basic scenarios and persisted results
-
-The fixed I1 scenario library is Backend configuration, not a database table:
-
-| Scenario | Enabled when | Checks |
-|---|---|---|
-| `vehicle_unavailable` | A primary transport ID is recorded. | Independent backup transport and valid backup driver. |
-| `person_unavailable` | At least one responsibility has a primary member. | Every relevant responsibility has a valid, different backup member. |
-| `destination_unavailable` | A primary destination is recorded. | Backup destination has a different ID and address. |
-
-Every listed scenario contains `scenario_id`, `title`, `description`, `enabled`,
-and nullable `disabled_reason`. Running a disabled scenario returns `422` and does
-not create a completed test result.
-
-`ScenarioTestResult` contains:
-
-- `test_run_id`
-- `scenario_id`
-- `overall_status`: `pass` or `needs_attention`
-- ordered `checks`, each with `check`, `status`, and `message`
-- nullable `first_problem` with `section` and `message`
-- `result_reason`
-- UTC ISO 8601 `tested_at`
-
-Check statuses are exactly `pass`, `fail`, and `not_checked`. A result passes only
-when all emitted checks pass. Running a scenario reads but does not modify the
-Household Plan. Test runs and their ordered checks are persisted in MySQL.
-
-## Public IDs and persistence
-
-API/domain IDs are strings. MySQL stores each public ID in `public_id` and uses an
-internal `BIGINT UNSIGNED AUTO_INCREMENT` primary key for joins:
+Saving a household address first persists its entered text and then attempts official verification. Verified coordinates allow a processed spatial lookup:
 
 ```text
-API string ID -> table.public_id -> internal numeric key
-internal numeric key -> table.public_id -> API string ID
+verified coordinates -> GeoParquet BPA / Fire District / Fire History
+                     -> derived household_location_context snapshot
+                     -> current BOM weather and official FDR
 ```
 
-| Table | API field |
-|---|---|
-| `household` | `household_id` |
-| `household_member` | `member_id` |
-| `animal` | `animal_id` |
-| `transport` | `transport_id` |
-| `destination` | `destination_id` |
-| `responsibility` | `responsibility_id` |
-| `test_run` | `test_run_id` |
+The snapshot contains derived household-specific spatial facts, not raw datasets. It is reused for an unchanged location and invalidated when the household location is saved/changed. Dataset-version invalidation is not implemented in I1. BPA is an official designation, not a personal risk score. CFA Fire District is an operational dependency for selecting matching BOM FDR data. Fire History is contextual only; the UI may show records within 20 km, latest season, and most recent dated record.
 
-Numeric keys are never returned to Frontend. A plan save is an aggregate
-replacement inside one database transaction: members, animals, transports and
-drivers, destinations, arrangements, and responsibilities either all succeed or
-all roll back. Supplied public IDs are preserved across PUT/GET round trips;
-internal row IDs are persistence details and may change during replacement.
+BOM weather selects an appropriate fresh observed station; BOM weather and FDR caches are configured for about 60 minutes, but cache presence never overrides source freshness. FDR is official provider data: FIREBREAK does not calculate or fabricate it, and it may legitimately be unavailable.
 
-### Same-household ownership
+## Preparation support and scenarios
 
-Database foreign keys guarantee referenced rows exist. They do not use triggers
-or composite household keys to establish same-household ownership. Backend
-validation rejects:
+Preparation Support is transparent rule-based guidance, not prediction. With usable fresh FDR, it returns `up_to_date` or `review_recommended` using FDR and saved-plan completion; it can point to incomplete sections. Unavailable or stale FDR does not generate a recommendation.
 
-- a Household B member driving Household A's transport;
-- Household A using Household B's transport;
-- Household A using Household B's destination;
-- Household A assigning a Household B member to a responsibility.
+Scenarios are deterministic and run only on the latest saved plan. They do not mutate that plan. `vehicle_unavailable` requires an independent backup transport with an eligible recorded driver; `person_unavailable` requires a different valid backup person for relevant responsibilities; and `destination_unavailable` requires a genuinely different backup destination. The service evaluates available ordered backups rather than a fixed singular backup. Results are persisted independently as `test_run` and ordered `test_check_result` records.
 
-These violations produce a controlled `422`, and validation occurs before the
-transaction replaces the existing plan.
+## Frontend contract
 
-## Database table responsibilities
+The frontend is Vue + JavaScript. `src/api/client.js` calls relative `/api/v1`; the Vite development proxy targets `http://[::1]:8000`. `firebreak.household-id.v1` is the only application local-storage key: it is browser continuity, not authentication. A plan draft is compared with the latest persisted plan to present saved/unsaved state; failed saves stay unsaved. My Plan saves through a normal bottom-page card, not a sticky/floating bar.
 
-| Table | Responsibility |
-|---|---|
-| `household` | Aggregate root and optional display name. |
-| `household_member` | People and their dependant/mobility/support information. |
-| `animal` | Pets or livestock and support information. |
-| `transport` | Household transport resources. |
-| `transport_driver` | Many-to-many mapping between transports and member drivers. |
-| `destination` | Primary/backup destination records embedded in the API arrangement. |
-| `household_arrangement` | One current tri-state transport answer and primary/backup arrangement per household. |
-| `responsibility` | Preparedness tasks with nullable primary/backup member assignments. |
-| `household_location` | Latest resolved address and coordinates. |
-| `test_run` | Scenario result header, outcome, first problem, reason, and timestamp. |
-| `test_check_result` | Ordered checks belonging to a scenario test run. |
-
-See [`database/README.md`](../database/README.md) for setup and detailed database
-rules, and [`database/init/001_initial_schema.sql`](../database/init/001_initial_schema.sql)
-for the executable schema.
-
-## Location, Data, and provider flow
-
-```text
-address
-  -> VicmapAddressClient or MockAddressClient
-  -> saved address/latitude/longitude
-  -> DataSpatialProvider
-  -> data.scripts.location_context.get_location_context(latitude, longitude)
-  -> BPA + CFA fire district + fire-history context
-  -> fire-danger and weather providers
-  -> LocalContext response
-```
-
-`DataSpatialProvider` converts the Data layer's nested fire-history object into
-the API's nullable `environmental_context.fire_history_summary`. Vegetation and
-terrain fields exist in the response contract but the current provider returns
-`null`; those datasets are not implemented in Iteration 1.
-
-In live official-provider mode, runtime dependency wiring uses:
-
-- `VicmapAddressClient` for address resolution;
-- `BOMFireDangerClient` for the four-day district Fire Danger Rating;
-- `BOMWeatherClient` for the nearest current weather observation.
-
-The repository also contains a CFA RSS client/parser, but it is not the provider
-selected by the current live dependency wiring. Mock providers supply stable
-address, fire-danger, and weather responses for offline development and tests.
-Automated tests must not depend on live network services. The spatial Data mode is
-selected independently, so tests or Docker runs can use real GIS context with
-mock official feeds.
-
-## Runtime modes and configuration
-
-| Environment variable | Values/default | Effect |
-|---|---|---|
-| `APP_REPOSITORY_MODE` | `mysql` (default), `memory` | Select MySQL persistence or the process-local test/development repository. |
-| `APP_SPATIAL_MODE` | `data` (default), `mock` | Select the processed Data lookup or fixed spatial mock. |
-| `APP_DATA_MODE` | `live` (default), `mock` | Select official address/fire-danger/weather clients or deterministic mocks. |
-| `DATABASE_HOST` | `127.0.0.1` in Python; Compose supplies `mysql` | MySQL hostname. |
-| `DATABASE_PORT` | `3306` | MySQL internal/connection port. |
-| `MYSQL_DATABASE` | `fit5120` | Application database name. |
-| `MYSQL_USER` | `fit5120_app` | Application database user. |
-| `MYSQL_PASSWORD` | `change_me` example only | Application database password; real secrets must not be committed. |
-| `DATABASE_POOL_SIZE` | `5` | SQLAlchemy connection-pool size. |
-| `DATABASE_MAX_OVERFLOW` | `10` | Additional temporary pooled connections. |
-
-`.env.example` contains the complete Compose development template, including
-host-port overrides. Normal tests explicitly select `memory`, `mock`, and `mock`;
-MySQL integration tests require a disposable `MYSQL_TEST_URL`.
-
-## Frontend development contract
-
-Frontend calls the relative API root `/api/v1` through `frontend/src/api/client.ts`.
-During `npm run dev`, Vite proxies `/api` to `http://127.0.0.1:8000`; no browser
-CORS configuration is required for that development path.
-
-Frontend TypeScript types mirror the Pydantic response shapes. IDs remain public
-strings, nullable fields must remain nullable, and timestamps are received as ISO
-8601 strings. Local storage contains only `firebreak.household-id.v1` (plus
-unrelated UI preferences); the saved plan and scenario results remain
-Backend/MySQL data.
-
-## Not part of Iteration 1
-
-The current contract does not include AI-personalised scenarios or
-recommendations, interactive Iteration 2 branching, reminders, sharing,
-agreement checks, route planning, authentication, or production vegetation and
-terrain context.
+See [database setup and schema](../database/README.md), [processed data](../data/README.md), and [frontend pages](../frontend/README.md).

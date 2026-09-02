@@ -8,6 +8,8 @@ import LocalContextCard from '../components/localContext/LocalContextCard.vue'
 const householdStore = useHouseholdStore()
 const localContextStore = useLocalContextStore()
 onMounted(async () => {
+  // Overview orchestrates independent plan, address/static-context, live BOM,
+  // and preparation-advice states. Their stores keep partial failures isolated.
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
   if (localContextStore.contextStatus === 'idle') await localContextStore.init()
   if (localContextStore.prepStatus === 'idle') await localContextStore.loadPreparationSupport()

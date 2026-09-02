@@ -35,7 +35,11 @@ from app.schemas.scenarios import (
 
 
 class MySQLHouseholdRepository:
-    """Persist complete household aggregates while exposing only public IDs."""
+    """Persist complete aggregates while exposing only stable public IDs.
+
+    Numeric IDs are internal relational keys. Services and API clients use
+    public IDs, and this repository maps between the two at the SQL boundary.
+    """
 
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
@@ -71,6 +75,12 @@ class MySQLHouseholdRepository:
             self._raise_database_unavailable(exc)
 
     def save_plan(self, household_id: str, plan: HouseholdPlan) -> None:
+        """Replace all plan-owned rows atomically from one validated aggregate.
+
+        Child rows are deleted and rebuilt so removals and ordered backups match
+        the submitted aggregate exactly. The transaction prevents readers from
+        observing a partially replaced plan and rolls back all tables together.
+        """
         try:
             with self.engine.begin() as connection:
                 internal_household_id = self._household_internal_id(
@@ -248,6 +258,8 @@ class MySQLHouseholdRepository:
                 for priority, backup in enumerate(
                     arrangements.backup_arrangements, start=1
                 ):
+                    # Priority preserves the frontend's zero-to-many backup order;
+                    # the primary option remains the single priority-zero row.
                     self._insert_arrangement_option(
                         connection,
                         internal_household_id,
@@ -317,6 +329,7 @@ class MySQLHouseholdRepository:
             self._raise_database_unavailable(exc)
 
     def save_location(self, household_id: str, location: HouseholdLocation) -> None:
+        """Upsert a saved address and invalidate its old derived spatial snapshot."""
         try:
             with self.engine.begin() as connection:
                 internal_household_id = self._household_internal_id(
@@ -450,6 +463,7 @@ class MySQLHouseholdRepository:
     def save_location_context(
         self, household_id: str, context: HouseholdLocationContext
     ) -> None:
+        """Cache derived household facts, not the source GeoParquet datasets."""
         try:
             with self.engine.begin() as connection:
                 internal_household_id = self._household_internal_id(connection, household_id)
@@ -513,6 +527,7 @@ class MySQLHouseholdRepository:
     def save_test_result(
         self, household_id: str, result: ScenarioTestResult
     ) -> None:
+        """Persist an immutable scenario outcome separately from plan tables."""
         try:
             with self.engine.begin() as connection:
                 internal_household_id = self._household_internal_id(

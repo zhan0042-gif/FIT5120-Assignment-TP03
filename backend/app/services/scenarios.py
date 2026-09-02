@@ -40,6 +40,12 @@ BASIC_SCENARIOS = (
 
 
 class BasicScenarioService:
+    """Run deterministic I1 checks against the latest saved plan.
+
+    Scenario tests do not mutate the plan and do not use AI. Results are stored
+    separately so a tested outcome can be retrieved without becoming plan data.
+    """
+
     def __init__(self, repository: HouseholdRepository | None = None) -> None:
         self.repository = repository
 
@@ -49,6 +55,7 @@ class BasicScenarioService:
         return self.list_scenarios(self.repository.get_plan(household_id))
 
     def list_scenarios(self, plan: HouseholdPlan) -> list[BasicScenario]:
+        """Return backend-owned relevance and disabled reasons for each scenario."""
         scenarios: list[BasicScenario] = []
         for scenario in BASIC_SCENARIOS:
             enabled, disabled_reason = self._relevance(plan, scenario.scenario_id)
@@ -66,6 +73,7 @@ class BasicScenarioService:
     def run_for_household(
         self, household_id: str, scenario_id: str
     ) -> ScenarioTestResult:
+        """Test the repository's latest saved aggregate and persist the result."""
         if self.repository is None:
             raise RuntimeError("A repository is required to run a household test.")
         plan = self.repository.get_plan(household_id)
@@ -134,6 +142,7 @@ class BasicScenarioService:
     def _vehicle_unavailable(
         plan: HouseholdPlan,
     ) -> tuple[list[ScenarioCheck], FirstProblem | None, str]:
+        """Pass when an independent backup transport has a recorded valid driver."""
         primary_id = plan.arrangements.primary_transport_id
         transports = {item.transport_id: item for item in plan.transports}
         eligible_backups = [
@@ -202,6 +211,7 @@ class BasicScenarioService:
     def _person_unavailable(
         plan: HouseholdPlan,
     ) -> tuple[list[ScenarioCheck], FirstProblem | None, str]:
+        """Require every relevant responsibility to name a different valid backup."""
         member_ids = {member.member_id for member in plan.members}
         relevant = [
             responsibility
@@ -238,6 +248,7 @@ class BasicScenarioService:
     def _destination_unavailable(
         plan: HouseholdPlan,
     ) -> tuple[list[ScenarioCheck], FirstProblem | None, str]:
+        """Pass when any ordered backup has a genuinely different destination."""
         primary = plan.arrangements.primary_destination
         meaningfully_different = any(
             backup.destination

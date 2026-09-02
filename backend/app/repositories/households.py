@@ -15,6 +15,8 @@ from app.schemas.scenarios import ScenarioTestResult
 
 
 class HouseholdRepository(Protocol):
+    """Persistence boundary used by services without exposing SQL details."""
+
     def create_household(self, display_name: str | None = None) -> str: ...
 
     def household_exists(self, household_id: str) -> bool: ...
@@ -43,7 +45,7 @@ class HouseholdRepository(Protocol):
 
 
 class InMemoryHouseholdRepository:
-    """Process-local storage used until a database repository is available."""
+    """Process-local repository used by isolated service and API tests."""
 
     def __init__(self) -> None:
         self._households: dict[str, dict[str, object]] = {}
@@ -78,6 +80,7 @@ class InMemoryHouseholdRepository:
         return plan.model_copy(deep=True)  # type: ignore[union-attr]
 
     def save_location(self, household_id: str, location: HouseholdLocation) -> None:
+        """Replace the location and invalidate context derived from old coordinates."""
         household = self._household(household_id)
         household["location"] = location.model_copy(deep=True)
         household["location_context"] = None

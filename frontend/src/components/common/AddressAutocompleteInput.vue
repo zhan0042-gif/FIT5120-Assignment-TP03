@@ -22,11 +22,16 @@ function meaningful(query) {
   return query.length >= 4 && /\d/.test(query) && /[a-z]/i.test(query)
 }
 
+// The component is shared by household, primary-destination, and every dynamic
+// backup-destination address. Debouncing limits provider traffic; `sequence`
+// prevents an older response from replacing suggestions for newer text.
 watch(() => props.modelValue, (value) => {
   if (value === selectedValue) {
     selectedValue = null
     return
   }
+  // Any manual edit invalidates the previous candidate selection. The text is
+  // still emitted because autocomplete failure must not block free-text saving.
   selectedValue = null
   if (timer) clearTimeout(timer)
   activeIndex.value = -1
@@ -63,6 +68,8 @@ function update(value) {
 }
 
 function select(suggestion) {
+  // Selection emits the full official candidate for verification and also keeps
+  // v-model text synchronized for all three address use cases.
   sequence += 1
   suggestions.value = []
   status.value = 'idle'
@@ -73,6 +80,8 @@ function select(suggestion) {
 }
 
 function keydown(event) {
+  // Maintain an active option separately from focus so the text input keeps
+  // standard combobox keyboard behavior.
   if (!suggestions.value.length) return
   if (event.key === 'ArrowDown') {
     event.preventDefault()

@@ -251,6 +251,25 @@ textarea {
   color: var(--color-accent);
 }
 
+.status-text {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+  font-weight: 600;
+}
+
+.status-success {
+  color: var(--color-success);
+}
+
+.status-warning {
+  color: var(--color-warning);
+}
+
+.status-neutral {
+  color: var(--color-text-muted);
+}
+
 .state-block {
   display: flex;
   flex-direction: column;

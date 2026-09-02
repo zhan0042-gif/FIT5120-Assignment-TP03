@@ -143,6 +143,7 @@ def select_nearest_weather(
     *,
     now: datetime | None = None,
 ) -> Weather:
+    """Select the nearest sufficiently fresh official observation."""
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     valid = []
     for observation in observations:
@@ -184,6 +185,13 @@ def _download_bom_xml(timeout_seconds: float) -> bytes:
 
 
 class BOMWeatherClient:
+    """Fetch and cache official observations while enforcing source freshness.
+
+    Cache lifetime limits downloads, but every selection still rejects stale or
+    future-dated observations. No usable observation is a valid unavailable-data
+    outcome rather than fabricated weather.
+    """
+
     def __init__(
         self,
         *,

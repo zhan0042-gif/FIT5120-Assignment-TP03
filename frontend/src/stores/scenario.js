@@ -4,6 +4,8 @@ import { api } from '../api/client'
 import { useHouseholdStore } from './household'
 
 export const useScenarioStore = defineStore('scenario', () => {
+  // The backend owns relevance and all test calculations. This store only tracks
+  // selection, request lifecycle, and the returned saved-plan result.
   const householdStore = useHouseholdStore()
   const scenarios = ref([])
   const scenariosStatus = ref('idle')
@@ -24,6 +26,7 @@ export const useScenarioStore = defineStore('scenario', () => {
         (scenario) => scenario.scenario_id === selectedScenarioId.value,
       )
       if (!selected?.enabled) {
+        // Plan edits can make a previously selected scenario irrelevant.
         selectedScenarioId.value = null
         result.value = null
         testStatus.value = 'idle'
@@ -54,6 +57,8 @@ export const useScenarioStore = defineStore('scenario', () => {
     testError.value = null
     try {
       const householdId = await householdStore.ensureHousehold()
+      // No editable draft is sent: scenario tests intentionally use the latest
+      // plan already saved for this household.
       result.value = await api.runBasicTest(householdId, selectedScenarioId.value)
       testStatus.value = 'success'
     } catch (err) {

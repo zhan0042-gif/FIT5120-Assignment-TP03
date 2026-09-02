@@ -109,6 +109,8 @@ class Transport(BaseModel):
 
 
 class Destination(BaseModel):
+    """A named destination with optional, non-blocking official address metadata."""
+
     destination_id: EntityId
     display_name: str = ""
     address: str | None = None
@@ -152,6 +154,8 @@ class BackupArrangement(BaseModel):
 
 
 class Arrangements(BaseModel):
+    """One primary arrangement plus an ordered list of independent fallbacks."""
+
     model_config = ConfigDict(extra="forbid")
 
     primary_transport_id: EntityId | None = None
@@ -168,6 +172,8 @@ class Responsibility(BaseModel):
 
 
 class HouseholdPlan(BaseModel):
+    """The saveable household aggregate, including valid but incomplete plans."""
+
     model_config = ConfigDict(extra="forbid")
 
     members: list[HouseholdMember] = Field(default_factory=list)
@@ -179,6 +185,8 @@ class HouseholdPlan(BaseModel):
 
     @model_validator(mode="after")
     def private_transport_answer_matches_resources(self) -> "HouseholdPlan":
+        # Incompleteness is allowed, but an explicit "no private transport"
+        # answer cannot coexist with private vehicle records in the aggregate.
         if self.has_private_transport is False and any(
             transport.transport_type in {"car", "ute", "van", "motorbike", "truck"}
             for transport in self.transports
@@ -190,6 +198,8 @@ class HouseholdPlan(BaseModel):
 
 
 class LocationRequest(BaseModel):
+    """Entered address plus an optional candidate explicitly selected in the UI."""
+
     address: Annotated[
         str,
         StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
@@ -201,6 +211,8 @@ class LocationRequest(BaseModel):
 
 
 class HouseholdLocation(BaseModel):
+    """Saved address text with enrichment present only after official verification."""
+
     address: str
     canonical_address: str | None = None
     unit_number: str | None = None
@@ -221,6 +233,8 @@ class AddressSuggestion(HouseholdLocation):
 
 
 class HouseholdLocationContext(BaseModel):
+    """Cached per-household spatial facts derived from processed open datasets."""
+
     is_bushfire_prone_area: bool
     fire_district: NonBlankText
     fire_history_record_count: int | None = Field(default=None, ge=0)
@@ -252,6 +266,8 @@ class ImmediateCheck(BaseModel):
 
 
 class PlanCompletion(BaseModel):
+    """A derived snapshot of section completeness and non-blocking warnings."""
+
     overall_status: Literal["complete", "needs_information"]
     sections: list[CompletionSection]
     immediate_checks: list[ImmediateCheck] = Field(default_factory=list)
@@ -308,6 +324,8 @@ class EnvironmentalContext(BaseModel):
 
 
 class LocalContext(BaseModel):
+    """API aggregate of saved location, static context, FDR, and weather."""
+
     location: HouseholdLocation
     bushfire_context: BushfireContext
     fire_danger: FireDangerContext
@@ -316,6 +334,8 @@ class LocalContext(BaseModel):
 
 
 class PreparationSupport(BaseModel):
+    """Rule-based review guidance produced only from usable official FDR data."""
+
     status: Literal["up_to_date", "review_recommended"]
     message: str
     sections_to_review: list[CompletionSectionName]

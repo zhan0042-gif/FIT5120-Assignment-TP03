@@ -67,6 +67,8 @@ function setBackupDestinationField(backup, field, value) {
 }
 
 function resetDestinationVerification(destination) {
+  // Coordinates and canonical fields describe the previous official address.
+  // Editing its text must clear them rather than present stale verification.
   destination.canonical_address = null
   destination.unit_number = null
   destination.street_number = null

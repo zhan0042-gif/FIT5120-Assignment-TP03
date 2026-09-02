@@ -17,7 +17,7 @@ The initial Iteration 1 schema is defined in:
 database/init/001_initial_schema.sql
 ```
 
-The schema currently contains 11 application tables:
+The schema currently contains 13 application tables:
 
 - `household`
 - `household_member`
@@ -26,8 +26,10 @@ The schema currently contains 11 application tables:
 - `transport_driver`
 - `destination`
 - `household_arrangement`
+- `household_arrangement_option`
 - `responsibility`
 - `household_location`
+- `household_location_context`
 - `test_run`
 - `test_check_result`
 
@@ -50,7 +52,9 @@ Backend Repository code looks up a row by `public_id`, uses its internal numeric
 | `responsibility` | API `responsibility_id` |
 | `test_run` | API `test_run_id` |
 
-`transport_driver`, `household_arrangement`, `household_location`, and `test_check_result` do not currently expose independent public IDs. Their numeric keys remain internal.
+`transport_driver`, `household_arrangement`, `household_arrangement_option`,
+`household_location`, `household_location_context`, and `test_check_result` do
+not expose independent public IDs. Their numeric keys remain internal.
 
 ## Table Purpose
 
@@ -122,7 +126,11 @@ Main fields:
 
 ### destination
 
-Stores possible evacuation destinations.
+Stores possible evacuation destinations. A destination name is meaningful on its
+own; its detailed address is optional. Entered address text may be persisted
+unverified. Officially verified entries can additionally hold canonical and
+structured address fields, coordinates, and `verified_at`; unverified entries
+retain entered text and have no fabricated coordinates.
 
 Main fields:
 
@@ -137,19 +145,31 @@ Main fields:
 
 ### household_arrangement
 
-Stores the household's current primary and backup evacuation arrangements.
-
-One arrangement record is stored per household.
+Stores household-level arrangement metadata such as the private-transport
+answer and meeting point. One arrangement record is stored per household.
 
 Main fields:
 
 - `household_id`
 - `has_private_transport`
-- `primary_transport_id`
-- `backup_transport_id`
-- `primary_destination_id`
-- `backup_destination_id`
 - `meeting_point`
+
+### household_arrangement_option
+
+Stores one priority-zero primary option and zero-to-many ordered backup options.
+Each option may reference transport, a destination, or both. Existing databases
+upgraded through migration 004 may retain deprecated fixed primary/backup
+columns on `household_arrangement`; current application code does not read or
+write those compatibility columns.
+
+Main fields:
+
+- `arrangement_option_id`
+- `household_id`
+- `role`
+- `priority`
+- `transport_id`
+- `destination_id`
 
 ### responsibility
 
@@ -166,7 +186,10 @@ Main fields:
 
 ### household_location
 
-Stores the household location used by the Data layer for spatial lookups.
+Stores the household address. Saving it does not require official verification:
+the entered full address is retained with `verification_status = unverified`
+when enrichment fails. A verified row may hold canonical/structured fields and
+official coordinates. Only verified coordinates can support spatial lookups.
 
 One location record is stored per household.
 
@@ -179,6 +202,12 @@ Main fields:
 - `latitude`
 - `longitude`
 - structured unit, street, locality, state and country columns
+
+### household_location_context
+
+Caches the derived BPA, CFA district, and fire-history snapshot for the current
+verified household coordinates. Saving an address invalidates this snapshot.
+Raw GeoParquet datasets remain in the Data layer and are not copied into MySQL.
 
 ### test_run
 
@@ -246,9 +275,10 @@ The existing Data layer handles:
 
 The database stores household coordinates in `household_location`.
 
-Backend code can use those coordinates with the Data layer to resolve the location context.
+Backend uses verified coordinates with the Data layer to resolve local context.
 
-Live Fire Danger Rating and weather information are also not stored as static database tables. Backend is expected to read these from official external sources.
+Live Fire Danger Rating and weather information are also not stored as static database tables. Backend obtains them from official external providers; its
+configured provider caches do not override source-freshness rules.
 
 ## Backend Ownership Validation Boundary
 
@@ -388,6 +418,7 @@ animal
 destination
 household
 household_arrangement
+household_arrangement_option
 household_location
 household_location_context
 household_member
@@ -403,7 +434,7 @@ transport_driver
 For a clean local database, verify:
 
 - MySQL starts successfully
-- all 12 tables are created from a clean Docker volume
+- all 13 tables are created from a clean Docker volume
 - foreign key relationships are created successfully
 - internal numeric primary keys and stable public IDs work together
 - duplicate public IDs are rejected
@@ -412,8 +443,7 @@ For a clean local database, verify:
 - transport and driver relationships work
 - incomplete plans can store missing display names and responsibility assignments
 - `has_private_transport` preserves unanswered, false and true states
-- primary and backup transport arrangements work
-- primary and backup destination arrangements work
+- one primary and zero-to-many ordered backup arrangements work
 - meeting point storage works
 - preparedness responsibilities work
 - household location storage works
@@ -454,6 +484,14 @@ docker compose exec -T mysql sh -c \
 docker compose exec -T mysql sh -c \
   'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
   < database/migrations/003_location_verification_and_context_cache.sql
+
+docker compose exec -T mysql sh -c \
+  'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  < database/migrations/004_multiple_backup_arrangements.sql
+
+docker compose exec -T mysql sh -c \
+  'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  < database/migrations/005_destination_address_verification.sql
 ```
 
 The migration adds nullable/defaulted columns, assigns existing animals a quantity
@@ -471,6 +509,12 @@ officially verified. It backfills coordinate-bearing rows as verified and adds
 snapshot—not raw open datasets. I1 invalidates that snapshot when the saved
 address changes; invalidation for future processed-dataset revisions is a later
 enhancement.
+
+Migration 004 normalizes arrangement options so one primary and ordered
+zero-to-many backups can be stored. It migrates fixed backup values into the new
+table and leaves legacy columns only for compatibility. Migration 005 adds the
+same canonical and verification metadata to destination addresses that is
+already used for the household location.
 
 After applying it, verify with:
 

@@ -1,4 +1,4 @@
-"""Provider protocols keep service logic independent of future integrations."""
+"""Provider boundaries keep official-data integrations out of business services."""
 
 from typing import Protocol
 
@@ -23,18 +23,26 @@ class SpatialResult(Protocol):
 
 
 class AddressClient(Protocol):
+    """Supply partial suggestions and stricter final official resolution."""
+
     def resolve(self, address: str) -> HouseholdLocation: ...
 
     def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]: ...
 
 
 class SpatialProvider(Protocol):
+    """Resolve static context from verified coordinates."""
+
     def get_context(self, latitude: float, longitude: float) -> SpatialResult: ...
 
 
 class FireDangerClient(Protocol):
+    """Return authoritative current FDR or signal that it is unavailable."""
+
     def get_fire_danger(self, fire_district: str) -> FireDanger: ...
 
 
 class WeatherClient(Protocol):
+    """Return authoritative current conditions or signal that they are unavailable."""
+
     def get_weather(self, latitude: float, longitude: float) -> Weather: ...

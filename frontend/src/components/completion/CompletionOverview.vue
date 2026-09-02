@@ -18,7 +18,7 @@ const labels = { household_profile: 'Household profile', transport: 'Transport',
       </ul>
     </template>
     <p v-else class="hint">Save your plan to see its completion status.</p>
-    <router-link class="btn btn-primary edit-link" to="/plan">Edit my plan</router-link>
+    <router-link class="btn btn-accent edit-link" to="/plan">Edit my plan</router-link>
   </section>
 </template>
 <style scoped>

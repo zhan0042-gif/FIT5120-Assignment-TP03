@@ -4,6 +4,8 @@ import { ApiError, api } from '../api/client'
 import { useHouseholdStore } from './household'
 
 export const useLocalContextStore = defineStore('localContext', () => {
+  // Address persistence, static context, live conditions, and preparation
+  // advice have separate states so one unavailable source does not erase others.
   const householdStore = useHouseholdStore()
   const address = ref('')
   const submittedAddress = ref('')
@@ -19,6 +21,8 @@ export const useLocalContextStore = defineStore('localContext', () => {
   const prepStatus = ref('idle')
 
   async function submitAddress(next, selectedAddress = null) {
+    // Free text remains saveable. `selectedAddress` only records that the user
+    // deliberately chose an official autocomplete candidate for verification.
     address.value = next
     submittedAddress.value = next
     saveStatus.value = 'loading'
@@ -51,6 +55,8 @@ export const useLocalContextStore = defineStore('localContext', () => {
       const householdId = await householdStore.ensureHousehold()
       context.value = await api.getLocalContext(householdId)
       contextStatus.value = 'success'
+      // Preparation advice depends on FDR and saved-plan completion, but is kept
+      // as a separate response because local weather/context can still display.
       await loadPreparationSupport()
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {

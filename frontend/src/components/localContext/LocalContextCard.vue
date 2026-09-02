@@ -35,7 +35,10 @@ function fireHistoryRows(summary) {
     <div class="card-header"><h2 class="card-title">Household address</h2><button v-if="store.location && !editing" class="btn btn-ghost btn-sm" type="button" @click="editing = true">Edit address</button></div>
     <template v-if="store.location && !editing">
       <p class="saved-address">{{ store.location.address }}</p>
-      <p class="verification">{{ store.location.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified' }}</p>
+      <p class="verification status-text" :class="store.location.verification_status === 'verified' ? 'status-success' : 'status-neutral'">
+        <span aria-hidden="true">{{ store.location.verification_status === 'verified' ? '✓' : '–' }}</span>
+        {{ store.location.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified' }}
+      </p>
     </template>
     <template v-else>
       <p v-if="!store.location" class="intro">Add your household address to view local bushfire and weather information for your area.</p>
@@ -86,7 +89,7 @@ function fireHistoryRows(summary) {
 </template>
 
 <style scoped>
-.intro, .verification, .hint, .state-message { color: var(--color-text-muted); }
+.intro, .hint, .state-message { color: var(--color-text-muted); }
 .saved-address { font-weight: 600; }
 .verification { font-size: 0.9rem; margin-top: 0.25rem; }
 .address-form { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 0.75rem; margin-top: 1rem; }

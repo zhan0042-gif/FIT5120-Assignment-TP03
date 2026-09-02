@@ -14,6 +14,13 @@ from app.services.context import AddressVerificationService
 
 
 class HouseholdPlanService:
+    """Validate and persist the household plan aggregate.
+
+    HTTP routes and repositories delegate business consistency to this service.
+    Plans may remain incomplete; validation protects references and aggregate
+    structure, while completion services report missing preparedness details.
+    """
+
     def __init__(
         self, repository: HouseholdRepository, address_client: AddressClient | None = None
     ) -> None:
@@ -23,12 +30,14 @@ class HouseholdPlanService:
         )
 
     def save(self, household_id: str, plan: HouseholdPlan) -> HouseholdPlan:
+        """Save one primary and zero-to-many ordered backup arrangements."""
         self.validate(plan)
         plan = self._enrich_destinations(plan)
         self.repository.save_plan(household_id, plan)
         return self.repository.get_plan(household_id)
 
     def _enrich_destinations(self, plan: HouseholdPlan) -> HouseholdPlan:
+        """Verify destination addresses without making verification a save prerequisite."""
         if self.address_verifier is None:
             return plan
         arrangements = plan.arrangements.model_copy(deep=True)
@@ -54,6 +63,7 @@ class HouseholdPlanService:
 
     @staticmethod
     def validate(plan: HouseholdPlan) -> None:
+        """Reject broken cross-references while allowing a partially built plan."""
         errors: list[str] = []
         member_ids = [member.member_id for member in plan.members]
         transport_ids = [transport.transport_id for transport in plan.transports]
@@ -141,7 +151,11 @@ class HouseholdPlanService:
 
 
 class PlanCompletionService:
-    """Determine completeness with explicit, non-scored section rules."""
+    """Derive the six section statuses from the latest saved plan.
+
+    Completion is not a stored or manually checked to-do list. Backup sections
+    become complete when at least one applicable backup arrangement is present.
+    """
 
     SECTION_ORDER = (
         "household_profile",
@@ -203,7 +217,11 @@ class PlanCompletionService:
 
 
 class ImmediateCheckService:
-    """Report simple deterministic issues in the latest saved plan."""
+    """Warn about practical weaknesses without blocking plan persistence.
+
+    These checks highlight missing or non-independent backup resources and
+    people. They are advisory results derived from the same saved aggregate.
+    """
 
     def evaluate(self, plan: HouseholdPlan) -> list[ImmediateCheck]:
         arrangements = plan.arrangements
