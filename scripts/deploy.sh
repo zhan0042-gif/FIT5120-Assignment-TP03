@@ -23,7 +23,9 @@ run_deploy() {
   git config --global --add safe.directory "$REPO"
   git pull --ff-only origin main
 
-  docker compose up -d --build --no-deps backend
+  # Production uses RDS, so do not start the local-development MySQL service.
+  # Wait for the Backend healthcheck before continuing with the frontend.
+  docker compose up -d --build --no-deps --wait --wait-timeout 120 backend
   # Keep the disk healthy across many deploys: drops dangling images and any
   # detached build cache that rebuilds leave behind.
   docker system prune -f

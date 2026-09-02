@@ -70,7 +70,7 @@ Merge to main
         4. tails the log into the Actions run
 ```
 
-`scripts/deploy.sh` (server-side) does: `git pull` → `docker compose up -d --build --no-deps backend` → `docker system prune -f` (disk hygiene) → frontend `npm ci` + `npm run build` → copy `dist` to `/var/www/html/` → health-check `curl /api/health`.
+`scripts/deploy.sh` (server-side) does: `git pull` → `docker compose up -d --build --no-deps --wait --wait-timeout 120 backend` (RDS is external; wait for Backend health) → `docker system prune -f` (disk hygiene) → frontend `npm ci` + `npm run build` → copy `dist` to `/var/www/html/` → health-check `curl /api/health`.
 
 Why detached + polled: a single long, high-output SSM command crashes the SSM document worker (`ipc messaging received timeout signal`). Running the deploy in the background and polling a status file is the workaround. First green end-to-end run: 2026-09-02 (Actions run #5).
 
@@ -92,6 +92,7 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 - **SSM runs commands as root with no `HOME`** → the kickoff `export HOME=/root` and `git config --global --add safe.directory <repo>` before `git pull` (root operating on an ubuntu-owned repo would otherwise be a "dubious ownership" fatal).
 - **Disk is the scarce resource.** The 8 GiB boot volume filled to 100% mid-deploy (killed a frontend copy with `ENOSPC`). Fixed by resizing to 20 GiB (console Modify volume → `growpart /dev/nvme0n1 1` → `resize2fs /dev/nvme0n1p1`) plus `docker system prune -f` after each build in `deploy.sh`. If disk creeps up again: `sudo df -h /`, `sudo du -xh --max-depth=1 / 2>/dev/null | sort -rh | head`, `sudo apt-get autoremove --purge -y`, `sudo journalctl --vacuum-size=20M`.
 - **Deploy log / status** live on the server at `/var/log/fit5120-deploy.log` and `/var/log/fit5120-deploy.status` — the GitHub Actions "tail the log" step prints the end of the former into the run output.
+- **Memory needs host-level protection.** On the approximately 1 GB EC2 host, the deployment lead should add approximately 1–2 GB of swap after approval and monitor `free -h`, `docker stats --no-stream`, `docker ps`, and `docker compose ps`. Inspect kernel OOM evidence with `sudo dmesg -T | grep -i -E "out of memory|killed process|oom"` or the equivalent `sudo journalctl -k --no-pager` pipeline. Swap absorbs short spikes; `restart: unless-stopped` recovers Backend process exits. The restart policy does not prevent OOM.
 
 ## 7. Decisions (recorded)
 

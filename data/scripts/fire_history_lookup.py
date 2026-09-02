@@ -15,15 +15,17 @@ FIRE_HISTORY_PATH = (
     / "fire_history_lightweight.parquet"
 )
 
-fire_history = gpd.read_parquet(FIRE_HISTORY_PATH)
+fire_history_projected = gpd.read_parquet(FIRE_HISTORY_PATH)
+fire_history_record_count = len(fire_history_projected)
+fire_history_source_crs = fire_history_projected.crs
 
 # --------------------------------------------------
 # Project dataset once for distance-based lookup
 # --------------------------------------------------
 
-fire_history_projected = fire_history.to_crs(
-    "EPSG:7899"
-)
+# Reproject in place because lookups do not use the source-CRS frame. Keeping
+# both 628k-row frames costs substantial memory in the long-running Backend.
+fire_history_projected.to_crs("EPSG:7899", inplace=True)
 
 # --------------------------------------------------
 # Fire History lookup
@@ -103,8 +105,8 @@ def get_fire_history_context(
 
 if __name__ == "__main__":
     
-    print("Loaded Fire History records:", len(fire_history))
-    print("Source CRS:", fire_history.crs)
+    print("Loaded Fire History records:", fire_history_record_count)
+    print("Source CRS:", fire_history_source_crs)
     print("Lookup CRS:", fire_history_projected.crs)
 
     # --------------------------------------------------

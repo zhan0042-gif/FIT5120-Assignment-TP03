@@ -67,3 +67,38 @@ npm run build
 ```
 
 MySQL integration tests require an isolated `MYSQL_TEST_URL`; tests that need it are skipped when it is absent.
+
+## Production deployment stability
+
+Docker Compose applies `restart: unless-stopped` to both Backend and MySQL. The
+Backend waits for the MySQL healthcheck during a normal Compose start, and the
+server deploy script waits for the Backend's `/api/health` check before reporting
+success. The Backend runs one uvicorn process without development reload mode.
+
+nginx is installed directly on the EC2 host rather than managed by this Compose
+project. The deployment lead should verify that its host service is enabled and
+healthy:
+
+```bash
+sudo systemctl is-enabled nginx
+sudo systemctl status nginx --no-pager
+```
+
+On the current approximately 1 GB host, inspect memory, container state, and
+recent kernel OOM events with:
+
+```bash
+free -h
+docker stats --no-stream
+docker ps
+docker compose ps
+sudo dmesg -T | grep -i -E "out of memory|killed process|oom"
+sudo journalctl -k --no-pager | grep -i -E "out of memory|killed process|oom"
+```
+
+Adding approximately 1–2 GB of host swap is a deployment/host responsibility
+and requires deployment-lead approval; application repository code must not
+create or configure it. Swap protects against short memory spikes. Docker's
+restart policy instead recovers a container after its process exits. A restart
+policy does not prevent an OOM kill, so both measures address different parts
+of the failure mode.
