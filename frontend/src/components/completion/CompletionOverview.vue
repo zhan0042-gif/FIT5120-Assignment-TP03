@@ -1,69 +1,33 @@
 <script setup>
 import LoadingState from '../common/LoadingState.vue'
-import StatusBadge from '../common/StatusBadge.vue'
-
 defineProps({ completion: { type: Object, default: null }, loading: { type: Boolean, required: true } })
-
-const SECTION_LABELS = {
-  household_profile: 'Household profile',
-  transport: 'Transport',
-  backup_transport: 'Backup transport',
-  primary_destination: 'Primary destination',
-  backup_destination: 'Backup destination',
-  responsibilities: 'Responsibilities',
-}
+const labels = { household_profile: 'Household profile', transport: 'Transport', backup_transport: 'Backup transport', primary_destination: 'Primary destination', backup_destination: 'Backup destination', responsibilities: 'Responsibilities' }
 </script>
-
 <template>
-  <section class="card">
-    <div class="card-header">
-      <div>
-        <h3 class="card-title">Plan completion & immediate checks</h3>
-      </div>
-      <StatusBadge v-if="completion" :status="completion.overall_status" />
-    </div>
-
-    <LoadingState v-if="loading" message="Checking plan completion and immediate checks…" />
+  <section class="card completion-card">
+    <h2 class="card-title">Plan completion</h2>
+    <LoadingState v-if="loading" message="Checking plan completion..." />
     <template v-else-if="completion">
-      <p class="section-label">Plan completion</p>
-      <ul class="section-list">
-        <li v-for="section in completion.sections" :key="section.section" class="list-item">
-          <span>{{ SECTION_LABELS[section.section] ?? section.section }}</span>
-          <StatusBadge :status="section.status" />
+      <p class="summary"><strong>{{ completion.sections.filter((item) => item.status === 'complete').length }} of {{ completion.sections.length }} sections complete</strong></p>
+      <ul class="sections">
+        <li v-for="section in completion.sections" :key="section.section">
+          <span class="indicator" :class="{ complete: section.status === 'complete' }" aria-hidden="true">{{ section.status === 'complete' ? '✓' : '' }}</span>
+          <span>{{ labels[section.section] ?? section.section }}</span>
+          <span class="status">{{ section.status === 'complete' ? 'Complete' : 'Needs attention' }}</span>
         </li>
       </ul>
-
-      <p class="section-label immediate-heading">Immediate checks</p>
-      <ul v-if="completion.immediate_checks.length" class="section-list">
-        <li v-for="check in completion.immediate_checks" :key="`${check.check}-${check.message}`" class="list-item">
-          <span>{{ check.message }}</span>
-          <StatusBadge :status="check.status" />
-        </li>
-      </ul>
-      <p v-else class="hint">No obvious arrangement issues were found in the current plan.</p>
     </template>
-    <p v-else class="hint">Save your plan to see completion status and immediate checks.</p>
+    <p v-else class="hint">Save your plan to see its completion status.</p>
+    <router-link class="btn btn-primary edit-link" to="/plan">Edit my plan</router-link>
   </section>
 </template>
-
 <style scoped>
-.section-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.section-label {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-
-.immediate-heading {
-  margin-top: 1.25rem;
-}
-
-.hint {
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
+.summary { margin: 1rem 0 0.5rem; }
+.sections { list-style: none; margin: 0; padding: 0; }
+.sections li { display: grid; grid-template-columns: 1.35rem minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; padding: 0.55rem 0; border-bottom: 1px solid var(--color-border); }
+.indicator { border: 2px solid var(--color-border); border-radius: 50%; display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem; font-size: 0.75rem; }
+.indicator.complete { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.status { color: var(--color-text-muted); font-size: 0.9rem; }
+.hint { color: var(--color-text-muted); margin-top: 1rem; }
+.edit-link { display: inline-flex; margin-top: 1rem; text-decoration: none; }
 </style>

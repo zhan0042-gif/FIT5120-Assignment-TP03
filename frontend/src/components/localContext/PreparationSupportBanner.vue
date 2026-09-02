@@ -1,51 +1,34 @@
 <script setup>
 import { computed } from 'vue'
 import { useLocalContextStore } from '../../stores/localContext'
-
+import LoadingState from '../common/LoadingState.vue'
 const store = useLocalContextStore()
-
-const SECTION_LABELS = {
-  backup_transport: 'backup transport',
-  backup_destination: 'backup destination',
-  responsibilities: 'responsibilities',
-}
-
-const reviewLabels = computed(() =>
-  (store.prepSupport?.sections_to_review ?? []).map((s) => SECTION_LABELS[s] ?? s),
-)
+const labels = { household_profile: 'Household profile', transport: 'Transport', backup_transport: 'Backup transport', primary_destination: 'Primary destination', backup_destination: 'Backup destination', responsibilities: 'Responsibilities' }
+const reviewLabels = computed(() => (store.prepSupport?.sections_to_review ?? []).map((key) => labels[key] ?? key))
 </script>
-
 <template>
-  <section v-if="store.prepSupport" class="banner" :class="{ 'is-alert': store.prepSupport.status === 'review_recommended' }">
-    <p class="message">{{ store.prepSupport.message }}</p>
-    <p v-if="reviewLabels.length" class="review-list">
-      Review: <strong>{{ reviewLabels.join(', ') }}</strong>
-    </p>
+  <section class="card preparation-card">
+    <h2 class="card-title">Preparation status</h2>
+    <LoadingState v-if="store.prepStatus === 'loading'" message="Checking current preparation advice..." />
+    <template v-else-if="store.prepStatus === 'success' && store.prepSupport?.status === 'up_to_date'">
+      <h3>No review needed right now</h3>
+      <p>Based on the current official fire danger information, no additional review is recommended.</p>
+    </template>
+    <template v-else-if="store.prepStatus === 'success' && store.prepSupport?.status === 'review_recommended'">
+      <h3>Review recommended</h3>
+      <p>Current fire danger information indicates that you should review your household preparedness plan.</p>
+      <ul v-if="reviewLabels.length"><li v-for="label in reviewLabels" :key="label">{{ label }}</li></ul>
+      <router-link class="btn btn-accent action" to="/plan">Review my plan</router-link>
+    </template>
+    <template v-else>
+      <h3>Preparation advice currently unavailable</h3>
+      <p>Official fire danger information is currently unavailable, so FIREBREAK cannot provide a preparation recommendation right now.</p>
+    </template>
   </section>
 </template>
-
 <style scoped>
-.banner {
-  border: 1px solid var(--color-border);
-  border-left: 4px solid var(--color-success);
-  border-radius: var(--radius);
-  padding: 1rem 1.25rem;
-  background: var(--color-bg-card);
-  margin-bottom: 1.25rem;
-}
-
-.banner.is-alert {
-  border-left-color: var(--color-accent);
-}
-
-.message {
-  font-weight: 600;
-  margin-top: 0.3rem;
-}
-
-.review-list {
-  margin-top: 0.4rem;
-  font-size: 0.875rem;
-  color: var(--color-text-muted);
-}
+h3 { font-size: 1.05rem; margin: 1rem 0 0.4rem; }
+p { color: var(--color-text-muted); }
+ul { margin-bottom: 0; padding-left: 1.25rem; }
+.action { display: inline-flex; margin-top: 1rem; text-decoration: none; }
 </style>

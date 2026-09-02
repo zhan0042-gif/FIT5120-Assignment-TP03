@@ -5,6 +5,11 @@ const router = createRouter({
   routes: [
     {
       path: '/',
+      name: 'welcome',
+      component: () => import('../views/WelcomeView.vue'),
+    },
+    {
+      path: '/overview',
       name: 'overview',
       component: () => import('../views/OverviewView.vue'),
     },
@@ -21,7 +26,7 @@ const router = createRouter({
     {
       path: '/review',
       name: 'review-reminders',
-      redirect: '/',
+      redirect: '/overview',
     },
   ],
 })

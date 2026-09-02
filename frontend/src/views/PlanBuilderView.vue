@@ -1,19 +1,15 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useHouseholdStore } from '../stores/household'
-import { useLocalContextStore } from '../stores/localContext'
 import LoadingState from '../components/common/LoadingState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
-import LocalContextCard from '../components/localContext/LocalContextCard.vue'
-import PreparationSupportBanner from '../components/localContext/PreparationSupportBanner.vue'
 import HouseholdMembersForm from '../components/household/HouseholdMembersForm.vue'
 import TransportForm from '../components/household/TransportForm.vue'
 import ArrangementsForm from '../components/household/ArrangementsForm.vue'
 import ResponsibilitiesForm from '../components/household/ResponsibilitiesForm.vue'
-import CompletionOverview from '../components/completion/CompletionOverview.vue'
+import PlanChecks from '../components/completion/PlanChecks.vue'
 
 const householdStore = useHouseholdStore()
-const localContextStore = useLocalContextStore()
 
 const draft = ref(null)
 
@@ -26,9 +22,6 @@ function resetDraft() {
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
   resetDraft()
-  if (localContextStore.contextStatus === 'idle') {
-    localContextStore.init()
-  }
 })
 
 watch(
@@ -71,19 +64,14 @@ async function save() {
   if (!draft.value || validationErrors.value.length > 0) return
   await householdStore.savePlan(draft.value)
   if (householdStore.saveStatus === 'success') resetDraft()
-  await localContextStore.loadPreparationSupport()
 }
 </script>
 
 <template>
   <div class="plan-builder">
     <div class="plan-scroll">
-      <p class="eyebrow">Plan builder</p>
-      <h1 class="headline">Build the plan</h1>
-      <p class="subhead">Everything here feeds the scenario tester — the more complete it is, the more useful a stress test becomes.</p>
-
-      <PreparationSupportBanner />
-      <LocalContextCard />
+      <h1 class="headline">Build your household preparedness plan</h1>
+      <p class="subhead">Add household members, animals, transport, destinations, and responsibilities. You can save your plan and return to update it later.</p>
 
       <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your household plan…" />
       <ErrorState
@@ -101,7 +89,7 @@ async function save() {
         />
         <ArrangementsForm v-model="draft.arrangements" :transports="draft.transports" />
         <ResponsibilitiesForm v-model="draft.responsibilities" :members="draft.members" />
-        <CompletionOverview :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
+        <PlanChecks :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
       </template>
     </div>
 
@@ -126,17 +114,18 @@ async function save() {
 
 <style scoped>
 .plan-builder {
+  --save-bar-clearance: 7rem;
   width: 100%;
   min-width: 0;
 }
 
 .plan-scroll {
   min-width: 0;
-  padding-bottom: 5.5rem;
+  padding-bottom: calc(var(--save-bar-clearance) + 2rem);
 }
 
 .headline {
-  font-size: 2rem;
+  font-size: clamp(2rem, 4vw, 2.25rem);
   margin: 0.4rem 0 0.5rem;
 }
 
@@ -167,6 +156,10 @@ async function save() {
 }
 
 @media (max-width: 520px) {
+  .plan-builder {
+    --save-bar-clearance: 11rem;
+  }
+
   .save-bar {
     align-items: stretch;
     flex-direction: column;

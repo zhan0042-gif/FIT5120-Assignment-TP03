@@ -19,7 +19,7 @@ function transportOptionLabel(transport) {
   const typeLabel = transport.transport_type === 'other' && transport.transport_type_other
     ? transport.transport_type_other
     : TRANSPORT_LABELS[transport.transport_type] || 'Other'
-  return transport.display_name ? `${transport.display_name} — ${typeLabel}` : typeLabel
+  return transport.display_name ? `${transport.display_name}: ${typeLabel}` : typeLabel
 }
 
 function newDestination() {
@@ -137,7 +137,7 @@ function removeBackupArrangement(index) {
         </select>
       </div>
       <div class="field">
-        <label>Primary destination</label>
+        <label>Primary destination name</label>
         <input v-model="primaryName" type="text" placeholder="e.g. Relative's house" />
       </div>
       <AddressAutocompleteInput :model-value="primaryAddress" label="Destination address (optional)" placeholder="Start typing a Victorian address" :helper-text="arrangements.primary_destination?.address ? (arrangements.primary_destination.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified') : ''" @update:model-value="setPrimaryDestinationAddress" @select="selectPrimaryDestinationAddress" />
@@ -148,7 +148,7 @@ function removeBackupArrangement(index) {
     <div class="backup-heading">
       <div>
         <p class="section-label">Backup arrangements</p>
-        <p class="hint">Optional now, but recommended — plan tests flag missing independent backups.</p>
+        <p class="hint">Backup arrangements are optional, but recommended. FIREBREAK will warn you if there is no usable backup.</p>
       </div>
       <button class="btn btn-ghost btn-sm" type="button" @click="addBackupArrangement">
         Add backup arrangement
@@ -175,13 +175,13 @@ function removeBackupArrangement(index) {
           </select>
         </div>
         <div class="field">
-          <label>Backup destination</label>
+          <label>Backup destination name</label>
           <input :value="backup.destination?.display_name ?? ''" type="text" placeholder="e.g. Community centre" @input="setBackupDestinationField(backup, 'display_name', $event.target.value)" />
         </div>
         <AddressAutocompleteInput :model-value="backup.destination?.address ?? ''" label="Destination address (optional)" placeholder="Start typing a Victorian address" :helper-text="backup.destination?.address ? (backup.destination.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified') : ''" @update:model-value="setBackupDestinationAddress(backup, $event)" @select="selectBackupDestinationAddress(backup, $event)" />
       </div>
       <button v-if="backup.destination" class="btn btn-ghost btn-sm" type="button" @click="backup.destination = null">
-        Clear backup destination
+        Clear destination
       </button>
     </section>
 

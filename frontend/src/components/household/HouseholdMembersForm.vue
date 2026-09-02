@@ -130,13 +130,13 @@ function changeAnimalCategory(animal) {
       <span class="badge badge-neutral">{{ animals.length }} recorded</span>
     </div>
 
-    <EmptyState v-if="animals.length === 0" title="No animals recorded" message="This is fine — animals are optional.">
+    <EmptyState v-if="animals.length === 0" title="No animals recorded" message="This is fine. Animals are optional.">
       <button class="btn btn-ghost btn-sm" type="button" @click="addAnimal">Add animal</button>
     </EmptyState>
 
     <template v-else>
       <div v-for="animal in animals" :key="animal.animal_id" class="member-row">
-        <div class="field-grid">
+        <div class="field-grid animal-grid">
           <div class="field">
             <label>Category</label>
             <select v-model="animal.category" required @change="changeAnimalCategory(animal)">
@@ -210,5 +210,10 @@ function changeAnimalCategory(animal) {
 
 .checkbox-group > .btn-danger {
   margin-left: auto;
+}
+
+@media (min-width: 881px) {
+  .animal-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .animal-grid .field > label { align-items: flex-end; display: flex; min-height: 2.7em; }
 }
 </style>

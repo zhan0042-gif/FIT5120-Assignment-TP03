@@ -1,101 +1,34 @@
-<script setup>
-import AppSidebar from './AppSidebar.vue'
-import { useUiStore } from '../../stores/ui'
-
-const uiStore = useUiStore()
-</script>
-
 <template>
   <div class="layout">
-    <AppSidebar />
-    <div class="main">
-      <header class="app-header">
-        <button class="menu-btn" type="button" aria-label="Open menu" @click="uiStore.openMobileMenu">☰</button>
-        <div class="app-brand">FIREBREAK</div>
-      </header>
-      <main class="content">
-        <router-view />
-      </main>
-    </div>
+    <header class="app-header">
+      <router-link class="app-brand" to="/">FIREBREAK</router-link>
+      <nav class="top-nav" aria-label="Primary navigation">
+        <router-link to="/plan">My Plan</router-link>
+        <router-link to="/scenarios">Test My Plan</router-link>
+        <router-link to="/overview">Overview</router-link>
+      </nav>
+    </header>
+    <main class="content"><router-view /></main>
   </div>
 </template>
 
 <style scoped>
-.layout {
-  display: flex;
-  width: 100%;
-  height: 100vh;
-  height: 100dvh;
-  overflow: hidden;
-}
-
-.main {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.app-header {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  padding: 1rem 3rem;
-  background: var(--color-bg-card);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.app-brand {
-  font-size: 1.75rem;
-  font-weight: 700;
-  letter-spacing: 0.035em;
-  line-height: 1.15;
-}
-
-.menu-btn {
-  display: none;
-}
-
-.content {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 2.5rem 3rem;
-}
-
+.layout { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100vh; height: 100dvh; overflow: hidden; }
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 2rem; min-width: 0; padding: 1rem 3rem; background: var(--color-bg-card); border-bottom: 1px solid var(--color-border); }
+.app-brand { color: var(--color-text); font-size: 1.75rem; font-weight: 700; letter-spacing: 0.035em; line-height: 1.15; text-decoration: none; }
+.top-nav { display: flex; align-items: center; gap: clamp(0.75rem, 2.5vw, 2rem); }
+.top-nav a { border-bottom: 2px solid transparent; color: var(--color-text-muted); font-size: 1rem; font-weight: 600; padding: 0.45rem 0; text-decoration: none; white-space: nowrap; }
+.top-nav a:hover, .top-nav a:focus-visible, .top-nav a.router-link-active { color: var(--color-accent); }
+.top-nav a.router-link-active { border-bottom-color: var(--color-accent); }
+.content { min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 2.5rem 3rem; }
 @media (max-width: 880px) {
-  .app-header {
-    gap: 0.85rem;
-    padding: 0.8rem clamp(1rem, 4vw, 1.5rem);
-    background: var(--color-bg-sidebar);
-    color: var(--color-text-inverse);
-  }
-
-  .menu-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: transparent;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    color: inherit;
-    border-radius: var(--radius);
-    padding: 0.35rem 0.65rem;
-    font-size: 1rem;
-    line-height: 1;
-    cursor: pointer;
-  }
-
-  .app-brand {
-    font-size: 1.5rem;
-  }
-
-  .content {
-    padding: clamp(1rem, 4vw, 1.5rem);
-  }
+  .app-header { gap: 1rem; padding: 0.8rem clamp(1rem, 4vw, 1.5rem); }
+  .app-brand { font-size: 1.5rem; }
+  .content { padding: clamp(1rem, 4vw, 1.5rem); }
+}
+@media (max-width: 600px) {
+  .app-header { align-items: flex-start; flex-direction: column; }
+  .top-nav { gap: 1rem; width: 100%; overflow-x: auto; }
+  .top-nav a { font-size: 0.9rem; }
 }
 </style>
