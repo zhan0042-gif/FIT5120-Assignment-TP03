@@ -24,7 +24,9 @@ run_deploy() {
   git pull --ff-only origin main
 
   docker compose up -d --build --no-deps backend
-  docker image prune -f
+  # Keep the disk healthy across many deploys: drops dangling images and any
+  # detached build cache that rebuilds leave behind.
+  docker system prune -f
 
   cd frontend
   npm ci
