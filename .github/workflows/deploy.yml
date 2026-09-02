@@ -88,6 +88,9 @@ jobs:
       - name: Wait for deploy to finish
         env:
           INSTANCE_ID: i-060c00865b0bf629e
+          # The kickoff command's id, so we can wait for it to really finish
+          # before touching the log/status files it creates.
+          KICKOFF_ID: ${{ steps.start.outputs.command_id }}
         run: |
           set -euo pipefail
           REGION=ap-southeast-4
@@ -112,11 +115,32 @@ jobs:
               --query 'StandardOutputContent' --output text 2>/dev/null || true
           }
 
+          # send-command is asynchronous: it returns before the kickoff command
+          # has actually run on the server. Wait for the kickoff invocation to
+          # finish first, otherwise the log file may not exist yet and we would
+          # wrongly report "deploy not started" (the NO_LOG race in run #4).
+          for _ in $(seq 1 30); do
+            state=$(aws ssm get-command-invocation \
+              --region "$REGION" --command-id "$KICKOFF_ID" --instance-id "$INSTANCE_ID" \
+              --query 'Status' --output text 2>/dev/null || echo Pending)
+            echo "Kickoff status: $state"
+            case "$state" in Success|Failed|Cancelled|TimedOut) break ;; esac
+            sleep 3
+          done
+          if [ "$state" != "Success" ]; then
+            echo "::error::Kickoff command finished with status $state"
+            aws ssm get-command-invocation \
+              --region "$REGION" --command-id "$KICKOFF_ID" --instance-id "$INSTANCE_ID" \
+              --query 'StandardErrorContent' --output text 2>/dev/null || true
+            exit 1
+          fi
+          echo "Kickoff command finished OK"
+
           # Confirm the background deploy actually started before polling.
           KICK=$(ssm_run "test -f /var/log/fit5120-deploy.log && echo READY || echo NO_LOG")
           echo "Kickoff check: $KICK"
           if [ "$KICK" != "READY" ]; then
-            echo "::error::Deploy was not started (git pull in kickoff failed?)"
+            echo "::error::Deploy was not started (background deploy.sh did not write its log)"
             exit 1
           fi
 
