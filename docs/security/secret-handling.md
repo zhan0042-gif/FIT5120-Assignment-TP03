@@ -17,7 +17,7 @@
    ```
    This ensures only the owner can read it.
 5. **CI/CD secrets go in GitHub Actions Secrets**, not in the repo. Anyone with collaborator access can see workflow definitions — never embed a secret there. (Repo Settings → Security → Secrets and variables.)
-6. **Production secrets live in AWS Secrets Manager** (planned for deployment). The deployment pipeline reads secrets at runtime; they are never baked into images or the repo.
+6. **Production secrets live in the server's `.env`** (`chmod 600`, never committed) — the accepted arrangement for I1 (see deployment-plan §4). CI credentials live in GitHub Actions Secrets. Moving to AWS Secrets Manager is a planned I2 improvement; secrets are never baked into images or the repo.
 
 ## Current environment variables
 

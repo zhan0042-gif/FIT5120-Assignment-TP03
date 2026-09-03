@@ -17,26 +17,21 @@ pip install pip-audit
 pip-audit -r backend/requirements.txt
 ```
 
-Save the output as evidence:
-
-```bash
-pip-audit -r backend/requirements.txt > docs/security/evidence/$(date +%F)_pip-audit.txt
-```
-
 **Frontend** (once the frontend team initializes the Vue app):
 
 ```bash
 cd frontend
 npm audit
-npm audit --json > ../docs/security/evidence/$(date +%F)_npm-audit.json
 ```
+
+Results are recorded in the Iteration 1 vulnerability assessment report (PGP, Security folder).
 
 **Dependabot:** enabled by the repo owner at Settings → Code security and analysis → **Dependabot alerts** and **Dependabot version updates**. It opens PRs for vulnerable packages automatically; review and merge them.
 
 ## When to run
 
 - **On every dependency change** (new package added, or `pip install` / `npm install` output).
-- **Before every deployment** — re-run both scans and archive the output.
+- **Before every deployment** — re-run both scans and record findings in the vulnerability assessment report.
 - **Automatically** via Dependabot for alerts between manual runs.
 
 ## Triage rules
@@ -47,7 +42,7 @@ npm audit --json > ../docs/security/evidence/$(date +%F)_npm-audit.json
 
 ## Status
 
-- [ ] Backend deps installed → first `pip-audit` run, archive to `evidence/`
-- [ ] Frontend initialized → first `npm audit` run, archive to `evidence/`
-- [ ] Dependabot alerts enabled (owner)
+- [x] Backend deps installed → first `pip-audit` run (2026-09-03) — results in the vulnerability assessment report
+- [x] Frontend initialized → first `npm audit` run (2026-09-03) — 0 vulnerabilities
+- [x] Dependabot alerts enabled (owner) — reporting on `main` as of 2026-09-02
 - [ ] Scan added to CI (recommended after both stacks exist)

@@ -7,20 +7,16 @@
 
 One EC2 instance runs the backend as a Docker container; Nginx serves the static frontend, terminates HTTPS, and proxies `/api` to the backend. Matches the layout described in `nginx/README.md`.
 
-```
-                     Internet
-                        │  HTTPS 80/443
-                        v
-                     Nginx (reverse proxy + basic auth gate)
-                        │
-            ┌───────────┴────────────┐
-            │  /  → frontend (Vue)   │  /api → backend:8000
-            v                         v
-        frontend static            Backend (FastAPI, container)
-                                        │
-                                        v
-                             RDS (MySQL 8.4, managed, SG-locked to EC2)
-```
+Architecture (read top to bottom):
+
+1. Internet clients reach the site over HTTPS (ports 80/443).
+2. Nginx terminates HTTPS, enforces the shared-password auth gate, and:
+   - `/`    serves the Vue frontend (static files)
+   - `/api` proxies to the backend container
+3. Backend (FastAPI / uvicorn) runs in Docker, listening on `127.0.0.1:8000`.
+4. Backend reads/writes RDS (MySQL 8.4, managed), reachable only from the
+   EC2 security group — never exposed to the public Internet.
+
 
 Key points:
 - **One EC2** keeps cost and ops simple for a student prototype (same pattern as our earlier project).
@@ -30,7 +26,7 @@ Key points:
 
 ## 2. Components
 
-- **EC2** — Ubuntu 24.04, t3.micro, `i-060c00865b0bf629e` (ap-southeast-4, public `16.50.155.51`). **Access via AWS SSM Session Manager only** (no port 22). Boot volume is 20 GiB gp3 (resized from 8 GiB on 2026-09-02 — the 8 GiB disk repeatedly filled up during builds; see §6 ops notes).
+- **EC2** — Ubuntu 24.04, t3.micro, `i-060c00865b0bf629e` (ap-southeast-4, public `16.50.155.51`). **Access via AWS SSM Session Manager** as the normal path; **port 22 stays open but restricted to the operator's home IP** (`101.188.108.19/32`) as the emergency fallback when the SSM agent is unavailable (F5/R5 in the vulnerability assessment report). Boot volume is 20 GiB gp3 (resized from 8 GiB on 2026-09-02 — the 8 GiB disk repeatedly filled up during builds; see §6 ops notes).
 - **Backend** — `backend/Dockerfile` (python:3.12-slim, uvicorn :8000), run as a container via Docker Compose; health check at `/api/health`.
 - **MySQL / RDS** — **reusing the existing `fit5120-db` (db.t4g.micro, MySQL 8.4).** Production `DATABASE_HOST` points at the RDS endpoint; the `mysql:8.4` service in `docker-compose.yml` is local dev only. Schema was applied manually on deploy (RDS does not auto-run init scripts).
 - **Frontend** — Vue 3 + Vite. Production build (`npm run build`) output is copied to `/var/www/html/`.
@@ -40,7 +36,7 @@ Key points:
 ## 3. Networking & security groups
 
 - Inbound: **80 + 443 from 0.0.0.0/0** only.
-- **No port 22** — management is via SSM Session Manager (instance role `EC2-SSM-Role`, policy `AmazonSSMManagedInstanceCore`).
+- **Port 22 restricted to the operator's home IP** (`101.188.108.19/32`) — emergency fallback for when SSM Session Manager is unavailable; management is primarily via SSM (instance role `EC2-SSM-Role`, policy `AmazonSSMManagedInstanceCore`). Accepted operational risk (F5/R5 in the vulnerability assessment report).
 - **MySQL not exposed** — RDS has public access off; reachable only from the EC2 security group.
 - Outbound: apt updates, image pulls, external APIs (Vicmap / CFA / BOM).
 
@@ -58,17 +54,16 @@ Source of truth for variable names: `.env.example` (see `secret-handling.md`).
 
 `.github/workflows/deploy.yml` runs on push/merge to `main` (paths: `backend/**`, `frontend/**`, `data/**`, `scripts/**`, `docker-compose.yml`, the workflow itself) and on `workflow_dispatch`.
 
-```
-Merge to main
-   → Job 1: backend tests (pytest)          — if they fail, the deploy job never runs
-   → Job 2: deploy to EC2 via AWS SSM
-        1. send-command starts scripts/deploy.sh on the server, DETACHED
-           (setsid; stdout → /var/log/fit5120-deploy.log)
-        2. workflow awaits that kickoff command's own Status (send-command is
-           async — polling its side-effects too early caused a false "NO_LOG")
-        3. workflow polls /var/log/fit5120-deploy.status → "0" = success
-        4. tails the log into the Actions run
-```
+Pipeline flow (top to bottom):
+
+1. **Merge to main**.
+2. **Job 1 — backend tests** (`pytest`): if these fail, the deploy job never runs.
+3. **Job 2 — deploy to EC2 via AWS SSM**:
+   1. `send-command` starts `scripts/deploy.sh` on the server in the background (setsid); its output goes to `/var/log/fit5120-deploy.log`.
+   2. The workflow first awaits that kickoff command's own Status (send-command is async — polling its side-effects too early once caused a false "NO_LOG").
+   3. The workflow then polls `/var/log/fit5120-deploy.status` until it reads "0" (success).
+   4. It tails the log into the Actions run.
+
 
 `scripts/deploy.sh` (server-side) does: `git pull` → `docker compose up -d --build --no-deps backend` → `docker system prune -f` (disk hygiene) → frontend `npm ci` + `npm run build` → copy `dist` to `/var/www/html/` → health-check `curl /api/health`.
 
@@ -85,7 +80,7 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 5. **Done:** RDS `fit5120-db` reused; safety snapshot taken; old project's schema replaced by `database/init/001_initial_schema.sql`.
 6. **Done:** `docker compose up -d --build` (no `mysql` service in prod); `/api/health` returns `{"status":"ok"}`.
 7. **Done:** Nginx reverse proxy + basic auth gate + certbot HTTPS + auto-renew.
-8. **In progress:** security checks in `deployment-checklist.md` are being worked through; evidence goes in `docs/security/evidence/`.
+8. **In progress:** security checks in `deployment-checklist.md` are being worked through; evidence is submitted in PGP (Security folder).
 
 **Ops notes learned during bring-up (worth keeping):**
 
@@ -104,7 +99,7 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 
 - **Dependabot** reports 1 high + 1 moderate vulnerability on `main` (as of 2026-09-02) — to be triaged in the repo Security tab.
 - **deployment-checklist.md** items still unchecked are the remaining security gate; work through before the I1 release sign-off.
-- HSTS header and request rate-limiting at the reverse proxy are deferred (noted in `deployment-checklist.md` / `threat-model.md`).
+- Request rate-limiting at the reverse proxy is deferred (noted in `deployment-checklist.md` / `threat-model.md`). HSTS was added on 2026-09-02 (verified via `curl -I`).
 
 ## 9. References
 
