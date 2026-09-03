@@ -6,14 +6,18 @@ on:
     paths:
       - "backend/**"
       - "database/**"
+      - "data/**"
       - "ai/**"
+      - "pyproject.toml"
       - "docker-compose.yml"
       - ".github/workflows/backend-ci.yml"
   pull_request:
     paths:
       - "backend/**"
       - "database/**"
+      - "data/**"
       - "ai/**"
+      - "pyproject.toml"
       - "docker-compose.yml"
       - ".github/workflows/backend-ci.yml"
 
@@ -36,10 +40,13 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+            pyproject.toml
 
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: python -m pip install --upgrade pip && pip install -r requirements-dev.txt
 
       - name: Run tests
         run: pytest

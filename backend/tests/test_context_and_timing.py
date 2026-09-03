@@ -16,6 +16,7 @@ from app.schemas.households import (
     CompletionSection,
     FireDanger,
     FireDangerContext,
+    HouseholdLocation,
     PlanCompletion,
 )
 from app.services.context import (
@@ -137,6 +138,28 @@ def test_location_can_be_replaced_with_latest_resolved_value() -> None:
     assert repository.get_location(household_id) == updated
 
 
+def test_device_location_uses_coordinates_without_claiming_address_verification() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    service = LocationService(repository, MockAddressClient())
+
+    saved = service.save_device_location(household_id, -37.8136, 144.9631)
+    context = LocalContextService(
+        repository,
+        MockSpatialProvider(),
+        MockFireDangerClient(),
+        MockWeatherClient(),
+    ).get(household_id)
+
+    assert saved.address == ""
+    assert saved.location_source == "device_location"
+    assert saved.verification_status == "unverified"
+    assert saved.canonical_address is None
+    assert (context.location.latitude, context.location.longitude) == pytest.approx(
+        (-37.8136, 144.9631)
+    )
+
+
 class RecordingAddressClient:
     called = False
 
@@ -172,6 +195,32 @@ def test_address_provider_failure_keeps_the_saved_address_unverified() -> None:
     assert location.address == "Warrandyte VIC 3113"
     assert location.verification_status == "unverified"
     assert location.latitude is None
+
+
+class CanonicalAddressClient:
+    def resolve(self, address: str):
+        assert address == "788 drummond st, carlton north vic 3054"
+        return HouseholdLocation(
+            address="788 DRUMMOND STREET CARLTON NORTH VIC 3054",
+            latitude=-37.7861013,
+            longitude=144.9712111,
+        )
+
+
+def test_manual_address_keeps_raw_text_and_persists_provider_canonical_result() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+
+    location = LocationService(repository, CanonicalAddressClient()).save(
+        household_id, "  788 drummond st,  carlton north vic 3054  "
+    )
+
+    assert location.address == "788 drummond st, carlton north vic 3054"
+    assert location.canonical_address == "788 DRUMMOND STREET CARLTON NORTH VIC 3054"
+    assert location.verification_status == "verified"
+    assert (location.latitude, location.longitude) == pytest.approx(
+        (-37.7861013, 144.9712111)
+    )
 
 
 def test_selected_official_address_is_saved_as_verified() -> None:
@@ -367,6 +416,11 @@ class UnavailableFireDangerClient:
         raise ExternalDataUnavailable("Official FDR is unavailable.")
 
 
+class UnavailableWeatherClient:
+    def get_weather(self, latitude: float, longitude: float):
+        raise ExternalDataUnavailable("Official weather is unavailable.")
+
+
 class UnexpectedFireDangerClient:
     def get_fire_danger(self, fire_district: str):
         raise RuntimeError("unexpected parser defect")
@@ -422,6 +476,25 @@ def test_stale_fire_danger_is_not_exposed_by_local_context() -> None:
 
     assert result.fire_danger.availability == "unavailable"
     assert result.fire_danger.today is None
+
+
+def test_explicit_weather_unavailability_preserves_spatial_context() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+
+    result = LocalContextService(
+        repository,
+        MockSpatialProvider(),
+        MockFireDangerClient(),
+        UnavailableWeatherClient(),
+    ).get(household_id)
+
+    assert result.bushfire_context.fire_district == "Central"
+    assert result.fire_danger.availability == "available"
+    assert result.weather is None
 
 
 def test_unexpected_fire_danger_error_is_not_converted_to_partial_context() -> None:

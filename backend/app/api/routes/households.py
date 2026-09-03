@@ -19,6 +19,7 @@ from app.providers.interfaces import (
 )
 from app.repositories.households import HouseholdRepository
 from app.schemas.households import (
+    DeviceLocationRequest,
     HouseholdCreate,
     HouseholdCreated,
     HouseholdLocation,
@@ -98,6 +99,19 @@ def get_location(
 ) -> HouseholdLocation:
     """Return saved address data independently of local-context availability."""
     return repository.get_location(household_id)
+
+
+@router.put("/{household_id}/location/device", response_model=HouseholdLocation)
+def save_device_location(
+    household_id: str,
+    request: DeviceLocationRequest,
+    repository: RepositoryDependency,
+    address_client: Annotated[AddressClient, Depends(get_address_client)],
+) -> HouseholdLocation:
+    """Save coordinates shared on demand without claiming postal verification."""
+    return LocationService(repository, address_client).save_device_location(
+        household_id, request.latitude, request.longitude
+    )
 
 
 def _local_context_service(

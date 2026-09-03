@@ -100,11 +100,23 @@ export const api = {
       body: JSON.stringify(input),
     }),
 
+  saveDeviceLocation: (householdId, input) =>
+    request(`/households/${encodeURIComponent(householdId)}/location/device`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+
   getLocation: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/location`),
 
-  getAddressSuggestions: (query) =>
-    request(`/locations/suggestions?q=${encodeURIComponent(query)}`),
+  getAddressSuggestions: (query, signal) =>
+    request(`/locations/suggestions?q=${encodeURIComponent(query)}`, { signal }),
+
+  getNearbyAddresses: (latitude, longitude) =>
+    request('/locations/nearby-addresses', {
+      method: 'POST',
+      body: JSON.stringify({ latitude, longitude }),
+    }),
 
   getLocalContext: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/local-context`),

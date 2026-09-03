@@ -56,7 +56,7 @@ class HouseholdPlanService:
         )
         return destination.model_copy(
             update={
-                **verification.model_dump(),
+                **verification.model_dump(exclude={"verification_message"}),
                 "selected_address": None,
             }
         )

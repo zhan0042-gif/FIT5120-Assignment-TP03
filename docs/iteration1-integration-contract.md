@@ -25,7 +25,9 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `GET/PUT /households/{household_id}/plan` | Read or transactionally replace the latest saved `HouseholdPlan`. |
 | `GET /households/{household_id}/completion` | Derive current completion and non-blocking immediate checks. |
 | `GET/PUT /households/{household_id}/location` | Read or save entered household address and optional official enrichment. |
-| `GET /locations/suggestions?q=…` | Return Vicmap autocomplete candidates. A suggestion is not itself verification. |
+| `PUT /households/{household_id}/location/device` | Save latitude/longitude explicitly shared through the browser's one-shot current-location action. No postal address is inferred or verified. |
+| `GET /locations/suggestions?q=…` | Return up to eight Vicmap autocomplete candidates. A suggestion is not itself verification. Search normalises case, whitespace, punctuation, and common Australian road-type abbreviations, then prefers indexed house-number/road fields when the input can be structured. |
+| `POST /locations/nearby-addresses` | Return nearby Vicmap candidates for coordinates. Candidates remain unverified until the user explicitly confirms one through the normal address-save flow. |
 | `GET /households/{household_id}/local-context` | Return saved location, static spatial context, current weather, and official FDR state. |
 | `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
 | `GET /scenarios/basic?household_id=…` | List fixed I1 scenarios relevant to the saved plan. |
@@ -63,17 +65,26 @@ Incomplete plans remain saveable. Backup completion reflects whether an applicab
 
 ## Location, context, and freshness
 
-Saving a household address first persists its entered text and then attempts official verification. Verified coordinates allow a processed spatial lookup:
+Saving a household address first persists its entered text and then attempts official verification. A unique match stores and displays Vicmap's canonical address and authoritative coordinates; an ambiguous or missing match remains saved but unverified without invented coordinates. Autocomplete makes one bounded Vicmap request with a four-second upstream deadline; the browser also cancels superseded requests and applies a six-second client deadline.
+
+The alternative current-location action runs only after an explicit click and uses one `navigator.geolocation.getCurrentPosition` request (never continuous watching). Its coordinates are persisted with `location_source: "device_location"`, an empty address, and `verification_status: "unverified"`. These trusted, explicitly shared coordinates can drive Local Context while the UI clearly states that no postal address was verified. Both verified address coordinates and device coordinates allow a processed spatial lookup:
+
+After coordinates are saved, the Backend may query Vicmap for up to five nearby
+official address candidates. Reverse lookup failure does not affect coordinate
+persistence or Local Context. A candidate is displayed for confirmation and is
+only saved and verified through the existing address workflow after the user
+chooses **Use this address**; unit candidates are never selected silently.
 
 ```text
-verified coordinates -> GeoParquet BPA / Fire District / Fire History
-                     -> derived household_location_context snapshot
-                     -> current BOM weather and official FDR
+verified address coordinates --+
+                               +-> GeoParquet BPA / Fire District / Fire History
+device-shared coordinates -----+-> derived household_location_context snapshot
+                                   -> current BOM weather and official FDR
 ```
 
 The snapshot contains derived household-specific spatial facts, not raw datasets. It is reused for an unchanged location and invalidated when the household location is saved/changed. Dataset-version invalidation is not implemented in I1. BPA is an official designation, not a personal risk score. CFA Fire District is an operational dependency for selecting matching BOM FDR data. Fire History is contextual only; the UI may show records within 20 km, latest season, and most recent dated record.
 
-BOM weather selects an appropriate fresh observed station; BOM weather and FDR caches are configured for about 60 minutes, but cache presence never overrides source freshness. FDR is official provider data: FIREBREAK does not calculate or fabricate it, and it may legitimately be unavailable.
+BOM weather selects an appropriate fresh observed station; BOM weather and FDR caches are configured for about 60 minutes, but cache presence never overrides source freshness. Controlled weather unavailability produces `weather: null` while retaining spatial context and FDR. FDR is official provider data: FIREBREAK does not calculate or fabricate it, and it may legitimately be unavailable.
 
 ## Preparation support and scenarios
 

@@ -39,7 +39,26 @@ See [the integration contract](docs/iteration1-integration-contract.md), [fronte
 
 ## Local development
 
-Copy `.env.example` to `.env` and set local credentials. Docker starts MySQL and FastAPI:
+Copy `.env.example` to `.env` and set local credentials. For the bare Windows
+Backend plus Docker MySQL workflow, install the Backend and editable local Data
+package once:
+
+```powershell
+docker compose up -d mysql
+cd backend
+python -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements-dev.txt
+$env:DATABASE_HOST = "127.0.0.1"
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The editable package makes `data.scripts.location_context` and the repository's
+processed GeoParquet files available when Uvicorn runs directly from `backend/`.
+It does not change Docker or production database configuration. The Backend
+database default is already `127.0.0.1`; the explicit local setting above makes
+the host-machine topology clear and must not be used in production.
+
+For the all-Docker development alternative, Docker starts MySQL and FastAPI:
 
 ```bash
 docker compose up --build

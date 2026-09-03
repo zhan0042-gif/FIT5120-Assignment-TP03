@@ -444,6 +444,9 @@ class MySQLHouseholdRepository:
                     )
                 return HouseholdLocation(
                     address=row["address"] or "",
+                    location_source=(
+                        "device_location" if not row["address"] else "address"
+                    ),
                     canonical_address=row["canonical_address"],
                     unit_number=row["unit_number"],
                     street_number=row["street_number"],
@@ -455,6 +458,12 @@ class MySQLHouseholdRepository:
                     latitude=(float(row["latitude"]) if row["latitude"] is not None else None),
                     longitude=(float(row["longitude"]) if row["longitude"] is not None else None),
                     verification_status=row["verification_status"] or "unverified",
+                    verification_message=(
+                        "Current location coordinates were provided by this device; "
+                        "no postal address was verified."
+                        if not row["address"]
+                        else None
+                    ),
                     verified_at=self._as_utc(row["verified_at"]),
                 )
         except SQLAlchemyError as exc:

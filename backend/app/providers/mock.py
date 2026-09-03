@@ -54,6 +54,24 @@ class MockAddressClient:
                 )
         return results[:limit]
 
+    def reverse(
+        self, latitude: float, longitude: float, limit: int = 5
+    ) -> list[AddressSuggestion]:
+        nearest = min(
+            self._KNOWN_ADDRESSES.items(),
+            key=lambda item: (
+                (item[1][0] - latitude) ** 2 + (item[1][1] - longitude) ** 2
+            ),
+        )
+        address, coordinates = nearest
+        return [
+            AddressSuggestion(
+                address=address.title(),
+                latitude=coordinates[0],
+                longitude=coordinates[1],
+            )
+        ][:limit]
+
 
 class MockSpatialProvider:
     def get_context(self, latitude: float, longitude: float) -> MockSpatialResult:

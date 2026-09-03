@@ -133,6 +133,7 @@ class AddressVerification(BaseModel):
     """Official enrichment result that can be applied to any saved address."""
 
     verification_status: Literal["verified", "unverified"] = "unverified"
+    verification_message: str | None = None
     canonical_address: str | None = None
     unit_number: str | None = None
     street_number: str | None = None
@@ -210,10 +211,25 @@ class LocationRequest(BaseModel):
     ] = None
 
 
+class DeviceLocationRequest(BaseModel):
+    """Coordinates explicitly shared by the browser after a user gesture."""
+
+    latitude: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+    longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+
+
+class CoordinateLookupRequest(BaseModel):
+    """Coordinates used for a non-verifying nearby-address lookup."""
+
+    latitude: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+    longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+
+
 class HouseholdLocation(BaseModel):
-    """Saved address text with enrichment present only after official verification."""
+    """Saved postal address or explicit browser-provided coordinates."""
 
     address: str
+    location_source: Literal["address", "device_location"] = "address"
     canonical_address: str | None = None
     unit_number: str | None = None
     street_number: str | None = None
@@ -225,6 +241,7 @@ class HouseholdLocation(BaseModel):
     latitude: Annotated[float | None, Field(ge=-90, le=90, allow_inf_nan=False)] = None
     longitude: Annotated[float | None, Field(ge=-180, le=180, allow_inf_nan=False)] = None
     verification_status: Literal["verified", "unverified"] = "unverified"
+    verification_message: str | None = None
     verified_at: datetime | None = None
 
 
@@ -329,7 +346,7 @@ class LocalContext(BaseModel):
     location: HouseholdLocation
     bushfire_context: BushfireContext
     fire_danger: FireDangerContext
-    weather: Weather
+    weather: Weather | None
     environmental_context: EnvironmentalContext
 
 
