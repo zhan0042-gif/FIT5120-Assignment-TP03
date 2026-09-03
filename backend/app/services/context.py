@@ -304,7 +304,10 @@ class PreparationTimingService:
         if escalating or serious:
             return PreparationSupport(
                 status="review_recommended",
-                message="Local fire conditions are expected to become more serious.",
+                message=(
+                    "Current or forecast fire danger conditions indicate it is time "
+                    "to review your household preparedness plan."
+                ),
                 sections_to_review=incomplete,
             )
         if incomplete:

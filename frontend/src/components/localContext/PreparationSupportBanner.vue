@@ -16,7 +16,7 @@ const reviewLabels = computed(() => (store.prepSupport?.sections_to_review ?? []
     </template>
     <template v-else-if="store.prepStatus === 'success' && store.prepSupport?.status === 'review_recommended'">
       <h3>Review recommended</h3>
-      <p>Current fire danger information indicates that you should review your household preparedness plan.</p>
+      <p>{{ store.prepSupport.message }}</p>
       <ul v-if="reviewLabels.length"><li v-for="label in reviewLabels" :key="label">{{ label }}</li></ul>
       <router-link class="btn btn-accent action" to="/plan">Review my plan</router-link>
     </template>

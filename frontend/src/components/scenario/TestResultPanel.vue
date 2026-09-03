@@ -9,6 +9,17 @@ const successReasons = {
   vehicle_unavailable: 'Your plan includes another recorded transport option and an eligible driver.',
   person_unavailable: 'Your important responsibilities have a different backup person.',
 }
+const planSectionTargets = {
+  transport: 'transport',
+  backup_transport: 'transport',
+  primary_destination: 'destinations',
+  backup_destination: 'destinations',
+  responsibilities: 'responsibilities',
+}
+function editPlanTarget(result) {
+  const section = planSectionTargets[result.first_problem?.section]
+  return section ? { path: '/plan', query: { section } } : '/plan'
+}
 function failureReason(result) {
   if (result.scenario_id === 'person_unavailable') {
     return 'At least one responsibility does not have a different backup person assigned.'
@@ -34,7 +45,7 @@ function failureReason(result) {
       </li>
     </ul>
     <p class="hint">Tested {{ formatAustralianDateTime(result.tested_at) }}</p>
-    <router-link v-if="result.overall_status !== 'pass'" class="btn btn-accent action" to="/plan">Edit my plan</router-link>
+    <router-link v-if="result.overall_status !== 'pass'" class="btn btn-accent action" :to="editPlanTarget(result)">Edit my plan</router-link>
   </div>
 </template>
 <style scoped>

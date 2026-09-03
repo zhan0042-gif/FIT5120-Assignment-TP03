@@ -14,6 +14,9 @@ let mounted = true
 watch(() => store.address, (value) => { draftAddress.value = value })
 function selectSuggestion(suggestion) { store.submitAddress(suggestion.address, suggestion.address); editing.value = false }
 async function submit() { if (!draftAddress.value.trim()) return; await store.submitAddress(draftAddress.value.trim()); if (store.saveStatus === 'success') editing.value = false }
+function hasMissingForecastPeriods(fireDanger) {
+  return ['today', 'tomorrow', 'day_3', 'day_4'].some((period) => fireDanger?.[period] == null)
+}
 async function confirmNearbyAddress(suggestion) {
   await store.submitAddress(suggestion.address, suggestion.address)
   if (store.saveStatus === 'success') editing.value = false
@@ -153,11 +156,22 @@ function fireHistoryRows(summary) {
           <div><dt>Wind</dt><dd>{{ store.context.weather.wind_speed_kmh }} km/h {{ store.context.weather.wind_direction }}</dd></div>
         </dl>
         <p v-if="!store.context.weather" class="state-message">Current weather is temporarily unavailable.</p>
-        <dl>
-          <div><dt>Fire Danger Rating</dt><dd>{{ store.context.fire_danger.availability === 'available' ? store.context.fire_danger.today : 'Currently unavailable' }}</dd></div>
-        </dl>
         <p v-if="store.context.weather" class="hint">Bureau of Meteorology</p>
         <p v-if="store.context.weather" class="hint">Last updated: {{ formatAustralianDateTime(store.context.weather.observed_at) }}</p>
+        <div class="fire-danger-forecast">
+          <h3>Fire Danger Rating</h3>
+          <template v-if="store.context.fire_danger?.availability === 'available'">
+            <dl>
+              <div><dt>Today</dt><dd>{{ store.context.fire_danger.today ?? 'Not available' }}</dd></div>
+              <div><dt>Tomorrow</dt><dd>{{ store.context.fire_danger.tomorrow ?? 'Not available' }}</dd></div>
+              <div><dt>Day 3</dt><dd>{{ store.context.fire_danger.day_3 ?? 'Not available' }}</dd></div>
+              <div><dt>Day 4</dt><dd>{{ store.context.fire_danger.day_4 ?? 'Not available' }}</dd></div>
+            </dl>
+            <p v-if="hasMissingForecastPeriods(store.context.fire_danger)" class="hint">Some forecast periods are currently unavailable from the official source.</p>
+            <p v-if="store.context.fire_danger.source_updated_at" class="hint">Forecast updated: {{ formatAustralianDateTime(store.context.fire_danger.source_updated_at) }}</p>
+          </template>
+          <p v-else class="state-message">Official fire danger forecast data is temporarily unavailable. Please try again later.</p>
+        </div>
       </div>
     </div>
     <p v-else class="state-message">Add and verify your household address to view local information.</p>
@@ -173,6 +187,7 @@ function fireHistoryRows(summary) {
 .location-option { display: flex; align-items: center; gap: 0.65rem; margin-top: 0.75rem; color: var(--color-text-muted); }
 .nearby-addresses { margin-top: 1rem; }
 .nearby-candidate { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.65rem 0; border-bottom: 1px solid var(--color-border); }
+.fire-danger-forecast { margin-top: 1.25rem; }
 .local-card { margin-top: 1.25rem; }
 .local-card > .card-title { margin-bottom: 1rem; }
 .context-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }

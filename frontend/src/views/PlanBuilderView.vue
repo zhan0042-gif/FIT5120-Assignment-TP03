@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import { useHouseholdStore } from '../stores/household'
 import LoadingState from '../components/common/LoadingState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
@@ -10,6 +11,7 @@ import ResponsibilitiesForm from '../components/household/ResponsibilitiesForm.v
 import PlanChecks from '../components/completion/PlanChecks.vue'
 
 const householdStore = useHouseholdStore()
+const route = useRoute()
 
 const draft = ref(null)
 
@@ -23,6 +25,12 @@ function resetDraft() {
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
   resetDraft()
+  await nextTick()
+  const target = document.getElementById(`plan-${route.query.section}`)
+  if (target) {
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    target.focus({ preventScroll: true })
+  }
 })
 
 watch(
@@ -88,12 +96,14 @@ async function save() {
       <template v-else-if="draft">
         <HouseholdMembersForm v-model:members="draft.members" v-model:animals="draft.animals" />
         <TransportForm
+          id="plan-transport"
+          tabindex="-1"
           v-model:transports="draft.transports"
           v-model:has-private-transport="draft.has_private_transport"
           :members="draft.members"
         />
-        <ArrangementsForm v-model="draft.arrangements" :transports="draft.transports" />
-        <ResponsibilitiesForm v-model="draft.responsibilities" :members="draft.members" />
+        <ArrangementsForm id="plan-destinations" v-model="draft.arrangements" :transports="draft.transports" tabindex="-1" />
+        <ResponsibilitiesForm id="plan-responsibilities" v-model="draft.responsibilities" :members="draft.members" tabindex="-1" />
         <PlanChecks :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
       </template>
     </div>
