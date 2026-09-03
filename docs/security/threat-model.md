@@ -4,18 +4,14 @@
 
 ## 1. Attack surface
 
-```
- User
-  │  JSON over HTTPS
-  v
-Frontend (Vue)
-  │  /api/v1/...  (planned)
-  v
-Backend (FastAPI)
-  ├──► Database (MySQL)            household plans, test results
-  ├──► DS / spatial layer          BPA lookup, fire district lookup
-  └──► External live sources       Vicmap Address, CFA FDR, BOM weather
-```
+Attack surface (read top to bottom):
+
+1. Users reach the app over HTTPS (JSON payloads), served by the Frontend (Vue).
+2. Frontend (Vue) calls the Backend (FastAPI) via `/api/v1/...` (planned).
+3. Backend (FastAPI) reads/writes:
+   - Database (MySQL): household plans, test results
+   - DS / spatial layer: BPA lookup, fire district lookup
+   - External live sources: Vicmap Address, CFA FDR, BOM weather
 
 Key properties to note:
 - Backend has **no per-user application login** (decided for I1). Site access is gated by a **shared-password** Nginx basic auth layer so only the team and teaching staff can view the app; `household_id` is an unguessable capability token (128-bit random).
