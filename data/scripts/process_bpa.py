@@ -1,6 +1,16 @@
-import geopandas as gpd
+"""
+Process the Victorian Bushfire Prone Area (BPA) spatial dataset.
 
-# Load raw BPA shapefile
+This script cleans and standardises the raw BPA shapefile, converts the
+geometry to EPSG:4326, validates the geometry, tests BPA point lookup,
+and saves the processed dataset as GeoParquet.
+"""
+
+
+import geopandas as gpd
+from shapely.geometry import Point
+
+# Load the official raw Victorian BPA shapefile
 bpa = gpd.read_file("data/raw/bpa/BUSHFIRE_PRONE_AREA.shp")
 
 print("Original shape:", bpa.shape)
@@ -11,7 +21,7 @@ bpa_clean = bpa[
     ["LGA_CODE", "LGA_NAME", "geometry"]
 ].copy()
 
-# Rename fields
+#  Rename source fields to consistent, application-friendly lowercase names
 bpa_clean = bpa_clean.rename(
     columns={
         "LGA_CODE": "lga_code",
@@ -19,14 +29,14 @@ bpa_clean = bpa_clean.rename(
     }
 )
 
-# Convert to WGS84 so latitude/longitude can be used directly
+# Convert geometry to WGS84 (EPSG:4326) to match application latitude/longitude coordinates
 bpa_clean = bpa_clean.to_crs("EPSG:4326")
 
-# Check geometry quality
+# Check for missing or invalid polygon geometries before spatial lookup
 print("Missing geometries:", bpa_clean.geometry.isna().sum())
 print("Invalid geometries:", (~bpa_clean.geometry.is_valid).sum())
 
-# Repair invalid geometries if any exist
+# Repair invalid geometries, if any, so point-in-polygon operations remain reliable
 if (~bpa_clean.geometry.is_valid).any():
     bpa_clean["geometry"] = bpa_clean.geometry.make_valid()
 
@@ -39,20 +49,33 @@ print(bpa_clean.head())
 
 
 
-from shapely.geometry import Point
-
-
 def check_bpa(latitude, longitude, bpa_gdf):
+    """
+    Check whether a geographic location is inside a Bushfire Prone Area (BPA).
+
+    Parameters:
+        latitude (float): Latitude of the location to check.
+        longitude (float): Longitude of the location to check.
+        bpa_gdf (GeoDataFrame): Processed BPA polygon dataset in EPSG:4326.
+
+    Returns:
+        bool: True if the location is inside or on the boundary of a BPA polygon;
+              otherwise False.
+    """
+
+    # Shapely Point uses (x, y), so longitude is passed before latitude     
     point = Point(longitude, latitude)
 
+    # Find BPA polygons that contain or cover the location point
     match = bpa_gdf[
         bpa_gdf.geometry.covers(point)
     ]
 
+    # If at least one polygon matches, the location is considered inside a BPA
     return not match.empty
 
 
-# Example test location
+# Test the lookup using an example latitude/longitude location
 test_latitude = -38.16
 test_longitude = 145.10
 
@@ -68,9 +91,10 @@ print("Longitude:", test_longitude)
 print("Inside BPA:", result)
 
 
-# Guaranteed test point inside the first BPA polygon
+# Generate a point guaranteed to lie inside the first BPA polygon for validation
 inside_point = bpa_clean.iloc[0].geometry.representative_point()
 
+# Extract latitude (y) and longitude (x) from the generated point
 inside_latitude = inside_point.y
 inside_longitude = inside_point.x
 
@@ -87,7 +111,7 @@ print("LGA:", bpa_clean.iloc[0]["lga_name"])
 print("Inside BPA:", inside_result)
 
 
-# Save processed BPA data as GeoParquet
+# Save the cleaned BPA dataset as GeoParquet for efficient application use
 output_path = "data/processed/bpa.parquet"
 
 bpa_clean.to_parquet(

@@ -1,3 +1,11 @@
+"""
+Process the Victorian CFA Fire District spatial dataset.
+
+This script cleans and standardises the raw Fire District shapefile,
+converts the geometry to EPSG:4326, validates the polygons, tests
+location-based district lookup, and saves the processed data as GeoParquet.
+"""
+
 import geopandas as gpd
 from shapely.geometry import Point
 
@@ -36,6 +44,7 @@ fire_district_clean["fire_district"] = (
 print("Missing geometries:", fire_district_clean.geometry.isna().sum())
 print("Invalid geometries:", (~fire_district_clean.geometry.is_valid).sum())
 
+# Repair invalid geometries, if any, before performing spatial lookup
 if (~fire_district_clean.geometry.is_valid).any():
     fire_district_clean["geometry"] = (
         fire_district_clean.geometry.make_valid()
@@ -50,12 +59,25 @@ print(fire_district_clean["fire_district"].tolist())
 
 
 def get_fire_district(latitude, longitude, district_gdf):
-    point = Point(longitude, latitude)
+    """
+    Find the CFA Fire District containing a geographic location.
 
+    Parameters:
+        latitude (float): Latitude of the location to check.
+        longitude (float): Longitude of the location to check.
+        district_gdf (GeoDataFrame): Processed Fire District polygons in EPSG:4326.
+
+    Returns:
+        str or None: Name of the matching Fire District, or None if no district is found.
+    """
+
+    # Shapely Point uses (x, y), so longitude is passed before latitude
+    point = Point(longitude, latitude)
+    # Find the district polygon that covers the location point
     match = district_gdf[
         district_gdf.geometry.covers(point)
     ]
-
+    # Return None when the location does not match any Fire District
     if match.empty:
         return None
 
