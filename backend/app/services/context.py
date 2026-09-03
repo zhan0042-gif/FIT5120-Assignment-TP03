@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.core.exceptions import (
+    AddressResolutionError,
     ExternalDataUnavailable,
     HouseholdNotFound,
     LocationNotVerified,
@@ -45,6 +46,16 @@ class AddressSuggestionService:
         except Exception as exc:
             raise ExternalDataUnavailable("Address suggestions are unavailable.") from exc
 
+    def reverse(self, latitude: float, longitude: float) -> list[AddressSuggestion]:
+        try:
+            return self.address_client.reverse(latitude, longitude, limit=5)
+        except ExternalDataUnavailable:
+            raise
+        except Exception as exc:
+            raise ExternalDataUnavailable(
+                "Nearby address lookup is unavailable."
+            ) from exc
+
 
 class LocationService:
     """Persist entered household locations before attempting official enrichment.
@@ -69,8 +80,30 @@ class LocationService:
             saved.address, selected_address
         )
         if verification.verification_status == "unverified":
-            return saved
+            return saved.model_copy(
+                update={"verification_message": verification.verification_message}
+            )
         location = saved.model_copy(update=verification.model_dump())
+        self.repository.save_location(household_id, location)
+        return location
+
+    def save_device_location(
+        self, household_id: str, latitude: float, longitude: float
+    ) -> HouseholdLocation:
+        """Persist browser-shared coordinates without inventing an address."""
+        if not self.repository.household_exists(household_id):
+            raise HouseholdNotFound(f"Household '{household_id}' was not found.")
+        location = HouseholdLocation(
+            address="",
+            location_source="device_location",
+            latitude=latitude,
+            longitude=longitude,
+            verification_status="unverified",
+            verification_message=(
+                "Current location coordinates were provided by this device; "
+                "no postal address was verified."
+            ),
+        )
         self.repository.save_location(household_id, location)
         return location
 
@@ -93,8 +126,18 @@ class AddressVerificationService:
             return AddressVerification()
         try:
             verified = self.address_client.resolve(selected_address or entered_address)
+        except AddressResolutionError as exc:
+            return AddressVerification(verification_message=str(exc))
+        except ExternalDataUnavailable:
+            return AddressVerification(
+                verification_message=(
+                    "Official address verification is temporarily unavailable."
+                )
+            )
         except Exception:
-            return AddressVerification()
+            return AddressVerification(
+                verification_message="The saved address could not be verified."
+            )
         return AddressVerification(
             verification_status="verified",
             canonical_address=verified.address,
@@ -136,7 +179,9 @@ class LocalContextService:
         location = self.repository.get_location(household_id)
         if (
             location.verification_status != "verified"
-            or location.latitude is None
+            and location.location_source != "device_location"
+        ) or (
+            location.latitude is None
             or location.longitude is None
         ):
             raise LocationNotVerified(
@@ -171,9 +216,12 @@ class LocalContextService:
                 # Missing or stale FDR is a valid partial response. Static context
                 # and weather remain useful and should not be hidden with it.
                 fire_danger = UnavailableFireDanger()
-            weather = self.weather_client.get_weather(
-                location.latitude, location.longitude
-            )
+            try:
+                weather = self.weather_client.get_weather(
+                    location.latitude, location.longitude
+                )
+            except ExternalDataUnavailable:
+                weather = None
             return LocalContext(
                 location=location,
                 bushfire_context=BushfireContext(
@@ -311,7 +359,9 @@ class PreparationSupportService:
         location = self.repository.get_location(household_id)
         if (
             location.verification_status != "verified"
-            or location.latitude is None
+            and location.location_source != "device_location"
+        ) or (
+            location.latitude is None
             or location.longitude is None
         ):
             raise LocationNotVerified(

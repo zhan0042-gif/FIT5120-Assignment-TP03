@@ -11,6 +11,8 @@ export const useLocalContextStore = defineStore('localContext', () => {
   const submittedAddress = ref('')
   const location = ref(null)
   const saveStatus = ref('idle')
+  const nearbyAddresses = ref([])
+  const reverseStatus = ref('idle')
 
   const context = ref(null)
   const contextStatus = ref('idle')
@@ -19,6 +21,15 @@ export const useLocalContextStore = defineStore('localContext', () => {
 
   const prepSupport = ref(null)
   const prepStatus = ref('idle')
+
+  function canLoadContext(saved) {
+    return (
+      saved &&
+      saved.latitude !== null &&
+      saved.longitude !== null &&
+      (saved.verification_status === 'verified' || saved.location_source === 'device_location')
+    )
+  }
 
   async function submitAddress(next, selectedAddress = null) {
     // Free text remains saveable. `selectedAddress` only records that the user
@@ -36,14 +47,45 @@ export const useLocalContextStore = defineStore('localContext', () => {
         selected_address: selectedAddress,
       })
       location.value = saved
-      address.value = saved.address
-      submittedAddress.value = saved.address
+      address.value = saved.canonical_address || saved.address
+      submittedAddress.value = saved.canonical_address || saved.address
       saveStatus.value = 'success'
-      if (saved.verification_status === 'verified') await loadContext()
+      if (canLoadContext(saved)) await loadContext()
       else contextStatus.value = 'unverified'
     } catch (err) {
       saveStatus.value = 'error'
       contextError.value = err instanceof Error ? err.message : 'Could not save the household address.'
+    }
+  }
+
+  async function submitDeviceLocation(latitude, longitude) {
+    saveStatus.value = 'loading'
+    contextStatus.value = 'idle'
+    contextError.value = null
+    contextUnavailable.value = false
+    nearbyAddresses.value = []
+    reverseStatus.value = 'idle'
+    try {
+      const householdId = await householdStore.ensureHousehold()
+      const saved = await api.saveDeviceLocation(householdId, { latitude, longitude })
+      location.value = saved
+      address.value = ''
+      submittedAddress.value = 'Current location'
+      saveStatus.value = 'success'
+      // Coordinate capture/save is complete at this point. Load provider-backed
+      // context independently so the geolocation control cannot remain busy on it.
+      void loadContext()
+      reverseStatus.value = 'loading'
+      try {
+        nearbyAddresses.value = await api.getNearbyAddresses(latitude, longitude)
+        reverseStatus.value = nearbyAddresses.value.length ? 'success' : 'empty'
+      } catch {
+        nearbyAddresses.value = []
+        reverseStatus.value = 'unavailable'
+      }
+    } catch (err) {
+      saveStatus.value = 'error'
+      contextError.value = err instanceof Error ? err.message : 'Could not save the current location.'
     }
   }
 
@@ -84,11 +126,28 @@ export const useLocalContextStore = defineStore('localContext', () => {
     try {
       const householdId = await householdStore.ensureHousehold()
       location.value = await api.getLocation(householdId)
-      address.value = location.value.address
-      submittedAddress.value = location.value.address
+      const isDeviceLocation = location.value.location_source === 'device_location'
+      address.value = isDeviceLocation
+        ? ''
+        : location.value.canonical_address || location.value.address
+      submittedAddress.value = isDeviceLocation
+        ? 'Current location'
+        : location.value.canonical_address || location.value.address
       saveStatus.value = 'success'
-      if (location.value.verification_status === 'verified') await loadContext()
+      if (canLoadContext(location.value)) await loadContext()
       else contextStatus.value = 'unverified'
+      if (isDeviceLocation) {
+        reverseStatus.value = 'loading'
+        try {
+          nearbyAddresses.value = await api.getNearbyAddresses(
+            location.value.latitude,
+            location.value.longitude,
+          )
+          reverseStatus.value = nearbyAddresses.value.length ? 'success' : 'empty'
+        } catch {
+          reverseStatus.value = 'unavailable'
+        }
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         context.value = null
@@ -107,6 +166,8 @@ export const useLocalContextStore = defineStore('localContext', () => {
     submittedAddress,
     location,
     saveStatus,
+    nearbyAddresses,
+    reverseStatus,
     context,
     contextStatus,
     contextError,
@@ -114,6 +175,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
     prepSupport,
     prepStatus,
     submitAddress,
+    submitDeviceLocation,
     loadContext,
     loadPreparationSupport,
     init,

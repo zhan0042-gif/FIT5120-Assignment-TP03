@@ -15,11 +15,20 @@ const suggestions = ref([])
 const status = ref('idle')
 const activeIndex = ref(-1)
 let timer
+let deadlineTimer
+let activeController
 let sequence = 0
 let selectedValue = null
 
 function meaningful(query) {
   return query.length >= 4 && /\d/.test(query) && /[a-z]/i.test(query)
+}
+
+function cancelActiveRequest() {
+  if (deadlineTimer) clearTimeout(deadlineTimer)
+  deadlineTimer = undefined
+  if (activeController) activeController.abort()
+  activeController = undefined
 }
 
 // The component is shared by household, primary-destination, and every dynamic
@@ -34,6 +43,7 @@ watch(() => props.modelValue, (value) => {
   // still emitted because autocomplete failure must not block free-text saving.
   selectedValue = null
   if (timer) clearTimeout(timer)
+  cancelActiveRequest()
   activeIndex.value = -1
   const query = value.trim()
   if (!meaningful(query)) {
@@ -45,8 +55,11 @@ watch(() => props.modelValue, (value) => {
   status.value = 'loading'
   const request = ++sequence
   timer = setTimeout(async () => {
+    const controller = new AbortController()
+    activeController = controller
+    deadlineTimer = setTimeout(() => controller.abort(), 6000)
     try {
-      const results = await api.getAddressSuggestions(query)
+      const results = await api.getAddressSuggestions(query, controller.signal)
       if (request !== sequence || props.modelValue.trim() !== query) return
       suggestions.value = results
       status.value = results.length ? 'success' : 'empty'
@@ -54,12 +67,19 @@ watch(() => props.modelValue, (value) => {
       if (request !== sequence) return
       suggestions.value = []
       status.value = 'error'
+    } finally {
+      if (activeController === controller) {
+        if (deadlineTimer) clearTimeout(deadlineTimer)
+        deadlineTimer = undefined
+        activeController = undefined
+      }
     }
   }, 350)
 })
 
 onBeforeUnmount(() => {
   if (timer) clearTimeout(timer)
+  cancelActiveRequest()
   sequence += 1
 })
 
@@ -71,6 +91,7 @@ function select(suggestion) {
   // Selection emits the full official candidate for verification and also keeps
   // v-model text synchronized for all three address use cases.
   sequence += 1
+  cancelActiveRequest()
   suggestions.value = []
   status.value = 'idle'
   activeIndex.value = -1

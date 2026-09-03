@@ -15,6 +15,7 @@ from app.core.exceptions import (
     AddressResolutionError,
     DatabaseUnavailable,
     ExternalDataUnavailable,
+    LocationNotFound,
 )
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
@@ -73,6 +74,9 @@ def test_address_resolution_error_keeps_the_saved_address_unverified(
     assert response.status_code == 200
     assert response.json()["address"] == "999 Missing Road Nowhere VIC 3999"
     assert response.json()["verification_status"] == "unverified"
+    assert response.json()["verification_message"] == (
+        "No matching Victorian household address was found."
+    )
     assert response.json()["latitude"] is None
 
 
@@ -91,6 +95,48 @@ def test_unverified_location_returns_controlled_context_state(
 
     assert response.status_code == 409
     assert "address is saved" in response.json()["detail"]
+
+
+def test_device_location_is_saved_and_used_without_a_fake_address(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, repository = api
+    household_id = create_household(client)
+
+    saved = client.put(
+        f"/api/v1/households/{household_id}/location/device",
+        json={"latitude": -37.8136, "longitude": 144.9631},
+    )
+    context = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert saved.status_code == 200
+    assert saved.json()["address"] == ""
+    assert saved.json()["canonical_address"] is None
+    assert saved.json()["location_source"] == "device_location"
+    assert saved.json()["verification_status"] == "unverified"
+    assert repository.get_location(household_id).address == ""
+    assert context.status_code == 200
+    assert context.json()["location"]["location_source"] == "device_location"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"latitude": -91, "longitude": 144.9631},
+        {"latitude": -37.8136, "longitude": 181},
+    ],
+)
+def test_device_location_rejects_invalid_coordinates(
+    api: tuple[TestClient, InMemoryHouseholdRepository], payload: dict
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+
+    response = client.put(
+        f"/api/v1/households/{household_id}/location/device", json=payload
+    )
+
+    assert response.status_code == 422
 
 
 def test_complete_household_api_flow(
@@ -318,6 +364,7 @@ def test_location_is_resolved_saved_and_replaced(
     assert first.status_code == 200
     assert first.json() == {
         "address": "Warrandyte VIC 3113",
+        "location_source": "address",
         "canonical_address": "Warrandyte VIC 3113",
         "unit_number": None,
         "street_number": None,
@@ -329,6 +376,7 @@ def test_location_is_resolved_saved_and_replaced(
         "latitude": -37.74,
         "longitude": 145.21,
         "verification_status": "verified",
+        "verification_message": None,
         "verified_at": first.json()["verified_at"],
     }
     assert second.status_code == 200
@@ -534,6 +582,11 @@ class FailingWeatherClient:
         raise RuntimeError("BOM offline")
 
 
+class UnavailableWeatherClient:
+    def get_weather(self, latitude: float, longitude: float):
+        raise ExternalDataUnavailable("Official BOM weather is unavailable")
+
+
 class FailingFireDangerClient:
     def get_fire_danger(self, fire_district: str):
         raise ExternalDataUnavailable("Official BOM FDR is unavailable")
@@ -645,6 +698,40 @@ def test_weather_failure_remains_full_local_context_failure(
     response = client.get(f"/api/v1/households/{household_id}/local-context")
 
     assert response.status_code == 503
+
+
+def test_controlled_weather_unavailability_returns_partial_local_context(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    app.dependency_overrides[get_weather_client] = UnavailableWeatherClient
+    household_id = create_household(client)
+    _save_mock_location(client, household_id)
+
+    response = client.get(f"/api/v1/households/{household_id}/local-context")
+
+    assert response.status_code == 200
+    assert response.json()["bushfire_context"]["fire_district"] == "Central"
+    assert response.json()["fire_danger"]["availability"] == "available"
+    assert response.json()["weather"] is None
+
+
+def test_reverse_lookup_returns_candidates_without_persisting_or_verifying_them(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, repository = api
+    household_id = create_household(client)
+
+    response = client.post(
+        "/api/v1/locations/nearby-addresses",
+        json={"latitude": -37.8136, "longitude": 144.9631},
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["address"] == "Melbourne Vic 3000"
+    assert response.json()[0]["verification_status"] == "unverified"
+    with pytest.raises(LocationNotFound):
+        repository.get_location(household_id)
 
 
 def test_spatial_failure_remains_full_local_context_failure(

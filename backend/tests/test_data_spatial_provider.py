@@ -1,7 +1,13 @@
+from importlib.util import find_spec
+
 import pytest
 
 from app.core.exceptions import ExternalDataUnavailable
 from app.providers.data_spatial import DataSpatialProvider
+
+
+def test_data_package_is_installed_for_bare_backend_runtime() -> None:
+    assert find_spec("data.scripts.location_context") is not None
 
 
 def test_data_spatial_provider_maps_the_data_contract() -> None:

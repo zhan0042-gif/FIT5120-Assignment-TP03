@@ -29,6 +29,10 @@ class AddressClient(Protocol):
 
     def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]: ...
 
+    def reverse(
+        self, latitude: float, longitude: float, limit: int = 5
+    ) -> list[AddressSuggestion]: ...
+
 
 class SpatialProvider(Protocol):
     """Resolve static context from verified coordinates."""
