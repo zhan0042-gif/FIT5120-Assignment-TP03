@@ -49,7 +49,14 @@ def fire_danger(
 
 
 def completion(*incomplete: str) -> PlanCompletion:
-    names = ["backup_transport", "backup_destination"]
+    names = [
+        "household_profile",
+        "transport",
+        "backup_transport",
+        "primary_destination",
+        "backup_destination",
+        "responsibilities",
+    ]
     sections = [
         CompletionSection(
             section=name,
@@ -345,12 +352,30 @@ def test_no_rating_alone_does_not_recommend_review() -> None:
 def test_increasing_fire_danger_recommends_review() -> None:
     result = PreparationTimingService().recommend(
         fire_danger("Moderate", "High", "High", "Extreme"),
-        completion(),
+        completion(
+            "transport",
+            "backup_transport",
+            "primary_destination",
+            "backup_destination",
+            "responsibilities",
+        ),
         now=NOW,
     )
 
     assert result.status == "review_recommended"
-    assert "more serious" in result.message
+    assert result.message == (
+        "Current or forecast fire danger conditions indicate it is time to review "
+        "your household preparedness plan."
+    )
+    assert result.sections_to_review == [
+        "transport",
+        "backup_transport",
+        "primary_destination",
+        "backup_destination",
+        "responsibilities",
+    ]
+    assert "bushfire will" not in result.message.casefold()
+    assert "evacuation is required" not in result.message.casefold()
 
 
 def test_incomplete_plan_recommends_specific_sections() -> None:

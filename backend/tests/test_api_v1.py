@@ -333,6 +333,33 @@ def test_same_responsible_person_api_remains_invalid(
     assert "different backup member" in response.json()["detail"]["errors"][0]
 
 
+def test_existing_responsibility_accepts_valid_update_and_rejects_conflict(
+    api: tuple[TestClient, InMemoryHouseholdRepository], complete_plan_data: dict
+) -> None:
+    client, _ = api
+    household_id = create_household(client)
+    assert client.put(
+        f"/api/v1/households/{household_id}/plan", json=complete_plan_data
+    ).status_code == 200
+
+    updated = deepcopy(complete_plan_data)
+    updated["responsibilities"][0]["task_name"] = "Collect the emergency kit"
+    valid_response = client.put(
+        f"/api/v1/households/{household_id}/plan", json=updated
+    )
+
+    invalid = deepcopy(updated)
+    invalid["responsibilities"][0]["backup_member_id"] = "m_001"
+    invalid_response = client.put(
+        f"/api/v1/households/{household_id}/plan", json=invalid
+    )
+    saved = client.get(f"/api/v1/households/{household_id}/plan").json()
+
+    assert valid_response.status_code == 200
+    assert invalid_response.status_code == 422
+    assert saved["responsibilities"][0] == updated["responsibilities"][0]
+
+
 def test_whitespace_only_location_is_rejected(
     api: tuple[TestClient, InMemoryHouseholdRepository],
 ) -> None:
