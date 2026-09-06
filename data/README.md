@@ -1,17 +1,18 @@
 # Data Processing
 
-This directory contains open-data processing work for the FIT5120 project.
+This directory contains open-data processing and spatial lookup work for the FIT5120 FIREBREAK project.
 
 See [`docs/iteration1-integration-contract.md`](../docs/iteration1-integration-contract.md)
 for the Backend adapter, runtime modes, and complete cross-component contract.
-This README remains the source for datasets, processing, provenance, and spatial
-lookup details.
+
+This README remains the source for datasets, processing, provenance, ingestion,
+and spatial lookup details.
 
 ## Folder structure
 
 - `raw/` — original datasets stored locally or in the team Google Drive and not committed to GitHub.
-- `processed/` — cleaned and application-ready datasets committed to GitHub.
-- `scripts/` — repeatable data cleaning and spatial-processing scripts.
+- `processed/` — cleaned and application-ready datasets committed to GitHub where file size permits.
+- `scripts/` — repeatable data cleaning, ingestion, and spatial lookup scripts.
 - `test/` — spatial lookup test fixtures.
 
 ---
@@ -75,7 +76,6 @@ The script:
 - renames fields to consistent lowercase names
 - converts the CRS to EPSG:4326
 - validates geometries
-- provides a point-in-polygon BPA lookup
 - exports the result as GeoParquet
 
 #### Processed fields
@@ -90,7 +90,7 @@ The script:
 
 `EPSG:4326`
 
-#### Lookup result
+#### Runtime lookup result
 
 Given:
 
@@ -104,6 +104,9 @@ the lookup returns:
 ~~~text
 is_bushfire_prone_area: true/false
 ~~~
+
+The processed polygon data is ingested into MySQL and queried at runtime through
+`scripts/open_data_mysql.py`.
 
 #### Limitations
 
@@ -167,7 +170,6 @@ The script:
 - converts the CRS to EPSG:4326
 - validates geometries
 - standardises district names
-- provides a point-in-polygon district lookup
 - exports the result as GeoParquet
 
 #### Processed fields
@@ -195,7 +197,7 @@ The processed dataset contains nine districts:
 
 `EPSG:4326`
 
-#### Lookup result
+#### Runtime lookup result
 
 Given:
 
@@ -211,6 +213,8 @@ fire_district: Central
 ~~~
 
 If a point is not inside a district polygon, the lookup returns `None`.
+
+The processed polygons are stored in MySQL for runtime lookup.
 
 #### Limitations
 
@@ -228,8 +232,7 @@ Combined lookup testing is implemented in:
 
 `scripts/test_spatial_lookup.py`
 
-For a latitude and longitude, the spatial-classification portion of the combined
-result is:
+For a latitude and longitude, the application-facing result includes:
 
 ~~~json
 {
@@ -238,19 +241,29 @@ result is:
     "longitude": 144.12595975369607
   },
   "is_bushfire_prone_area": true,
-  "fire_district": "Central"
+  "fire_district": "Central",
+  "environmental_context": {
+    "fire_history": {
+      "historical_fire_record_count": 58,
+      "last_recorded_burn_year": 2025,
+      "most_recent_fire_date": "2025-02-03",
+      "search_radius_km": 20
+    }
+  }
 }
 ~~~
 
-This is part of the Iteration 1 spatial output used by Backend.
+The combined lookup is implemented by:
 
-The application-facing combined lookup also includes the Fire History context
-documented below. Its spatial classification combines:
+`data/scripts/location_context.py`
 
-- Designated Bushfire Prone Area status
-- CFA Fire District
+The implementation obtains BPA, CFA Fire District, and Historical Fire context
+from MySQL through:
 
-into a single location-context result.
+`data/scripts/open_data_mysql.py`
+
+The response contract used by Backend remains unchanged from the previous
+GeoParquet-backed implementation.
 
 ---
 
@@ -277,6 +290,9 @@ Each fixture checks:
 
 - expected BPA status
 - expected CFA fire district
+- Fire History response structure
+- Fire History record count validity
+- configured search radius
 
 The current fixtures cover:
 
@@ -309,9 +325,16 @@ GitHub
 Processed application-ready datasets
         ↓
 GitHub where file size is reasonable
+        ↓
+MySQL ingestion for runtime use
 ~~~
 
-GeoParquet is used for processed geospatial datasets because it preserves spatial geometry and CRS information while providing a portable application-ready format.
+GeoParquet remains the reproducible processed-data format because it preserves
+spatial geometry and CRS information while providing portable application-ready
+artifacts.
+
+MySQL is the runtime storage layer for the three spatial datasets currently used
+by the Backend.
 
 ---
 
@@ -320,7 +343,7 @@ GeoParquet is used for processed geospatial datasets because it preserves spatia
 The current spatial data workflow is:
 
 ~~~text
-Official Victorian open datasets
+Official Victorian Open Data
         ↓
 Raw shapefiles
         ↓
@@ -330,34 +353,74 @@ Geometry validation
         ↓
 CRS conversion to EPSG:4326
         ↓
-Processed GeoParquet files
+Processed GeoParquet
         ↓
-Spatial point-in-polygon lookup
+ingest_open_data_to_mysql.py
         ↓
-        BPA status + CFA Fire District + Fire History context
+MySQL spatial Open Data tables
         ↓
-Backend integration
+open_data_mysql.py
+        ↓
+location_context.py
+        ↓
+Backend DataSpatialProvider
+        ↓
+Local context API
+        ↓
+Frontend Overview
 ~~~
 
-The Backend can then use the returned CFA district to retrieve current or forecast Fire Danger Rating information from an official live source.
+The Backend can use the returned CFA district to retrieve current or forecast
+Fire Danger Rating information from an official live source.
 
 The Data layer does not calculate or predict official Fire Danger Ratings.
 
-## Runtime storage boundary
+---
 
-Processed BPA, CFA Fire District, and Fire History GeoParquet remain the source
-spatial data. They are not copied wholesale into MySQL. After a verified
-household address supplies official coordinates, Backend derives BPA, district,
-and fire-history facts and may store the small household-specific result in its
-`household_location_context` snapshot. That snapshot is reused while the saved
-location is unchanged and is invalidated when the household location is saved;
-it is not a copy of these datasets. Dataset-version invalidation is future work.
+## Runtime Storage Boundary
 
-Vicmap is used separately for optional address suggestions and verification.
-BOM weather and Fire Danger Rating are dynamic official-provider data, not
-GeoParquet outputs. Fire District is needed by Backend to select the matching
-official Fire Danger Rating; BPA and historical records are contextual and do
-not predict a household's future fire risk.
+Processed GeoParquet files remain the reproducible application-ready artifacts
+produced by the Data pipeline.
+
+The following processed datasets are ingested into MySQL for Backend runtime use:
+
+- Bushfire Prone Area
+- CFA Fire District
+- lightweight Historical Fire
+
+The MySQL tables are:
+
+~~~text
+open_data_bpa
+open_data_fire_district
+open_data_fire_history
+~~~
+
+The ingestion is performed by:
+
+`data/scripts/ingest_open_data_to_mysql.py`
+
+Runtime spatial queries are implemented in:
+
+`data/scripts/open_data_mysql.py`
+
+The Backend therefore no longer needs to load the BPA, CFA Fire District, or
+lightweight Historical Fire GeoParquet datasets into memory for normal runtime
+lookups.
+
+The existing table:
+
+`household_location_context`
+
+has a different purpose. It stores a small derived per-household snapshot of
+location context and is invalidated when the saved household location changes.
+
+It is not a copy of the Open Data tables.
+
+Vicmap is used separately for address suggestions and verification.
+
+BOM weather and Fire Danger Rating are dynamic official-provider data and are
+not stored in the spatial Open Data tables.
 
 ---
 
@@ -368,6 +431,10 @@ not predict a household's future fire risk.
 | Bushfire Prone Area | `processed/bpa.parquet` | Determine whether a location is inside a designated BPA |
 | CFA Fire District | `processed/fire_district.parquet` | Determine the CFA fire district for a location |
 | Lightweight Fire History | `processed/fire_history_lightweight.parquet` | Provide contextual historical-fire records within a configured radius |
+| Full Fire History | `processed/fire_history.parquet` | Preserve full cleaned historical-fire polygon geometry for detailed analysis |
+
+The full Fire History file is approximately 639 MB and is stored separately in
+team shared storage rather than GitHub.
 
 ---
 
@@ -375,12 +442,14 @@ not predict a household's future fire risk.
 
 | Script | Purpose |
 |---|---|
-| `scripts/process_bpa.py` | Clean, validate and export BPA spatial data |
-| `scripts/process_fire_district.py` | Clean, validate and export CFA Fire District data |
+| `scripts/process_bpa.py` | Clean, validate, and export BPA spatial data |
+| `scripts/process_fire_district.py` | Clean, validate, and export CFA Fire District data |
 | `scripts/process_fire_history.py` | Clean and export the full bushfire-history dataset |
-| `scripts/create_fire_history_lightweight.py` | Create the representative-point Backend dataset |
-| `scripts/fire_history_lookup.py` | Query contextual Fire History by radius |
-| `scripts/location_context.py` | Combine BPA, district, and Fire History results for Backend |
+| `scripts/create_fire_history_lightweight.py` | Create the representative-point Historical Fire dataset |
+| `scripts/ingest_open_data_to_mysql.py` | Ingest processed BPA, CFA District, and lightweight Historical Fire data into MySQL |
+| `scripts/open_data_mysql.py` | Perform MySQL-backed runtime spatial lookups |
+| `scripts/location_context.py` | Combine BPA, district, and Historical Fire results for Backend |
+| `scripts/fire_history_lookup.py` | Previous GeoParquet-based Historical Fire lookup retained for validation/comparison |
 | `scripts/test_location_context.py` | Validate the combined application-facing response |
 | `scripts/test_spatial_lookup.py` | Validate BPA/district fixtures and Fire History response structure |
 
@@ -405,8 +474,8 @@ In particular:
 - BPA status is an official designation, not a personalised risk score.
 - CFA Fire District identifies the relevant district, not the current Fire Danger Rating.
 - Fire Danger Ratings must come from an official live or forecast source.
-- Environmental or historical datasets added later should be presented as contextual information unless a validated methodology supports stronger interpretation.
-
+- Historical fire information is contextual only.
+- Historical fire frequency must not be treated as a prediction of future fire activity.
 
 ---
 
@@ -416,7 +485,9 @@ In particular:
 
 The Fire History dataset is used to provide simple historical bushfire context around a household location for Iteration 1 US2.2.
 
-The Fire History functionality is contextual only. It does not calculate, estimate or predict personalised bushfire risk.
+The Fire History functionality is contextual only.
+
+It does not calculate, estimate, or predict personalised bushfire risk.
 
 ### Source processing
 
@@ -470,9 +541,9 @@ data/processed/fire_history.parquet
 
 The processing script remains in GitHub so that the full processed dataset can be reproduced from the original source.
 
-### Lightweight Backend dataset
+### Lightweight runtime dataset
 
-To support faster Backend integration, a lightweight Fire History dataset is derived from the full processed dataset.
+A lightweight Historical Fire dataset is derived from the full processed dataset.
 
 The lightweight dataset is created by:
 
@@ -490,17 +561,45 @@ It keeps all 628,308 Bushfire records but retains only:
 - `start_date`
 - `geometry`
 
-The original fire polygon geometry is replaced with one representative point located inside each original fire polygon.
+The original fire polygon geometry is replaced with one representative point
+located inside each original fire polygon.
 
-This significantly reduces storage size while preserving one spatial reference point for every historical Bushfire record.
+This significantly reduces storage size while preserving one spatial reference
+point for every Historical Fire record.
 
-The full polygon dataset remains preserved separately and is not replaced by the lightweight dataset.
+The full polygon dataset remains preserved separately and is not replaced by
+the lightweight dataset.
 
-### Lightweight lookup
+### MySQL ingestion
 
-The application-facing lookup is implemented in:
+The lightweight dataset is the Historical Fire dataset currently ingested into
+the application database.
 
-`scripts/fire_history_lookup.py`
+It is stored in:
+
+`open_data_fire_history`
+
+The ingestion is performed by:
+
+`scripts/ingest_open_data_to_mysql.py`
+
+The expected row count is:
+
+~~~text
+628,308
+~~~
+
+The full approximately 639 MB polygon dataset is not currently ingested into
+MySQL.
+
+It should only replace or supplement the lightweight runtime representation if
+a later requirement specifically needs full polygon-level runtime analysis.
+
+### Runtime lookup
+
+The application-facing Historical Fire lookup is implemented in:
+
+`scripts/open_data_mysql.py`
 
 The lookup accepts:
 
@@ -527,18 +626,28 @@ The lookup returns a compact result such as:
 }
 ~~~
 
-The exact values depend on the location being queried.
+Dates are returned to Backend in ISO `YYYY-MM-DD` format.
+
+Frontend presentation formatting is outside the Data-layer contract.
 
 ### Lookup method
 
-The lightweight lookup:
+The MySQL-backed Historical Fire lookup:
 
-1. loads the representative-point Fire History dataset
-2. receives a latitude and longitude in EPSG:4326
-3. transforms the query location and representative points to EPSG:7899 (GDA2020 / Vicgrid)
-4. creates a search area using the specified radius in kilometres
-5. uses a spatial index to identify representative points that fall inside the search area
-6. derives a compact contextual response from the matching records
+1. receives latitude and longitude in EPSG:4326
+2. constructs a geographic bounding box around the requested radius
+3. uses `MBRContains` as a spatial-index prefilter
+4. applies `ST_Distance_Sphere` to candidate points for the final radius test
+5. counts matching historical records
+6. derives the latest recorded fire season
+7. derives the most recent available `start_date`
+8. returns the compact contextual result
+
+The bounding-box prefilter is important because directly applying
+`ST_Distance_Sphere` across all 628,308 records requires a much larger scan.
+
+Local validation showed the optimized query returned the same 20 km result as
+the previous GeoParquet implementation for tested locations.
 
 ### Approximation and interpretation
 
@@ -548,17 +657,23 @@ Therefore:
 
 `historical_fire_record_count`
 
-represents the number of historical Bushfire record representative points located inside the selected search radius.
+represents the number of Historical Fire record representative points located
+inside the selected search radius.
 
-It is not exactly equivalent to counting all original fire polygons that intersect the search area.
+It is not exactly equivalent to counting all original fire polygons that
+intersect the search area.
 
-For example, a large historical fire polygon may intersect the search radius even if its representative point lies outside the radius.
+For example, a large historical fire polygon may intersect the search radius
+even if its representative point lies outside the radius.
 
-The full polygon dataset is retained separately when exact polygon-level spatial analysis is required.
+The full polygon dataset is retained separately when exact polygon-level
+spatial analysis is required.
 
 The lightweight result is designed for fast contextual display in the application.
 
-It must not automatically be interpreted as the number of unique real-world bushfire events because a fire event may be represented by more than one spatial record.
+It must not automatically be interpreted as the number of unique real-world
+bushfire events because a fire event may be represented by more than one
+spatial record.
 
 `last_recorded_burn_year` represents the most recent recorded fire season among matching historical records.
 
@@ -575,19 +690,170 @@ They must not be used to claim that:
 - a household has a particular bushfire risk level
 - historical fire frequency directly predicts future fire activity
 
+---
+
+## Local MySQL Setup for Data and Backend Members
+
+The MySQL database used for local development runs through Docker Compose.
+
+Each developer has their own local Docker MySQL database and Docker volume.
+
+Data ingested on one team member's computer is not automatically present in
+another team member's Docker database.
+
+### 1. Create local environment configuration
+
+From the repository root:
+
+~~~bash
+cp .env.example .env
+~~~
+
+Configure the values required by Docker and Backend.
+
+Do not commit `.env`.
+
+### 2. Start local MySQL
+
+~~~bash
+docker compose up -d mysql
+~~~
+
+Check that MySQL is healthy:
+
+~~~bash
+docker compose ps
+~~~
+
+### 3. Apply migration 006 to an existing database
+
+If the developer already has an existing Docker MySQL volume created before
+the spatial Open Data tables were added:
+
+~~~bash
+docker compose exec -T mysql sh -c \
+  'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' \
+  < database/migrations/006_open_spatial_data.sql
+~~~
+
+A completely fresh Docker volume receives the current schema from:
+
+`database/init/001_initial_schema.sql`
+
+and therefore already includes the Open Data tables.
+
+### 4. Ingest the processed Open Data
+
+Run the ingestion script from the repository root:
+
+~~~bash
+DATABASE_HOST=127.0.0.1 \
+python data/scripts/ingest_open_data_to_mysql.py
+~~~
+
+The script loads:
+
+- 76 BPA records
+- 9 CFA Fire District records
+- 628,308 lightweight Historical Fire records
+
+The script replaces the existing contents of the three Open Data tables during
+a reload.
+
+### 5. Verify row counts
+
+Connect to MySQL:
+
+~~~bash
+docker compose exec mysql sh -lc \
+  'exec mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"'
+~~~
+
+Then run:
+
+~~~sql
+SELECT COUNT(*) FROM open_data_bpa;
+SELECT COUNT(*) FROM open_data_fire_district;
+SELECT COUNT(*) FROM open_data_fire_history;
+~~~
+
+Expected:
+
+~~~text
+open_data_bpa: 76
+open_data_fire_district: 9
+open_data_fire_history: 628308
+~~~
+
+---
+
+## Database Connection Locations
+
+From the host machine:
+
+~~~text
+Host: 127.0.0.1
+Port: value of MYSQL_EXPOSED_PORT
+~~~
+
+The current common local value is:
+
+~~~text
+3307
+~~~
+
+From another Docker service such as Backend:
+
+~~~text
+Host: mysql
+Port: 3306
+~~~
+
+The database name and credentials are provided through:
+
+~~~text
+MYSQL_DATABASE
+MYSQL_USER
+MYSQL_PASSWORD
+~~~
+
+Backend uses its existing database environment configuration.
 
 ---
 
 ## Backend Handoff
 
-The main reusable location-context module for Backend integration is:
+The main reusable location-context entry point remains:
 
 `data/scripts/location_context.py`
 
-Backend consumes it through `backend/app/providers/data_spatial.py`, which maps
-the nested fire-history values into the public API's contextual summary string.
+Backend consumes it through:
 
-It combines the current Iteration 1 spatial context into one application-ready response:
+`backend/app/providers/data_spatial.py`
+
+Backend imports:
+
+~~~python
+from data.scripts.location_context import get_location_context
+~~~
+
+and calls:
+
+~~~python
+result = get_location_context(
+    latitude,
+    longitude
+)
+~~~
+
+Backend members do not need to manually implement BPA, CFA District, or
+Historical Fire SQL.
+
+`location_context.py` delegates the runtime spatial operations to:
+
+`data/scripts/open_data_mysql.py`
+
+The application-facing response structure remains:
 
 ~~~json
 {
@@ -608,33 +874,56 @@ It combines the current Iteration 1 spatial context into one application-ready r
 }
 ~~~
 
-From the repository root, Backend imports:
-
-~~~python
-from data.scripts.location_context import get_location_context
-~~~
-
-and call:
-
-~~~python
-result = get_location_context(
-    latitude,
-    longitude
-)
-~~~
-
-The current response includes:
+The response includes:
 
 - Designated Bushfire Prone Area status
 - CFA Fire District
 - historical bushfire context
 
-The Fire History component is contextual only and must not be treated as a personalised bushfire risk score.
+The existing Backend adapter converts these values into the public API's
+spatial provider result.
 
-Validation for the combined response is implemented in:
+The frontend can continue consuming the same API structure.
+
+---
+
+## Validation
+
+Combined response validation is implemented in:
 
 `data/scripts/test_location_context.py`
 
-Broader spatial fixture validation remains in:
+Broader spatial fixture validation is implemented in:
 
 `data/scripts/test_spatial_lookup.py`
+
+The MySQL-backed lookup was also compared directly with the previous
+GeoParquet-backed lookup for known test locations.
+
+The compared values matched for:
+
+- BPA status
+- CFA Fire District
+- Historical Fire record count
+- latest recorded burn year
+- most recent dated fire record
+
+---
+
+## Production
+
+Local development uses Docker MySQL.
+
+Production uses AWS RDS MySQL.
+
+Ingesting the datasets into a developer's local Docker database does not
+populate production RDS.
+
+Before the production Backend uses the MySQL-backed spatial lookup, the
+production database must:
+
+1. receive migration `006_open_spatial_data.sql`
+2. contain the three Open Data tables
+3. receive the processed BPA, CFA Fire District, and lightweight Historical Fire data
+
+Production credentials must not be committed to GitHub.

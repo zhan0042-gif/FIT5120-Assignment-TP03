@@ -1,51 +1,9 @@
-import geopandas as gpd
-from pathlib import Path
-from shapely.geometry import Point
-
-from .fire_history_lookup import get_fire_history_context
-
-
-# --------------------------------------------------
-# Load processed application-ready datasets
-# --------------------------------------------------
-
-PROCESSED_DATA_DIR = Path(__file__).resolve().parents[1] / "processed"
-BPA_PATH = PROCESSED_DATA_DIR / "bpa.parquet"
-FIRE_DISTRICT_PATH = PROCESSED_DATA_DIR / "fire_district.parquet"
-
-bpa = gpd.read_parquet(BPA_PATH)
-fire_district = gpd.read_parquet(FIRE_DISTRICT_PATH)
-
-
-# --------------------------------------------------
-# BPA lookup
-# --------------------------------------------------
-
-def check_bpa(latitude, longitude):
-    point = Point(longitude, latitude)
-
-    match = bpa[
-        bpa.geometry.covers(point)
-    ]
-
-    return not match.empty
-
-
-# --------------------------------------------------
-# CFA Fire District lookup
-# --------------------------------------------------
-
-def get_fire_district(latitude, longitude):
-    point = Point(longitude, latitude)
-
-    match = fire_district[
-        fire_district.geometry.covers(point)
-    ]
-
-    if match.empty:
-        return None
-
-    return match.iloc[0]["fire_district"]
+from .open_data_mysql import (
+    check_bpa,
+    get_connection,
+    get_fire_district,
+    get_fire_history_context,
+)
 
 
 # --------------------------------------------------
@@ -58,34 +16,64 @@ def get_location_context(
     fire_history_radius_km=20
 ):
     """
-    Return application-ready location context.
+    Return the combined FIREBREAK spatial context for a location.
 
-    This combines:
-    - Bushfire Prone Area status
+    The function queries MySQL for:
+    - Bushfire Prone Area membership
     - CFA Fire District
-    - Historical bushfire context
+    - Historical Fire context within the configured radius
 
-    Fire History is contextual only and must not be
-    interpreted as a personalised bushfire risk score.
+    Args:
+        latitude:
+            Latitude of the location in decimal degrees, EPSG:4326.
+        longitude:
+            Longitude of the location in decimal degrees, EPSG:4326.
+        fire_history_radius_km:
+            Radius in kilometres used for the Historical Fire lookup.
+            Defaults to 20.
+
+    Returns:
+        dict:
+            Application-ready spatial context containing location coordinates,
+            BPA status, CFA Fire District, and Historical Fire context.
+
+    Notes:
+        Historical Fire information is contextual only and must not be
+        interpreted as a personalised bushfire risk score or prediction.
     """
+
+    latitude = float(latitude)
+    longitude = float(longitude)
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            is_bpa = check_bpa(
+                cursor,
+                latitude,
+                longitude,
+            )
+
+            fire_district = get_fire_district(
+                cursor,
+                latitude,
+                longitude,
+            )
+
+            fire_history = get_fire_history_context(
+                cursor,
+                latitude,
+                longitude,
+                radius_km=fire_history_radius_km,
+            )
 
     return {
         "location": {
-            "latitude": float(latitude),
-            "longitude": float(longitude)
+            "latitude": latitude,
+            "longitude": longitude,
         },
-        "is_bushfire_prone_area": bool(
-            check_bpa(latitude, longitude)
-        ),
-        "fire_district": get_fire_district(
-            latitude,
-            longitude
-        ),
+        "is_bushfire_prone_area": bool(is_bpa),
+        "fire_district": fire_district,
         "environmental_context": {
-            "fire_history": get_fire_history_context(
-                latitude,
-                longitude,
-                radius_km=fire_history_radius_km
-            )
-        }
+            "fire_history": fire_history,
+        },
     }
