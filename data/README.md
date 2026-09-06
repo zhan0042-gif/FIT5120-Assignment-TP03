@@ -927,3 +927,83 @@ production database must:
 3. receive the processed BPA, CFA Fire District, and lightweight Historical Fire data
 
 Production credentials must not be committed to GitHub.
+
+
+## Historical Fire Visualisation Data
+
+The Data Science layer provides historical fire point records for use in the
+FIREBREAK Overview visualisation.
+
+### Purpose
+
+The visualisation is intended to show historical fire records around the
+household location so users can understand where recorded fire activity has
+occurred nearby.
+
+Historical fire records are contextual information only. They must not be
+presented as a personalised bushfire risk score or prediction.
+
+### Data source
+
+Historical fire records are stored in:
+
+`open_data_fire_history`
+
+The lookup uses the same search radius as the existing Historical Fire context
+(default: 20 km).
+
+### Python function
+
+The spatial lookup is implemented in:
+
+`data/scripts/open_data_mysql.py`
+
+```python
+get_fire_history_points(
+    cursor,
+    latitude,
+    longitude,
+    radius_km=20,
+)
+```
+### Returned data
+
+Each Historical Fire point contains:
+
+```json
+{
+  "latitude": -38.239540899833344,
+  "longitude": 145.1447580744234,
+  "season": 2025,
+  "start_date": "2025-03-10"
+}
+```
+
+`get_location_context()` exposes these records under:
+
+```text
+environmental_context.fire_history.historical_fire_points
+```
+
+The number of returned points should match
+`historical_fire_record_count` for the same location and search radius.
+
+### Intended visualisation
+
+The planned Overview visualisation is a map showing:
+
+- the household location
+- Historical Fire record points within the configured 20 km radius
+- the 20 km search area
+
+The existing Historical Fire summary should remain visible:
+
+- Records within 20 km
+- Latest recorded season
+- Most recent dated record
+
+Historical Fire points provide local historical context only and must not be
+labelled as a bushfire risk map or prediction.
+
+Backend must expose `historical_fire_points` through the relevant API response
+before Frontend can render the map.

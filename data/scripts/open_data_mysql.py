@@ -239,3 +239,118 @@ def get_fire_history_context(
         "most_recent_fire_date": most_recent_fire_date,
         "search_radius_km": radius_km,
     }
+
+
+def get_fire_history_points(
+    cursor,
+    latitude,
+    longitude,
+    radius_km=20,
+):
+    """
+    Return Historical Fire point records within a radius of a location.
+
+    The query first applies a rectangular bounding-box filter so MySQL can
+    use the spatial index. It then applies ST_Distance_Sphere to keep only
+    records that fall within the requested radius.
+
+    Args:
+        cursor:
+            Active PyMySQL dictionary cursor.
+        latitude:
+            Latitude of the household location in decimal degrees,
+            EPSG:4326.
+        longitude:
+            Longitude of the household location in decimal degrees,
+            EPSG:4326.
+        radius_km:
+            Search radius around the household in kilometres.
+            Defaults to 20.
+
+    Returns:
+        list[dict]:
+            Historical Fire records within the requested radius. Each
+            dictionary contains latitude, longitude, season, and start_date.
+    """
+    latitude_delta = radius_km / 110.574
+
+    longitude_scale = 111.320 * math.cos(
+        math.radians(latitude)
+    )
+
+    if abs(longitude_scale) < 1e-9:
+        longitude_delta = 180.0
+    else:
+        longitude_delta = radius_km / abs(longitude_scale)
+
+    min_lon = longitude - longitude_delta
+    max_lon = longitude + longitude_delta
+    min_lat = latitude - latitude_delta
+    max_lat = latitude + latitude_delta
+
+    point_wkt = f"POINT({longitude} {latitude})"
+
+    bbox_wkt = (
+        "POLYGON(("
+        f"{min_lon} {min_lat},"
+        f"{max_lon} {min_lat},"
+        f"{max_lon} {max_lat},"
+        f"{min_lon} {max_lat},"
+        f"{min_lon} {min_lat}"
+        "))"
+    )
+
+    sql = """
+        SELECT
+            ST_Longitude(geometry) AS longitude,
+            ST_Latitude(geometry) AS latitude,
+            season,
+            start_date
+        FROM open_data_fire_history
+        WHERE MBRContains(
+            ST_GeomFromText(
+                %s,
+                4326,
+                'axis-order=long-lat'
+            ),
+            geometry
+        )
+        AND ST_Distance_Sphere(
+            geometry,
+            ST_GeomFromText(
+                %s,
+                4326,
+                'axis-order=long-lat'
+            )
+        ) <= %s
+        ORDER BY start_date DESC, season DESC
+    """
+
+    cursor.execute(
+        sql,
+        (
+            bbox_wkt,
+            point_wkt,
+            radius_km * 1000,
+        ),
+    )
+
+    rows = cursor.fetchall()
+
+    return [
+        {
+            "latitude": float(row["latitude"]),
+            "longitude": float(row["longitude"]),
+            "season": (
+                int(row["season"])
+                if row["season"] is not None
+                else None
+            ),
+            "start_date": (
+                row["start_date"].isoformat()
+                if row["start_date"] is not None
+                else None
+            ),
+        }
+        for row in rows
+    ]
