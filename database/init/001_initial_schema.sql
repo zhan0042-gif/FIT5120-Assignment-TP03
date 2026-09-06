@@ -252,7 +252,7 @@ CREATE TABLE responsibility (
 
 
 -- =========================================================
--- 9. Household Location
+-- 10. Household Location
 -- Stores household coordinates used by the Data layer
 -- =========================================================
 
@@ -289,7 +289,7 @@ CREATE TABLE household_location (
 
 
 -- =========================================================
--- 10. Derived Household Location Context
+-- 11. Derived Household Location Context
 -- One cached GeoParquet result per verified household location.
 -- =========================================================
 
@@ -311,7 +311,7 @@ CREATE TABLE household_location_context (
 
 
 -- =========================================================
--- 11. Basic Scenario Test Run
+-- 12. Basic Scenario Test Run
 -- =========================================================
 
 CREATE TABLE test_run (
@@ -341,7 +341,7 @@ CREATE TABLE test_run (
 
 
 -- =========================================================
--- 12. Scenario Test Check Result
+-- 13. Scenario Test Check Result
 -- =========================================================
 
 CREATE TABLE test_check_result (
@@ -370,7 +370,7 @@ CREATE TABLE test_check_result (
 );
 
 -- =========================================================
--- 13. Bushfire Prone Area Open Data
+-- 14. Bushfire Prone Area Open Data
 -- =========================================================
 
 CREATE TABLE open_data_bpa (
@@ -385,7 +385,7 @@ CREATE TABLE open_data_bpa (
 
 
 -- =========================================================
--- 14. CFA Fire District Open Data
+-- 15. CFA Fire District Open Data
 -- =========================================================
 
 CREATE TABLE open_data_fire_district (
@@ -398,7 +398,7 @@ CREATE TABLE open_data_fire_district (
 
 
 -- =========================================================
--- 15. Historical Fire Open Data
+-- 16. Historical Fire Open Data
 -- Lightweight application-ready representative-point dataset
 -- =========================================================
 
