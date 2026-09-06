@@ -1,16 +1,30 @@
+"""
+MySQL-backed runtime spatial lookups for FIREBREAK Open Data.
+
+This module queries the processed spatial datasets previously ingested into
+MySQL. It provides Bushfire Prone Area, CFA Fire District, and Historical Fire
+context without loading GeoParquet datasets into Backend memory.
+"""
+
 import math
 import os
 from contextlib import contextmanager
 
 import pymysql
-from dotenv import load_dotenv
-
-
-load_dotenv()
-
 
 @contextmanager
 def get_connection():
+    """
+    Create and manage a MySQL connection for runtime spatial lookups.
+
+    Connection settings are read from environment variables. DATABASE_HOST and
+    DATABASE_PORT allow the same code to work with Docker MySQL locally and
+    AWS RDS in production.
+
+    Yields:
+        pymysql.connections.Connection:
+            A MySQL connection configured with dictionary-style cursors.
+    """
     connection = pymysql.connect(
         host=os.getenv("DATABASE_HOST", "127.0.0.1"),
         port=int(os.getenv("DATABASE_PORT", "3306")),
@@ -29,6 +43,22 @@ def get_connection():
 
 
 def check_bpa(cursor, latitude, longitude):
+    """
+    Determine whether a coordinate lies inside a Bushfire Prone Area.
+
+    Args:
+        cursor:
+            Active PyMySQL cursor.
+        latitude:
+            Latitude of the location in decimal degrees, EPSG:4326.
+        longitude:
+            Longitude of the location in decimal degrees, EPSG:4326.
+
+    Returns:
+        bool:
+            True when the location intersects a stored BPA polygon,
+            otherwise False.
+    """
     point_wkt = f"POINT({longitude} {latitude})"
 
     sql = """
@@ -53,6 +83,22 @@ def check_bpa(cursor, latitude, longitude):
 
 
 def get_fire_district(cursor, latitude, longitude):
+    """
+    Return the CFA Fire District containing a coordinate.
+
+    Args:
+        cursor:
+            Active PyMySQL cursor.
+        latitude:
+            Latitude of the location in decimal degrees, EPSG:4326.
+        longitude:
+            Longitude of the location in decimal degrees, EPSG:4326.
+
+    Returns:
+        str | None:
+            CFA Fire District name when a matching polygon is found,
+            otherwise None.
+    """
     point_wkt = f"POINT({longitude} {latitude})"
 
     sql = """
@@ -84,6 +130,35 @@ def get_fire_history_context(
     longitude,
     radius_km=20,
 ):
+    """
+    Return contextual Historical Fire information around a location.
+
+    A geographic bounding box is first used as a spatial-index prefilter.
+    ST_Distance_Sphere is then applied to the candidate points to perform the
+    final radius check.
+
+    Args:
+        cursor:
+            Active PyMySQL cursor.
+        latitude:
+            Latitude of the search location in decimal degrees, EPSG:4326.
+        longitude:
+            Longitude of the search location in decimal degrees, EPSG:4326.
+        radius_km:
+            Search radius in kilometres. Defaults to 20.
+
+    Returns:
+        dict:
+            Historical Fire context containing:
+            - historical_fire_record_count
+            - last_recorded_burn_year
+            - most_recent_fire_date
+            - search_radius_km
+
+    Notes:
+        Historical Fire results are contextual information only and must not
+        be interpreted as a personalised bushfire risk prediction.
+    """
     latitude_delta = radius_km / 110.574
 
     longitude_scale = 111.320 * math.cos(

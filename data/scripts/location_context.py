@@ -16,15 +16,30 @@ def get_location_context(
     fire_history_radius_km=20
 ):
     """
-    Return application-ready location context.
+    Return the combined FIREBREAK spatial context for a location.
 
-    This combines:
-    - Bushfire Prone Area status
+    The function queries MySQL for:
+    - Bushfire Prone Area membership
     - CFA Fire District
-    - Historical bushfire context
+    - Historical Fire context within the configured radius
 
-    Fire History is contextual only and must not be
-    interpreted as a personalised bushfire risk score.
+    Args:
+        latitude:
+            Latitude of the location in decimal degrees, EPSG:4326.
+        longitude:
+            Longitude of the location in decimal degrees, EPSG:4326.
+        fire_history_radius_km:
+            Radius in kilometres used for the Historical Fire lookup.
+            Defaults to 20.
+
+    Returns:
+        dict:
+            Application-ready spatial context containing location coordinates,
+            BPA status, CFA Fire District, and Historical Fire context.
+
+    Notes:
+        Historical Fire information is contextual only and must not be
+        interpreted as a personalised bushfire risk score or prediction.
     """
 
     latitude = float(latitude)

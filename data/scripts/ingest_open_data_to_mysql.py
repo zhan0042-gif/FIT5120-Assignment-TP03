@@ -23,6 +23,17 @@ FIRE_HISTORY_PATH = "data/processed/fire_history_lightweight.parquet"
 
 
 def get_connection():
+    """
+    Create a MySQL connection for the Open Data ingestion process.
+
+    Connection settings are read from environment variables. This ingestion
+    script is normally run from the host machine, so MYSQL_EXPOSED_PORT is used
+    for the host-accessible Docker MySQL port.
+
+    Returns:
+        pymysql.connections.Connection:
+            A MySQL connection with transactions enabled.
+    """
     return pymysql.connect(
         host=os.getenv("DATABASE_HOST", "127.0.0.1"),
         port=int(os.getenv("MYSQL_EXPOSED_PORT", "3307")),
@@ -35,6 +46,19 @@ def get_connection():
 
 
 def load_bpa(cursor):
+    """
+    Load the processed Bushfire Prone Area dataset into MySQL.
+
+    The existing rows in open_data_bpa are removed before the processed
+    GeoParquet records are inserted.
+
+    Args:
+        cursor:
+            Active PyMySQL cursor used to execute database statements.
+
+    Returns:
+        None.
+    """
     bpa = gpd.read_parquet(BPA_PATH)
 
     print(f"Loading BPA rows: {len(bpa)}")
@@ -67,6 +91,19 @@ def load_bpa(cursor):
 
 
 def load_fire_district(cursor):
+    """
+    Load the processed CFA Fire District dataset into MySQL.
+
+    The existing rows in open_data_fire_district are removed before the
+    processed district polygons are inserted.
+
+    Args:
+        cursor:
+            Active PyMySQL cursor used to execute database statements.
+
+    Returns:
+        None.
+    """
     fire_district = gpd.read_parquet(FIRE_DISTRICT_PATH)
 
     print(f"Loading Fire District rows: {len(fire_district)}")
@@ -96,6 +133,22 @@ def load_fire_district(cursor):
 
 
 def load_fire_history(cursor, batch_size=5000):
+    """
+    Load the lightweight Historical Fire dataset into MySQL in batches.
+
+    The lightweight dataset contains one representative point for each
+    historical bushfire record. Existing rows are removed before reloading.
+
+    Args:
+        cursor:
+            Active PyMySQL cursor used to execute database statements.
+        batch_size:
+            Maximum number of Historical Fire rows inserted per batch.
+            Defaults to 5000.
+
+    Returns:
+        None.
+    """
     fire_history = gpd.read_parquet(FIRE_HISTORY_PATH)
 
     print(f"Loading Historical Fire rows: {len(fire_history)}")
@@ -150,6 +203,16 @@ def load_fire_history(cursor, batch_size=5000):
 
 
 def main():
+    """
+    Run the complete Open Data ingestion process.
+
+    BPA, CFA Fire District, and lightweight Historical Fire data are loaded
+    inside one transaction. The transaction is committed when all loaders
+    succeed and rolled back if any loader fails.
+
+    Returns:
+        None.
+    """
     connection = get_connection()
 
     try:
