@@ -170,10 +170,10 @@ function keydown(event) {
 .address-input input {
   width: 100%;
   box-sizing: border-box;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border-strong);
   border-radius: var(--radius);
   padding: 0.55rem 0.65rem;
-  background: #fff;
+  background: var(--color-bg-card);
   color: var(--color-text);
 }
 .address-input input:focus {
