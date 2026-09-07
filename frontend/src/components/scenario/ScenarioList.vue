@@ -19,7 +19,7 @@ const copy = {
 </template>
 <style scoped>
 .scenario-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.scenario-item { width: 100%; text-align: left; border: 1px solid var(--color-border); border-radius: var(--radius); background: #fff; padding: 0.9rem 1rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.3rem; }
+.scenario-item { width: 100%; text-align: left; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-card); padding: 0.9rem 1rem; cursor: pointer; display: flex; flex-direction: column; gap: 0.3rem; }
 .scenario-item:disabled { cursor: not-allowed; opacity: 0.65; }
 .title { font-weight: 600; }.description { color: var(--color-text-muted); font-size: 0.9rem; line-height: 1.45; }
 .scenario-item.is-selected { border-color: var(--color-accent); background: var(--color-accent-soft); }.scenario-item.is-selected .description { color: var(--color-text); }

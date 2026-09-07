@@ -17,7 +17,7 @@ onMounted(async () => {
 </script>
 <template>
   <div class="overview">
-    <header class="page-header"><h1>Preparedness overview</h1><p>See your plan progress, household address, and local bushfire information.</p></header>
+    <header class="page-header"><h1>Your area today</h1></header>
     <div class="top-grid">
       <CompletionOverview :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
       <PreparationSupportBanner />
@@ -27,7 +27,7 @@ onMounted(async () => {
 </template>
 <style scoped>
 .overview { width: 100%; min-width: 0; }
-.page-header { margin-bottom: 1.75rem; }.page-header h1 { font-size: clamp(2rem, 4vw, 2.25rem); line-height: 1.2; }.page-header p { color: var(--color-text-muted); margin-top: 0.5rem; }
+.page-header { margin-bottom: 1.75rem; }.page-header h1 { font-size: clamp(2rem, 4vw, 2.25rem); line-height: 1.2; }
 .top-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; align-items: start; }
 .top-grid :deep(.card + .card) { margin-top: 0; }
 @media (max-width: 800px) { .top-grid { grid-template-columns: 1fr; } }
