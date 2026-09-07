@@ -24,8 +24,8 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
 </script>
 <template>
   <div class="scenario-tester">
-    <h1>Test your preparedness plan</h1>
-    <p class="subhead">Choose a scenario to check whether your saved backup arrangements are available.</p>
+    <h1>What happens if?</h1>
+    <p class="subhead">Each scenario checks your saved plan for a backup you can actually use.</p>
     <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your household plan..." />
     <ErrorState v-else-if="householdStore.planStatus === 'error'" message="Could not load your household plan." @retry="householdStore.loadPlan" />
     <EmptyState v-else-if="noSavedPlan" title="No saved plan found" message="Build and save your plan before testing scenarios."><div class="state-actions"><router-link class="btn btn-primary btn-sm" to="/plan">Go to My Plan</router-link><button class="btn btn-ghost btn-sm" type="button" @click="retryPlanAvailability">Retry</button></div></EmptyState>
@@ -35,6 +35,7 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
         <LoadingState v-if="scenarioStore.scenariosStatus === 'loading'" message="Loading scenarios..." />
         <ErrorState v-else-if="scenarioStore.scenariosStatus === 'error'" message="Could not load scenarios. Please try again." @retry="scenarioStore.loadScenarios" />
         <ScenarioList v-else :scenarios="scenarioStore.scenarios" :selected-id="scenarioStore.selectedScenarioId" @select="scenarioStore.selectScenario" />
+        <p class="scenario-caveat">Hypothetical planning exercises. Not evacuation advice — for that, follow the CFA.</p>
         <button v-if="scenarioStore.selectedScenarioId" class="btn btn-accent run-btn" type="button" :disabled="scenarioStore.testStatus === 'loading' || !selectedScenario?.enabled" @click="scenarioStore.runTest">{{ scenarioStore.testStatus === 'loading' ? 'Running test...' : 'Run test' }}</button>
       </div>
       <section class="card result-column">
@@ -50,5 +51,6 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
 <style scoped>
 .scenario-tester { width: 100%; min-width: 0; }.scenario-tester > h1 { font-size: clamp(2rem, 4vw, 2.25rem); line-height: 1.2; }.subhead { color: var(--color-text-muted); margin: 0.5rem 0 1.75rem; }
 .tester-grid { display: grid; grid-template-columns: minmax(250px, 340px) 1fr; gap: 1.5rem; align-items: start; }.scenario-column { display: flex; flex-direction: column; gap: 1rem; }.run-btn { width: 100%; }.state-actions { display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+.scenario-caveat { color: var(--color-text-muted); font-size: 0.8125rem; line-height: 1.5; margin: 0; }
 @media (max-width: 760px) { .tester-grid { grid-template-columns: 1fr; } }
 </style>
