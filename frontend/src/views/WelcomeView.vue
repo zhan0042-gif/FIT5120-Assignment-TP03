@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useHouseholdStore } from '../stores/household'
 const householdStore = useHouseholdStore()
 
@@ -9,17 +9,20 @@ const EXAMPLE_GAPS = [
   'Destination unavailable',
 ]
 
-onMounted(() => {
-  // A returning household's real completion state isn't loaded on this page by
-  // default; fetch it so the preview card can reflect it instead of the example.
+// A missing plan settles completionStatus at 'idle' rather than 'success', so
+// deriving "still loading" from store status alone gets stuck forever for that
+// household. A local flag that flips once loadPlan()'s promise settles (any
+// outcome) avoids reasoning about that combination.
+const checkedCompletion = ref(false)
+
+onMounted(async () => {
   if (householdStore.householdId && householdStore.completionStatus === 'idle') {
-    householdStore.loadPlan()
+    await householdStore.loadPlan()
   }
+  checkedCompletion.value = true
 })
 
-const previewLoading = computed(
-  () => householdStore.householdId && householdStore.completionStatus !== 'success',
-)
+const previewLoading = computed(() => householdStore.householdId && !checkedCompletion.value)
 const previewGaps = computed(
   () => householdStore.completion?.immediate_checks.slice(0, 3).map((check) => check.message) ?? [],
 )
@@ -66,9 +69,13 @@ const previewGaps = computed(
             <span class="preview-rank">{{ index + 1 }}</span>
           </div>
         </template>
-        <template v-else-if="!previewLoading">
+        <template v-else-if="!previewLoading && householdStore.completion">
           <span class="preview-label">From your latest check</span>
           <p class="preview-empty">No immediate gaps found in your last check.</p>
+        </template>
+        <template v-else-if="!previewLoading">
+          <span class="preview-label">Ready when you are</span>
+          <p class="preview-empty">Start your plan to see where the gaps are.</p>
         </template>
       </aside>
     </div>
