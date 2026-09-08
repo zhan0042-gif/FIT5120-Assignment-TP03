@@ -92,6 +92,23 @@
   color: var(--color-text);
 }
 
+/* Opting a subtree back into the shell context from inside a paper one. */
+.surface-dark {
+  color-scheme: dark;
+
+  --color-bg-content: #16110e;
+  --color-bg-card: #221a15;
+  --color-bg-card-muted: #2c221b;
+  --color-border: rgba(245, 239, 231, 0.1);
+  --color-border-strong: rgba(245, 239, 231, 0.22);
+  --color-text: #f5efe7;
+  --color-text-muted: #a89c90;
+  --shadow-card: none;
+
+  background: var(--color-bg-content);
+  color: var(--color-text);
+}
+
 * {
   box-sizing: border-box;
 }
