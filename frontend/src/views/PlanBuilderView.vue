@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useHouseholdStore } from '../stores/household'
 import LoadingState from '../components/common/LoadingState.vue'
@@ -43,10 +43,19 @@ function resetDraft() {
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
   resetDraft()
-  // The Overview page deep-links here with ?section=<id>; that now selects the
-  // matching step instead of scrolling to it.
+  // The Overview page deep-links here with ?section=<id>. Selecting the matching
+  // step makes the target visible; scrollIntoView/focus then need the DOM update
+  // from that step switch to have landed first.
   const requested = STEPS.findIndex((step) => step.id === route.query.section)
-  if (requested !== -1) goToStep(requested)
+  if (requested !== -1) {
+    goToStep(requested)
+    await nextTick()
+    const target = document.getElementById(`plan-${route.query.section}`)
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      target.focus({ preventScroll: true })
+    }
+  }
 })
 
 watch(

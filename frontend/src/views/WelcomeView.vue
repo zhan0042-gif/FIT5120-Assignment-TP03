@@ -1,6 +1,28 @@
 <script setup>
+import { computed, onMounted } from 'vue'
 import { useHouseholdStore } from '../stores/household'
 const householdStore = useHouseholdStore()
+
+const EXAMPLE_GAPS = [
+  'Primary transport unavailable',
+  'Responsible person unavailable',
+  'Destination unavailable',
+]
+
+onMounted(() => {
+  // A returning household's real completion state isn't loaded on this page by
+  // default; fetch it so the preview card can reflect it instead of the example.
+  if (householdStore.householdId && householdStore.completionStatus === 'idle') {
+    householdStore.loadPlan()
+  }
+})
+
+const previewLoading = computed(
+  () => householdStore.householdId && householdStore.completionStatus !== 'success',
+)
+const previewGaps = computed(
+  () => householdStore.completion?.immediate_checks.slice(0, 3).map((check) => check.message) ?? [],
+)
 </script>
 
 <template>
@@ -20,19 +42,34 @@ const householdStore = useHouseholdStore()
       </div>
 
       <aside class="preview-card">
-        <span class="preview-label">Ranked for your household</span>
-        <div class="preview-row is-lead">
-          <span class="preview-name">Primary transport unavailable</span>
-          <span class="preview-rank">1</span>
-        </div>
-        <div class="preview-row">
-          <span class="preview-name">Responsible person unavailable</span>
-          <span class="preview-rank">2</span>
-        </div>
-        <div class="preview-row">
-          <span class="preview-name">Destination unavailable</span>
-          <span class="preview-rank">3</span>
-        </div>
+        <template v-if="!householdStore.householdId">
+          <span class="preview-label">What a plan check looks like</span>
+          <div
+            v-for="(gap, index) in EXAMPLE_GAPS"
+            :key="gap"
+            class="preview-row"
+            :class="{ 'is-lead': index === 0 }"
+          >
+            <span class="preview-name">{{ gap }}</span>
+            <span class="preview-rank">{{ index + 1 }}</span>
+          </div>
+        </template>
+        <template v-else-if="previewGaps.length">
+          <span class="preview-label">From your latest check</span>
+          <div
+            v-for="(gap, index) in previewGaps"
+            :key="gap"
+            class="preview-row"
+            :class="{ 'is-lead': index === 0 }"
+          >
+            <span class="preview-name">{{ gap }}</span>
+            <span class="preview-rank">{{ index + 1 }}</span>
+          </div>
+        </template>
+        <template v-else-if="!previewLoading">
+          <span class="preview-label">From your latest check</span>
+          <p class="preview-empty">No immediate gaps found in your last check.</p>
+        </template>
       </aside>
     </div>
 
@@ -61,6 +98,7 @@ h1 { font-size: clamp(2.6rem, 5.4vw, 4.4rem); font-weight: 700; letter-spacing: 
 .preview-row.is-lead .preview-name { font-weight: 700; }
 .preview-rank { align-items: center; background: rgba(245, 239, 231, 0.12); border-radius: var(--radius-pill); color: var(--color-text-muted); display: inline-flex; font-size: 0.875rem; font-weight: 700; height: 1.65rem; justify-content: center; width: 1.65rem; }
 .preview-row.is-lead .preview-rank { background: var(--color-accent); color: var(--color-text-inverse); }
+.preview-empty { color: var(--color-text-muted); font-size: 1rem; margin: 0; }
 .beats { border-top: 1px solid var(--color-border); display: grid; gap: 1.75rem; grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 2rem; }
 .beat { display: flex; flex-direction: column; gap: 0.4rem; }
 .beat strong { color: var(--color-accent); font-size: 0.9375rem; }
