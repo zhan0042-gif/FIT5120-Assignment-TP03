@@ -1,6 +1,8 @@
 """Central runtime selection for deterministic mock or official live data."""
 
 from dataclasses import dataclass
+from datetime import timedelta
+import math
 import os
 
 from app.providers.bom import BOMWeatherClient
@@ -36,6 +38,21 @@ def spatial_mode() -> str:
     if mode not in {"mock", "data"}:
         raise RuntimeError("APP_SPATIAL_MODE must be either 'mock' or 'data'.")
     return mode
+
+
+def spatial_cache_max_age() -> timedelta:
+    raw_hours = os.getenv("APP_SPATIAL_CACHE_MAX_AGE_HOURS", "24")
+    try:
+        hours = float(raw_hours)
+    except ValueError as exc:
+        raise RuntimeError(
+            "APP_SPATIAL_CACHE_MAX_AGE_HOURS must be a positive finite number."
+        ) from exc
+    if not math.isfinite(hours) or hours <= 0:
+        raise RuntimeError(
+            "APP_SPATIAL_CACHE_MAX_AGE_HOURS must be a positive finite number."
+        )
+    return timedelta(hours=hours)
 
 
 def build_external_providers(mode: str | None = None) -> ExternalProviders:

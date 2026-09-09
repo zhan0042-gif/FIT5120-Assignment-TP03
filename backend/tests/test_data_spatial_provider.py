@@ -84,6 +84,56 @@ def test_data_spatial_provider_supports_a_narrow_district_lookup() -> None:
     assert district_calls == 1
 
 
+def test_data_spatial_provider_maps_bounded_historical_fire_points() -> None:
+    calls = []
+    expected = [
+        {
+            "latitude": -37.7,
+            "longitude": 145.2,
+            "season": 2025,
+            "start_date": "2025-02-03",
+        }
+    ]
+
+    def points_lookup(latitude, longitude, radius_km, limit):
+        calls.append((latitude, longitude, radius_km, limit))
+        return expected
+
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {},
+        lambda _latitude, _longitude: "Central",
+        points_lookup,
+    )
+
+    result = provider.get_fire_history_points(
+        -37.74, 145.21, radius_km=20, limit=500
+    )
+
+    assert result == expected
+    assert calls == [(-37.74, 145.21, 20, 500)]
+
+
+def test_data_spatial_provider_hides_point_lookup_failures() -> None:
+    def unavailable(_latitude, _longitude, _radius_km, _limit):
+        raise TimeoutError("private database host timed out")
+
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {},
+        lambda _latitude, _longitude: "Central",
+        unavailable,
+    )
+
+    with pytest.raises(
+        ExternalDataUnavailable,
+        match="Historical fire map data is unavailable",
+    ) as error:
+        provider.get_fire_history_points(
+            -37.74, 145.21, radius_km=20, limit=500
+        )
+
+    assert "private database host" not in str(error.value)
+
+
 def test_data_spatial_provider_rejects_narrow_lookup_without_a_district() -> None:
     provider = DataSpatialProvider(
         lambda _latitude, _longitude: {},

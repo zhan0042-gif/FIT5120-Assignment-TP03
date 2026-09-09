@@ -1,7 +1,9 @@
 """Location, local-context aggregation, and preparation timing services."""
 
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
+from app.core.config import spatial_cache_max_age
 from app.core.exceptions import (
     ApplicationError,
     AddressResolutionError,
@@ -24,6 +26,9 @@ from app.schemas.households import (
     FireDanger,
     HouseholdLocation,
     HouseholdLocationContext,
+    HistoricalFireMapLocation,
+    HistoricalFirePoint,
+    HistoricalFirePoints,
     LocalContext,
     PlanCompletion,
     PreparationSupport,
@@ -162,12 +167,22 @@ class HouseholdStaticContextResolver:
         self,
         repository: HouseholdRepository,
         spatial_provider: SpatialProvider,
+        *,
+        cache_max_age: timedelta | None = None,
+        now_provider: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self.spatial_provider = spatial_provider
+        self.cache_max_age = (
+            spatial_cache_max_age() if cache_max_age is None else cache_max_age
+        )
+        self.now_provider = now_provider or (lambda: datetime.now(timezone.utc))
 
     def get_full(
-        self, household_id: str
+        self,
+        household_id: str,
+        *,
+        require_fire_history: bool = False,
     ) -> tuple[HouseholdLocation, HouseholdLocationContext]:
         location = self._location(
             household_id,
@@ -177,7 +192,17 @@ class HouseholdStaticContextResolver:
             ),
         )
         cached = self.repository.get_location_context(household_id)
-        if cached is None:
+        if (
+            cached is None
+            or not self._is_fresh(cached)
+            or (
+                require_fire_history
+                and (
+                    cached.fire_history_record_count is None
+                    or cached.fire_history_radius_km is None
+                )
+            )
+        ):
             spatial = self.spatial_provider.get_context(
                 location.latitude, location.longitude
             )
@@ -196,7 +221,7 @@ class HouseholdStaticContextResolver:
                 fire_history_radius_km=getattr(
                     spatial, "fire_history_radius_km", None
                 ),
-                generated_at=datetime.now(timezone.utc),
+                generated_at=self._now_utc(),
             )
             self.repository.save_location_context(household_id, cached)
         return location, cached
@@ -210,7 +235,7 @@ class HouseholdStaticContextResolver:
             ),
         )
         cached = self.repository.get_location_context(household_id)
-        if cached is not None:
+        if cached is not None and self._is_fresh(cached):
             return cached.fire_district
         return self.spatial_provider.get_fire_district(
             location.latitude, location.longitude
@@ -226,6 +251,22 @@ class HouseholdStaticContextResolver:
         ) or location.latitude is None or location.longitude is None:
             raise LocationNotVerified(unverified_message)
         return location
+
+    def _is_fresh(self, context: HouseholdLocationContext) -> bool:
+        generated_at = context.generated_at
+        if generated_at.tzinfo is None or generated_at.utcoffset() is None:
+            generated_at = generated_at.replace(tzinfo=timezone.utc)
+        else:
+            generated_at = generated_at.astimezone(timezone.utc)
+
+        age = self._now_utc() - generated_at
+        return timedelta(0) <= age <= self.cache_max_age
+
+    def _now_utc(self) -> datetime:
+        now = self.now_provider()
+        if now.tzinfo is None or now.utcoffset() is None:
+            return now.replace(tzinfo=timezone.utc)
+        return now.astimezone(timezone.utc)
 
 
 class LocalContextService:
@@ -308,6 +349,74 @@ class LocalContextService:
         if context.fire_history_latest_date:
             text += f" The most recent dated record was {context.fire_history_latest_date}."
         return text
+
+
+class HistoricalFireMapService:
+    """Return bounded historical fire context around a saved household."""
+
+    DEFAULT_RADIUS_KM = 20.0
+
+    def __init__(
+        self,
+        repository: HouseholdRepository,
+        spatial_provider: SpatialProvider,
+    ) -> None:
+        self.static_context = HouseholdStaticContextResolver(
+            repository, spatial_provider
+        )
+        self.spatial_provider = spatial_provider
+
+    def get(self, household_id: str, *, limit: int) -> HistoricalFirePoints:
+        try:
+            location, context = self.static_context.get_full(
+                household_id, require_fire_history=True
+            )
+            radius_km = (
+                context.fire_history_radius_km or self.DEFAULT_RADIUS_KM
+            )
+            provider_points = self.spatial_provider.get_fire_history_points(
+                location.latitude,
+                location.longitude,
+                radius_km=radius_km,
+                limit=limit,
+            )
+            if len(provider_points) > limit:
+                raise ExternalDataUnavailable(
+                    "Historical fire map result exceeded its requested limit."
+                )
+            points = [
+                HistoricalFirePoint.model_validate(point)
+                for point in provider_points
+            ]
+            returned_count = len(points)
+            total_count = context.fire_history_record_count
+            if total_count is None:
+                if returned_count == limit:
+                    raise ExternalDataUnavailable(
+                        "Historical fire total count is unavailable."
+                    )
+                total_count = returned_count
+            if total_count < returned_count:
+                raise ExternalDataUnavailable(
+                    "Historical fire count is inconsistent with point data."
+                )
+            return HistoricalFirePoints(
+                household_location=HistoricalFireMapLocation(
+                    latitude=location.latitude,
+                    longitude=location.longitude,
+                ),
+                search_radius_km=radius_km,
+                total_count=total_count,
+                returned_count=returned_count,
+                truncated=total_count > returned_count,
+                points=points,
+            )
+        except ApplicationError:
+            raise
+        except Exception as exc:
+            raise ExternalDataUnavailable(
+                "Historical fire map data is unavailable."
+            ) from exc
 
 
 class PreparationTimingService:

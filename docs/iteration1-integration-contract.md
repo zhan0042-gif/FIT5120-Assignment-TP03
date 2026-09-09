@@ -10,10 +10,10 @@ This is the human-readable contract for the current FIREBREAK I1 implementation.
 | FastAPI routes and Pydantic schemas | HTTP boundary, structural validation, and public JSON contracts. |
 | Services | Plan validation, completion, immediate checks, location/context coordination, preparation support, and scenarios. |
 | Repositories / MySQL | Transactional application persistence. |
-| Providers | Vicmap address lookup; BOM weather and Fire Danger data; processed spatial lookup. |
+| Providers | Vicmap address lookup; BOM weather and Fire Danger data; MySQL-backed spatial lookup. |
 | GeoParquet | BPA, CFA Fire District, and Fire History source data—not application tables. |
 
-Normal runtime uses MySQL, processed GeoParquet, Vicmap, and BOM. `APP_DATA_MODE=mock` selects deterministic official-provider substitutes; `APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock` are useful controlled development/test modes. They are not the full-stack default.
+Normal runtime uses MySQL spatial tables, Vicmap, and BOM. GeoParquet is retained for processing, ingestion, and validation, but is not loaded by Backend runtime. `APP_DATA_MODE=mock` selects deterministic official-provider substitutes; `APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock` are useful controlled development/test modes. They are not the full-stack default.
 
 ## HTTP endpoints
 
@@ -29,6 +29,7 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `GET /locations/suggestions?q=…` | Return up to eight Vicmap autocomplete candidates. A suggestion is not itself verification. Search normalises case, whitespace, punctuation, and common Australian road-type abbreviations, then prefers indexed house-number/road fields when the input can be structured. |
 | `POST /locations/nearby-addresses` | Return nearby Vicmap candidates for coordinates. Candidates remain unverified until the user explicitly confirms one through the normal address-save flow. |
 | `GET /households/{household_id}/local-context` | Return saved location, static spatial context, current weather, and official FDR state. |
+| `GET /households/{household_id}/historical-fire-points?limit=500` | Return a bounded 20 km Historical Fire point set. Limit must be 1-1000; the response reports total/returned counts and truncation. |
 | `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
 | `GET /scenarios/basic?household_id=…` | List fixed I1 scenarios relevant to the saved plan. |
 | `POST /households/{household_id}/tests` | Run one deterministic scenario and persist its result. |
@@ -77,12 +78,12 @@ chooses **Use this address**; unit candidates are never selected silently.
 
 ```text
 verified address coordinates --+
-                               +-> GeoParquet BPA / Fire District / Fire History
+                               +-> MySQL BPA / Fire District / Fire History
 device-shared coordinates -----+-> derived household_location_context snapshot
                                    -> current BOM weather and official FDR
 ```
 
-The snapshot contains derived household-specific spatial facts, not raw datasets. It is reused for an unchanged location and invalidated when the household location is saved/changed. Dataset-version invalidation is not implemented in I1. BPA is an official designation, not a personal risk score. CFA Fire District is an operational dependency for selecting matching BOM FDR data. Fire History is contextual only; the UI may show records within 20 km, latest season, and most recent dated record.
+The snapshot contains derived household-specific spatial facts, not raw datasets. It is reused for an unchanged location for at most 24 hours by default and invalidated immediately when the household location is saved/changed. Dataset-version invalidation is not implemented in I1. BPA is an official designation, not a personal risk score. CFA Fire District is an operational dependency for selecting matching BOM FDR data. Fire History is contextual only; the summary and dedicated bounded map endpoint use a 20 km radius and must not be presented as prediction.
 
 BOM weather selects an appropriate fresh observed station; BOM weather and FDR caches are configured for about 60 minutes, but cache presence never overrides source freshness. Controlled weather unavailability produces `weather: null` while retaining spatial context and FDR. FDR is official provider data: FIREBREAK does not calculate or fabricate it, and it may legitimately be unavailable.
 

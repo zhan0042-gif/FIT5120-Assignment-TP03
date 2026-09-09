@@ -12,6 +12,37 @@ from contextlib import contextmanager
 
 import pymysql
 
+
+OPEN_DATA_DB_TIMEOUT_DEFAULTS = {
+    "APP_OPEN_DATA_DB_CONNECT_TIMEOUT_SECONDS": 5,
+    "APP_OPEN_DATA_DB_READ_TIMEOUT_SECONDS": 15,
+    "APP_OPEN_DATA_DB_WRITE_TIMEOUT_SECONDS": 10,
+}
+
+
+def get_open_data_db_timeouts():
+    """Return validated finite socket timeouts for direct Open Data queries."""
+    values = {}
+    for name, default in OPEN_DATA_DB_TIMEOUT_DEFAULTS.items():
+        raw_value = os.getenv(name, str(default))
+        try:
+            value = int(raw_value)
+        except ValueError as exc:
+            raise RuntimeError(f"{name} must be a positive integer.") from exc
+        if value <= 0:
+            raise RuntimeError(f"{name} must be a positive integer.")
+        values[name] = value
+    return {
+        "connect_timeout": values[
+            "APP_OPEN_DATA_DB_CONNECT_TIMEOUT_SECONDS"
+        ],
+        "read_timeout": values["APP_OPEN_DATA_DB_READ_TIMEOUT_SECONDS"],
+        "write_timeout": values[
+            "APP_OPEN_DATA_DB_WRITE_TIMEOUT_SECONDS"
+        ],
+    }
+
+
 @contextmanager
 def get_connection():
     """
@@ -34,6 +65,7 @@ def get_connection():
         charset="utf8mb4",
         cursorclass=pymysql.cursors.DictCursor,
         autocommit=True,
+        **get_open_data_db_timeouts(),
     )
 
     try:
@@ -246,6 +278,7 @@ def get_fire_history_points(
     latitude,
     longitude,
     radius_km=20,
+    limit=500,
 ):
     """
     Return Historical Fire point records within a radius of a location.
@@ -266,12 +299,19 @@ def get_fire_history_points(
         radius_km:
             Search radius around the household in kilometres.
             Defaults to 20.
+        limit:
+            Maximum number of points returned. Applied by MySQL.
 
     Returns:
         list[dict]:
             Historical Fire records within the requested radius. Each
             dictionary contains latitude, longitude, season, and start_date.
     """
+    if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
+        raise ValueError(
+            "Historical Fire point limit must be a positive integer."
+        )
+
     latitude_delta = radius_km / 110.574
 
     longitude_scale = 111.320 * math.cos(
@@ -323,7 +363,13 @@ def get_fire_history_points(
                 'axis-order=long-lat'
             )
         ) <= %s
-        ORDER BY start_date DESC, season DESC
+        ORDER BY
+            start_date IS NULL,
+            start_date DESC,
+            season IS NULL,
+            season DESC,
+            fire_history_id DESC
+        LIMIT %s
     """
 
     cursor.execute(
@@ -332,6 +378,7 @@ def get_fire_history_points(
             bbox_wkt,
             point_wkt,
             radius_km * 1000,
+            limit,
         ),
     )
 

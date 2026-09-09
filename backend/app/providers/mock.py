@@ -84,6 +84,16 @@ class MockSpatialProvider:
     def get_fire_district(self, latitude: float, longitude: float) -> str:
         return "Central"
 
+    def get_fire_history_points(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+        limit: int,
+    ) -> list[dict]:
+        return []
+
 
 class MockFireDangerClient:
     def __init__(self, source_updated_at: datetime | None = None) -> None:

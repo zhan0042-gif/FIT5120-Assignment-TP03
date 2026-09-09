@@ -9,6 +9,9 @@ from app.core.exceptions import ExternalDataUnavailable
 
 LocationLookup = Callable[[float, float], dict[str, Any]]
 DistrictLookup = Callable[[float, float], str | None]
+FireHistoryPointsLookup = Callable[
+    [float, float, float, int], list[dict[str, Any]]
+]
 
 
 @dataclass(frozen=True)
@@ -34,9 +37,11 @@ class DataSpatialProvider:
         self,
         lookup: LocationLookup | None = None,
         district_lookup: DistrictLookup | None = None,
+        fire_history_points_lookup: FireHistoryPointsLookup | None = None,
     ) -> None:
         self._lookup = lookup
         self._district_lookup = district_lookup
+        self._fire_history_points_lookup = fire_history_points_lookup
 
     def get_context(self, latitude: float, longitude: float) -> DataSpatialResult:
         try:
@@ -92,6 +97,25 @@ class DataSpatialProvider:
                 "Fire district data is unavailable."
             ) from exc
 
+    def get_fire_history_points(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+        limit: int,
+    ) -> list[dict[str, Any]]:
+        try:
+            return self._history_points_lookup()(
+                latitude, longitude, radius_km, limit
+            )
+        except ExternalDataUnavailable:
+            raise
+        except Exception as exc:
+            raise ExternalDataUnavailable(
+                "Historical fire map data is unavailable."
+            ) from exc
+
     def _location_lookup(self) -> LocationLookup:
         if self._lookup is None:
             from data.scripts.location_context import get_location_context
@@ -105,3 +129,12 @@ class DataSpatialProvider:
 
             self._district_lookup = get_location_fire_district
         return self._district_lookup
+
+    def _history_points_lookup(self) -> FireHistoryPointsLookup:
+        if self._fire_history_points_lookup is None:
+            from data.scripts.location_context import (
+                get_location_fire_history_points,
+            )
+
+            self._fire_history_points_lookup = get_location_fire_history_points
+        return self._fire_history_points_lookup

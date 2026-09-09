@@ -1,6 +1,6 @@
 """Provider boundaries keep official-data integrations out of business services."""
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from app.schemas.households import (
     AddressSuggestion,
@@ -39,6 +39,15 @@ class SpatialProvider(Protocol):
     def get_context(self, latitude: float, longitude: float) -> SpatialResult: ...
 
     def get_fire_district(self, latitude: float, longitude: float) -> str: ...
+
+    def get_fire_history_points(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+        limit: int,
+    ) -> list[dict[str, Any]]: ...
 
 
 class FireDangerClient(Protocol):

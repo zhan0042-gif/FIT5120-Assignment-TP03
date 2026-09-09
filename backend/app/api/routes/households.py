@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Body, Depends, Query, status
 
 from app.core.dependencies import (
     get_address_client,
@@ -24,6 +24,7 @@ from app.schemas.households import (
     HouseholdCreated,
     HouseholdLocation,
     HouseholdPlan,
+    HistoricalFirePoints,
     LocalContext,
     LocationRequest,
     PlanCompletion,
@@ -31,6 +32,7 @@ from app.schemas.households import (
 )
 from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
 from app.services.context import (
+    HistoricalFireMapService,
     LocalContextService,
     LocationService,
     PreparationSupportService,
@@ -139,6 +141,22 @@ def get_local_context(
     return _local_context_service(
         repository, spatial_provider, fire_danger_client, weather_client
     ).get(household_id)
+
+
+@router.get(
+    "/{household_id}/historical-fire-points",
+    response_model=HistoricalFirePoints,
+)
+def get_historical_fire_points(
+    household_id: str,
+    repository: RepositoryDependency,
+    spatial_provider: Annotated[SpatialProvider, Depends(get_spatial_provider)],
+    limit: Annotated[int, Query(ge=1, le=1000)] = 500,
+) -> HistoricalFirePoints:
+    """Return a bounded, household-scoped Historical Fire map dataset."""
+    return HistoricalFireMapService(repository, spatial_provider).get(
+        household_id, limit=limit
+    )
 
 
 @router.get("/{household_id}/preparation-support", response_model=PreparationSupport)

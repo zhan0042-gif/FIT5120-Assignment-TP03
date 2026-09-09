@@ -137,3 +137,40 @@ def test_get_location_fire_district_runs_only_the_district_query(monkeypatch) ->
 
     assert result == "Central"
     assert calls == [(cursor, -37.89, 144.12)]
+
+
+def test_get_location_fire_history_points_forwards_radius_and_limit(
+    monkeypatch,
+) -> None:
+    cursor = object()
+    calls = []
+    expected = [{"latitude": -37.8, "longitude": 145.2}]
+
+    @contextmanager
+    def connection():
+        class Connection:
+            @contextmanager
+            def cursor(self):
+                yield cursor
+
+        yield Connection()
+
+    def point_lookup(
+        actual_cursor, latitude, longitude, radius_km, limit
+    ):
+        calls.append(
+            (actual_cursor, latitude, longitude, radius_km, limit)
+        )
+        return expected
+
+    monkeypatch.setattr(location_context, "get_connection", connection)
+    monkeypatch.setattr(
+        location_context, "get_fire_history_points", point_lookup
+    )
+
+    result = location_context.get_location_fire_history_points(
+        -37.89, 144.12, radius_km=15, limit=250
+    )
+
+    assert result == expected
+    assert calls == [(cursor, -37.89, 144.12, 15, 250)]
