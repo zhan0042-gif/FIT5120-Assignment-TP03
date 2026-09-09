@@ -3,8 +3,17 @@ from .open_data_mysql import (
     get_connection,
     get_fire_district,
     get_fire_history_context,
-    get_fire_history_points,
 )
+
+
+def get_location_fire_district(latitude, longitude):
+    """Return only the CFA Fire District required by narrow consumers."""
+    latitude = float(latitude)
+    longitude = float(longitude)
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            return get_fire_district(cursor, latitude, longitude)
 
 
 # --------------------------------------------------
@@ -66,15 +75,6 @@ def get_location_context(
                 longitude,
                 radius_km=fire_history_radius_km,
             )
-
-            fire_history_points = get_fire_history_points(
-                cursor,
-                latitude,
-                longitude,
-                radius_km=fire_history_radius_km,
-            )
-
-    fire_history["historical_fire_points"] = fire_history_points
 
     return {
         "location": {

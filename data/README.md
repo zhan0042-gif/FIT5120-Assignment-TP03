@@ -979,14 +979,17 @@ Each Historical Fire point contains:
 }
 ```
 
-`get_location_context()` exposes these records under:
+### Runtime integration status
 
-```text
-environmental_context.fire_history.historical_fire_points
-```
+`get_location_context()` provides the basic spatial context used by Backend:
+Bushfire Prone Area status, CFA Fire District, and the Historical Fire summary.
+It does not query or return the Historical Fire point list.
 
-The number of returned points should match
-`historical_fire_record_count` for the same location and search radius.
+`get_fire_history_points()` remains available in the Data layer for a future
+dedicated Backend map API. The ordinary Backend Local Context API does not
+currently expose these points. When that API is designed, its point count
+should be reconciled with `historical_fire_record_count` for the same location
+and search radius.
 
 ### Intended visualisation
 

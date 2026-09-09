@@ -8,13 +8,13 @@ from app.core.exceptions import ExternalDataUnavailable
 
 
 LocationLookup = Callable[[float, float], dict[str, Any]]
+DistrictLookup = Callable[[float, float], str | None]
 
 
 @dataclass(frozen=True)
 class DataSpatialResult:
     is_bushfire_prone_area: bool
     fire_district: str
-    fire_history_summary: str | None
     vegetation_context: str | None = None
     terrain_context: str | None = None
     fire_history_record_count: int | None = None
@@ -24,16 +24,19 @@ class DataSpatialResult:
 
 
 class DataSpatialProvider:
-    """Expose processed GeoParquet lookups through ``SpatialProvider``.
+    """Expose MySQL-backed Open Data lookups through ``SpatialProvider``.
 
-    The Data layer keeps raw processed datasets outside MySQL. Its combined
-    lookup performs BPA point-in-polygon checks, resolves the CFA district used
-    for FDR matching, and returns historical records as context rather than a
-    personal risk or safety prediction.
+    The combined lookup resolves BPA, CFA district, and historical context.
+    A narrow district lookup supports consumers that only need FDR matching.
     """
 
-    def __init__(self, lookup: LocationLookup | None = None) -> None:
+    def __init__(
+        self,
+        lookup: LocationLookup | None = None,
+        district_lookup: DistrictLookup | None = None,
+    ) -> None:
         self._lookup = lookup
+        self._district_lookup = district_lookup
 
     def get_context(self, latitude: float, longitude: float) -> DataSpatialResult:
         try:
@@ -50,7 +53,6 @@ class DataSpatialProvider:
                     context.get("is_bushfire_prone_area", False)
                 ),
                 fire_district=district,
-                fire_history_summary=self._fire_history_summary(history),
                 fire_history_record_count=(
                     history.get("historical_fire_record_count")
                     if isinstance(history, dict) else None
@@ -75,6 +77,21 @@ class DataSpatialProvider:
                 "Spatial context data is unavailable."
             ) from exc
 
+    def get_fire_district(self, latitude: float, longitude: float) -> str:
+        try:
+            district = self._fire_district_lookup()(latitude, longitude)
+            if not isinstance(district, str) or not district.strip():
+                raise ExternalDataUnavailable(
+                    "No Victorian CFA fire district was found for this location."
+                )
+            return district
+        except ExternalDataUnavailable:
+            raise
+        except Exception as exc:
+            raise ExternalDataUnavailable(
+                "Fire district data is unavailable."
+            ) from exc
+
     def _location_lookup(self) -> LocationLookup:
         if self._lookup is None:
             from data.scripts.location_context import get_location_context
@@ -82,25 +99,9 @@ class DataSpatialProvider:
             self._lookup = get_location_context
         return self._lookup
 
-    @staticmethod
-    def _fire_history_summary(history: Any) -> str | None:
-        if not isinstance(history, dict):
-            return None
-        count = history.get("historical_fire_record_count")
-        radius = history.get("search_radius_km")
-        if not isinstance(count, int) or not isinstance(radius, (int, float)):
-            return None
-        radius_text = f"{radius:g}"
-        if count == 0:
-            return f"No historical bushfire records were found within {radius_text} km."
-        summary = (
-            f"{count} historical bushfire record"
-            f"{'s' if count != 1 else ''} were found within {radius_text} km."
-        )
-        burn_year = history.get("last_recorded_burn_year")
-        recent_date = history.get("most_recent_fire_date")
-        if isinstance(burn_year, int):
-            summary += f" The latest recorded burn season was {burn_year}."
-        if isinstance(recent_date, str) and recent_date:
-            summary += f" The most recent dated record was {recent_date}."
-        return summary
+    def _fire_district_lookup(self) -> DistrictLookup:
+        if self._district_lookup is None:
+            from data.scripts.location_context import get_location_fire_district
+
+            self._district_lookup = get_location_fire_district
+        return self._district_lookup

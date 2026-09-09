@@ -17,11 +17,13 @@ from app.schemas.households import (
     FireDanger,
     FireDangerContext,
     HouseholdLocation,
+    HouseholdLocationContext,
     PlanCompletion,
 )
 from app.services.context import (
     LocalContextService,
     LocationService,
+    PreparationSupportService,
     PreparationTimingService,
 )
 
@@ -269,6 +271,22 @@ class CountingSpatialProvider:
         return NonProneSpatialResult()
 
 
+class PreparationSpatialProvider:
+    def __init__(self, district: str = "Central") -> None:
+        self.district = district
+        self.full_calls = 0
+        self.district_calls = 0
+
+    def get_context(self, latitude: float, longitude: float):
+        self.full_calls += 1
+        raise AssertionError("preparation support requested full spatial context")
+
+    def get_fire_district(self, latitude: float, longitude: float) -> str:
+        self.district_calls += 1
+        assert (latitude, longitude) == (-37.74, 145.21)
+        return self.district
+
+
 def test_false_bpa_and_missing_optional_context_do_not_block_required_context() -> None:
     repository = InMemoryHouseholdRepository()
     household_id = repository.create_household()
@@ -315,6 +333,88 @@ def test_static_context_is_cached_and_address_change_invalidates_it() -> None:
 
     service.get(household_id)
     assert spatial.calls == 2
+
+
+def test_local_context_cache_hit_uses_cached_fields_without_full_lookup() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+    repository.save_location_context(
+        household_id,
+        HouseholdLocationContext(
+            is_bushfire_prone_area=False,
+            fire_district="Mallee",
+            fire_history_record_count=2,
+            fire_history_latest_year=2023,
+            fire_history_latest_date="2023-01-05",
+            fire_history_radius_km=15,
+            generated_at=datetime.now(timezone.utc),
+        ),
+    )
+    spatial = PreparationSpatialProvider()
+
+    result = LocalContextService(
+        repository, spatial, MockFireDangerClient(), MockWeatherClient()
+    ).get(household_id)
+
+    assert result.bushfire_context.is_bushfire_prone_area is False
+    assert result.bushfire_context.fire_district == "Mallee"
+    assert result.environmental_context.fire_history_summary == (
+        "2 historical bushfire records were found within 15 km. "
+        "The latest recorded burn season was 2023. "
+        "The most recent dated record was 2023-01-05."
+    )
+    assert spatial.full_calls == 0
+    assert spatial.district_calls == 0
+
+
+def test_preparation_support_uses_cached_fire_district() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+    repository.save_location_context(
+        household_id,
+        HouseholdLocationContext(
+            is_bushfire_prone_area=True,
+            fire_district="Central",
+            fire_history_record_count=4,
+            fire_history_latest_year=2025,
+            fire_history_latest_date="2025-02-03",
+            fire_history_radius_km=20,
+            generated_at=datetime.now(timezone.utc),
+        ),
+    )
+    spatial = PreparationSpatialProvider()
+
+    result = PreparationSupportService(
+        repository, spatial, MockFireDangerClient()
+    ).get(household_id, completion())
+
+    assert result.status == "review_recommended"
+    assert spatial.full_calls == 0
+    assert spatial.district_calls == 0
+
+
+def test_preparation_support_cache_miss_uses_only_district_lookup() -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    LocationService(repository, MockAddressClient()).save(
+        household_id, "Warrandyte VIC 3113"
+    )
+    spatial = PreparationSpatialProvider()
+
+    result = PreparationSupportService(
+        repository, spatial, MockFireDangerClient()
+    ).get(household_id, completion())
+
+    assert result.status == "review_recommended"
+    assert spatial.full_calls == 0
+    assert spatial.district_calls == 1
+    assert repository.get_location_context(household_id) is None
 
 
 def test_local_context_requires_a_saved_location() -> None:

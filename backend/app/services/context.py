@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 from app.core.exceptions import (
+    ApplicationError,
     AddressResolutionError,
     ExternalDataUnavailable,
     HouseholdNotFound,
@@ -154,13 +155,87 @@ class AddressVerificationService:
         )
 
 
+class HouseholdStaticContextResolver:
+    """Resolve cached full context or the narrow district needed for FDR."""
+
+    def __init__(
+        self,
+        repository: HouseholdRepository,
+        spatial_provider: SpatialProvider,
+    ) -> None:
+        self.repository = repository
+        self.spatial_provider = spatial_provider
+
+    def get_full(
+        self, household_id: str
+    ) -> tuple[HouseholdLocation, HouseholdLocationContext]:
+        location = self._location(
+            household_id,
+            (
+                "Household address is saved, but local context is not available "
+                "until the location is verified."
+            ),
+        )
+        cached = self.repository.get_location_context(household_id)
+        if cached is None:
+            spatial = self.spatial_provider.get_context(
+                location.latitude, location.longitude
+            )
+            cached = HouseholdLocationContext(
+                is_bushfire_prone_area=spatial.is_bushfire_prone_area,
+                fire_district=spatial.fire_district,
+                fire_history_record_count=getattr(
+                    spatial, "fire_history_record_count", None
+                ),
+                fire_history_latest_year=getattr(
+                    spatial, "fire_history_latest_year", None
+                ),
+                fire_history_latest_date=getattr(
+                    spatial, "fire_history_latest_date", None
+                ),
+                fire_history_radius_km=getattr(
+                    spatial, "fire_history_radius_km", None
+                ),
+                generated_at=datetime.now(timezone.utc),
+            )
+            self.repository.save_location_context(household_id, cached)
+        return location, cached
+
+    def get_fire_district(self, household_id: str) -> str:
+        location = self._location(
+            household_id,
+            (
+                "Household address is saved, but preparation support is not "
+                "available until the location is verified."
+            ),
+        )
+        cached = self.repository.get_location_context(household_id)
+        if cached is not None:
+            return cached.fire_district
+        return self.spatial_provider.get_fire_district(
+            location.latitude, location.longitude
+        )
+
+    def _location(
+        self, household_id: str, unverified_message: str
+    ) -> HouseholdLocation:
+        location = self.repository.get_location(household_id)
+        if (
+            location.verification_status != "verified"
+            and location.location_source != "device_location"
+        ) or location.latitude is None or location.longitude is None:
+            raise LocationNotVerified(unverified_message)
+        return location
+
+
 class LocalContextService:
     """Combine verified location context with independent official live data.
 
-    Verified coordinates are required for GeoParquet lookup. The resulting BPA,
-    fire district, and fire-history snapshot is cached per household in MySQL;
-    raw open datasets remain in the Data layer. BOM fire danger and weather are
-    requested dynamically and are not part of that static snapshot.
+    Verified coordinates are required for static Open Data lookup. The
+    resulting BPA, fire district, and fire-history snapshot is cached per
+    household in MySQL; raw open datasets remain in the Data layer. BOM fire
+    danger and weather are requested dynamically and are not part of that
+    static snapshot.
     """
 
     def __init__(
@@ -174,37 +249,13 @@ class LocalContextService:
         self.spatial_provider = spatial_provider
         self.fire_danger_client = fire_danger_client
         self.weather_client = weather_client
+        self.static_context = HouseholdStaticContextResolver(
+            repository, spatial_provider
+        )
 
     def get(self, household_id: str) -> LocalContext:
-        location = self.repository.get_location(household_id)
-        if (
-            location.verification_status != "verified"
-            and location.location_source != "device_location"
-        ) or (
-            location.latitude is None
-            or location.longitude is None
-        ):
-            raise LocationNotVerified(
-                "Household address is saved, but local context is not available until the location is verified."
-            )
         try:
-            cached = self.repository.get_location_context(household_id)
-            if cached is None:
-                # Static spatial work is reused until saving a location invalidates
-                # the snapshot; normal reads do not repeat the GeoParquet lookup.
-                spatial = self.spatial_provider.get_context(
-                    location.latitude, location.longitude
-                )
-                cached = HouseholdLocationContext(
-                    is_bushfire_prone_area=spatial.is_bushfire_prone_area,
-                    fire_district=spatial.fire_district,
-                    fire_history_record_count=getattr(spatial, "fire_history_record_count", None),
-                    fire_history_latest_year=getattr(spatial, "fire_history_latest_year", None),
-                    fire_history_latest_date=getattr(spatial, "fire_history_latest_date", None),
-                    fire_history_radius_km=getattr(spatial, "fire_history_radius_km", None),
-                    generated_at=datetime.now(timezone.utc),
-                )
-                self.repository.save_location_context(household_id, cached)
+            location, cached = self.static_context.get_full(household_id)
             try:
                 fire_danger = self.fire_danger_client.get_fire_danger(
                     cached.fire_district
@@ -234,7 +285,7 @@ class LocalContextService:
                     fire_history_summary=self._history_summary(cached),
                 ),
             )
-        except ExternalDataUnavailable:
+        except ApplicationError:
             raise
         except Exception as exc:
             raise ExternalDataUnavailable(
@@ -355,30 +406,20 @@ class PreparationSupportService:
         self.repository = repository
         self.spatial_provider = spatial_provider
         self.fire_danger_client = fire_danger_client
+        self.static_context = HouseholdStaticContextResolver(
+            repository, spatial_provider
+        )
 
     def get(
         self, household_id: str, completion: PlanCompletion
     ) -> PreparationSupport:
-        location = self.repository.get_location(household_id)
-        if (
-            location.verification_status != "verified"
-            and location.location_source != "device_location"
-        ) or (
-            location.latitude is None
-            or location.longitude is None
-        ):
-            raise LocationNotVerified(
-                "Household address is saved, but preparation support is not available until the location is verified."
-            )
         try:
-            spatial = self.spatial_provider.get_context(
-                location.latitude, location.longitude
-            )
+            fire_district = self.static_context.get_fire_district(household_id)
             fire_danger = self.fire_danger_client.get_fire_danger(
-                spatial.fire_district
+                fire_district
             )
             return PreparationTimingService().recommend(fire_danger, completion)
-        except ExternalDataUnavailable:
+        except ApplicationError:
             raise
         except Exception as exc:
             raise ExternalDataUnavailable(
