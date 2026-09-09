@@ -20,6 +20,14 @@ const reviewLabels = computed(() => (store.prepSupport?.sections_to_review ?? []
       <ul v-if="reviewLabels.length"><li v-for="label in reviewLabels" :key="label">{{ label }}</li></ul>
       <router-link class="btn btn-accent action" to="/plan">Review my plan</router-link>
     </template>
+    <template v-else-if="store.prepStatus === 'idle' && !store.canLoadContext(store.location)">
+      <h3>Preparation advice needs a verified location</h3>
+      <p>Add and verify your household location to check current preparation advice.</p>
+    </template>
+    <template v-else-if="store.prepStatus === 'idle'">
+      <h3>Preparation advice will be refreshed</h3>
+      <p>Current advice will be checked against your saved location and latest plan.</p>
+    </template>
     <template v-else>
       <h3>Preparation advice currently unavailable</h3>
       <p>Official fire danger information is currently unavailable, so FIREBREAK cannot provide a preparation recommendation right now.</p>

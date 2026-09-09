@@ -6,8 +6,8 @@ import {
   clearStoredHouseholdId,
   loadStoredHouseholdId,
   storeHouseholdId,
-} from '../api/client'
-import { createEmptyHouseholdPlan } from '../domain/householdPlan'
+} from '../api/client.js'
+import { createEmptyHouseholdPlan } from '../domain/householdPlan.js'
 
 function isMissingHousehold(error) {
   return (
@@ -34,6 +34,9 @@ export const useHouseholdStore = defineStore('household', () => {
 
   const saveStatus = ref('idle')
   const saveError = ref(null)
+  // Monotonic signal for dependent stores. Preparation remains Backend-owned,
+  // but any successful plan mutation makes its previous response stale.
+  const planRevision = ref(0)
   let householdRequest = null
 
   async function createAndStoreHousehold() {
@@ -132,6 +135,7 @@ export const useHouseholdStore = defineStore('household', () => {
         id = await replaceMissingHousehold()
         plan.value = await api.saveHouseholdPlan(id, next)
       }
+      planRevision.value += 1
       saveStatus.value = 'success'
       await loadCompletion()
     } catch (error) {
@@ -149,6 +153,7 @@ export const useHouseholdStore = defineStore('household', () => {
     completionStatus,
     saveStatus,
     saveError,
+    planRevision,
     ensureHousehold,
     loadPlan,
     savePlan,
