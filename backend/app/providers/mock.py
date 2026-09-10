@@ -12,7 +12,6 @@ class MockSpatialResult:
     longitude: float
     is_bushfire_prone_area: bool
     fire_district: str
-    fire_history_summary: str | None = None
     vegetation_context: str | None = None
     terrain_context: str | None = None
     fire_history_record_count: int | None = None
@@ -81,6 +80,19 @@ class MockSpatialProvider:
             is_bushfire_prone_area=True,
             fire_district="Central",
         )
+
+    def get_fire_district(self, latitude: float, longitude: float) -> str:
+        return "Central"
+
+    def get_fire_history_points(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+        limit: int,
+    ) -> list[dict]:
+        return []
 
 
 class MockFireDangerClient:

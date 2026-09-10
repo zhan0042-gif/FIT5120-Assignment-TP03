@@ -25,6 +25,12 @@ The page edits a detached plan draft. A saved plan loads as saved; edits make th
 
 `src/api/client.js` calls the relative `/api/v1` API and centralizes JSON/error handling. Pinia stores retain UI state and request status; persisted plan data remains authoritative in FastAPI/MySQL. The full endpoint and business contract is in [the integration contract](../docs/iteration1-integration-contract.md).
 
+Overview keeps successful weather, Fire Danger Rating, and Preparation Support
+responses for five minutes across SPA route changes. Re-entry refreshes stale
+data and retries previous failures. Household, location, or saved-plan changes
+invalidate the affected household-bound state immediately. This Frontend policy
+is separate from the Backend's 24-hour static spatial-context cache.
+
 During `npm run dev`, Vite proxies `/api` to `http://[::1]:8000`. This is local development configuration, not a production deployment requirement.
 
 ## Development
@@ -32,5 +38,6 @@ During `npm run dev`, Vite proxies `/api` to `http://[::1]:8000`. This is local 
 ```bash
 npm install
 npm run dev
+npm test
 npm run build
 ```

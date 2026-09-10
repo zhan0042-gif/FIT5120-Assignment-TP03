@@ -1,6 +1,6 @@
 """Household, plan, location, context, and completion API contracts."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
@@ -246,7 +246,7 @@ class HouseholdLocation(BaseModel):
 
 
 class AddressSuggestion(HouseholdLocation):
-    """A canonical Vicmap address candidate returned by autocomplete."""
+    """A normalized Victorian address candidate returned by autocomplete."""
 
 
 class HouseholdLocationContext(BaseModel):
@@ -348,6 +348,29 @@ class LocalContext(BaseModel):
     fire_danger: FireDangerContext
     weather: Weather | None
     environmental_context: EnvironmentalContext
+
+
+class HistoricalFireMapLocation(BaseModel):
+    latitude: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+    longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+
+
+class HistoricalFirePoint(BaseModel):
+    latitude: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
+    longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
+    season: int | None = Field(default=None, ge=0)
+    start_date: date | None = None
+
+
+class HistoricalFirePoints(BaseModel):
+    """Bounded historical context for map display, not a risk prediction."""
+
+    household_location: HistoricalFireMapLocation
+    search_radius_km: float = Field(gt=0)
+    total_count: int = Field(ge=0)
+    returned_count: int = Field(ge=0)
+    truncated: bool
+    points: list[HistoricalFirePoint]
 
 
 class PreparationSupport(BaseModel):

@@ -38,13 +38,13 @@ Key points:
 - Inbound: **80 + 443 from 0.0.0.0/0** only.
 - **Port 22 restricted to the operator's home IP** (`101.188.108.19/32`) — emergency fallback for when SSM Session Manager is unavailable; management is primarily via SSM (instance role `EC2-SSM-Role`, policy `AmazonSSMManagedInstanceCore`). Accepted operational risk (F5/R5 in the vulnerability assessment report).
 - **MySQL not exposed** — RDS has public access off; reachable only from the EC2 security group.
-- Outbound: apt updates, image pulls, external APIs (Vicmap / CFA / BOM).
+- Outbound: apt updates, image pulls, external APIs (TomTom Orbis / CFA / BOM).
 
 ## 4. Secret flow
 
 - **Local dev** — `.env` at repo root (`chmod 600`), gitignored.
 - **CI/CD** — GitHub Actions Secrets (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) — never in workflow files.
-- **Production** — `.env` on the server at the repo root; **server pulls the repo via an SSH deploy key** (`/root/.ssh/github_deploy`, read-only, added in the repo's Deploy Keys).
+- **Production** — `.env` on the server at the repo root, including `TOMTOM_API_KEY` for live address lookup; **server pulls the repo via an SSH deploy key** (`/root/.ssh/github_deploy`, read-only, added in the repo's Deploy Keys).
 - **Site gate password** — Nginx basic-auth htpasswd file on the server only, never committed.
 - **Deploy IAM** — IAM user `github-actions-deploy` (no console) with a scoped inline policy allowing only SSM `SendCommand`/invocation reads on the instance (plus `ec2:DescribeInstances`); used only by GitHub Actions.
 

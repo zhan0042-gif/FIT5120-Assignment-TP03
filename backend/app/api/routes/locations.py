@@ -18,7 +18,7 @@ def list_address_suggestions(
     q: Annotated[str, Query(min_length=1, max_length=120)],
     address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> list[AddressSuggestion]:
-    """Return partial-match Vicmap candidates; selection is not yet verification."""
+    """Return provider-backed Victorian candidates; selection is not verification."""
     return AddressSuggestionService(address_client).suggest(q.strip())
 
 
@@ -27,7 +27,7 @@ def list_nearby_addresses(
     request: CoordinateLookupRequest,
     address_client: Annotated[AddressClient, Depends(get_address_client)],
 ) -> list[AddressSuggestion]:
-    """Return nearby Vicmap candidates; user confirmation is still required."""
+    """Return nearby Victorian candidates; user confirmation is still required."""
     return AddressSuggestionService(address_client).reverse(
         request.latitude, request.longitude
     )

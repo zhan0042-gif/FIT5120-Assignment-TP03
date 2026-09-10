@@ -11,13 +11,13 @@ Attack surface (read top to bottom):
 3. Backend (FastAPI) reads/writes:
    - Database (MySQL): household plans, test results
    - DS / spatial layer: BPA lookup, fire district lookup
-   - External live sources: Vicmap Address, CFA FDR, BOM weather
+   - External live sources: TomTom Orbis Places, CFA FDR, BOM weather
 
 Key properties to note:
 - Backend has **no per-user application login** (decided for I1). Site access is gated by a **shared-password** Nginx basic auth layer so only the team and teaching staff can view the app; `household_id` is an unguessable capability token (128-bit random).
 - `household_id` is user-supplied in URL paths — needs authorization checks (IDOR risk).
 - Location data (address → lat/lng) is High-sensitivity PII.
-- The app calls external services (Vicmap, CFA, BOM) — API keys and outbound-request behaviour matter.
+- The app calls external services (TomTom Orbis, CFA, BOM) — API keys and outbound-request behaviour matter.
 
 ## 2. Risk list
 
@@ -27,7 +27,7 @@ Key properties to note:
 - **T4 — XSS via user-entered names/roles** — Frontend — Medium — escape all output; validate input length/type
 - **T5 — Location / PII exposure (breach or leak)** — Backend, logs, DB — **High** — minimisation (see privacy-requirements); no PII in logs; least-privilege DB user; restrict access
 - **T6 — External API key leakage** — Backend, CI/CD, repo — **High** — secret-handling rules; secrets only in env / Actions secrets / Secrets Manager (see secret-handling)
-- **T7 — External API abuse / slow downstream** — Backend — Medium — timeouts + sensible retry on Vicmap/CFA/BOM calls; handle failure gracefully
+- **T7 — External API abuse / slow downstream** — Backend — Medium — bounded timeouts on TomTom/CFA/BOM calls; handle failure gracefully
 - **T8 — Error messages leak internals** — Backend — Medium — sanitized error responses; no stack traces in prod (FastAPI: debug off)
 - **T9 — Oversized / malformed input** — Backend API — Medium — request size limits, length/type validation, basic rate-limit decision
 - **T10 — DoS via unauthenticated endpoints** — Nginx / Backend — Medium — basic rate limiting at reverse proxy (deferred to deployment)
@@ -43,7 +43,7 @@ Key properties to note:
 ## 4. Open questions
 
 - **DECIDED (2026-08-31): no per-user login for I1.** Site access is gated by a shared password (Nginx basic auth on `/` and `/api`) so only the team and teaching staff can view the app. T1/T2 accepted with the mitigations above. Revisit in I2 if the app grows accounts.
-- Which external API keys will I1 actually need? (Vicmap may not need a key; CFA/BOM feeds are keyless RSS.)
+- **DECIDED (2026-09-10):** live address lookup requires `TOMTOM_API_KEY`, supplied to the Backend through its environment only. CFA/BOM feeds remain keyless.
 
 ## 5. When to re-review
 

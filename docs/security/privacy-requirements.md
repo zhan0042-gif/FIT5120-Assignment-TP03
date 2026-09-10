@@ -34,7 +34,7 @@ Iteration 1 handles household preparedness data. Combined, these fields can reve
 
 ## 5. External data boundaries
 
-- **Vicmap Address REST API** — data used: address → lat/lng — resolved coords are High sensitivity, keep server-side
+- **TomTom Orbis Places API** — data used: address/coordinates for suggestion, geocoding, and reverse geocoding — resolved coordinates are High sensitivity, keep server-side
 - **CFA Fire Danger Rating feed** — data used: FDR by district — Low
 - **BOM weather feed** — data used: weather context — Low
 - **BPA / Fire District open data (DS layer)** — data used: spatial lookup — Low

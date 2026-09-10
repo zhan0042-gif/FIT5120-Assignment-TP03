@@ -30,16 +30,15 @@ def test_data_spatial_provider_maps_the_data_contract() -> None:
 
     assert result.is_bushfire_prone_area is True
     assert result.fire_district == "Central"
-    assert result.fire_history_summary == (
-        "3 historical bushfire records were found within 20 km. "
-        "The latest recorded burn season was 2024. "
-        "The most recent dated record was 2024-02-03."
-    )
+    assert result.fire_history_record_count == 3
+    assert result.fire_history_latest_year == 2024
+    assert result.fire_history_latest_date == "2024-02-03"
+    assert result.fire_history_radius_km == 20
     assert result.vegetation_context is None
     assert result.terrain_context is None
 
 
-def test_data_spatial_provider_formats_an_empty_fire_history() -> None:
+def test_data_spatial_provider_maps_an_empty_fire_history() -> None:
     provider = DataSpatialProvider(
         lambda _latitude, _longitude: {
             "is_bushfire_prone_area": False,
@@ -57,9 +56,92 @@ def test_data_spatial_provider_formats_an_empty_fire_history() -> None:
 
     result = provider.get_context(-35.0, 142.0)
 
-    assert result.fire_history_summary == (
-        "No historical bushfire records were found within 12.5 km."
+    assert result.fire_history_record_count == 0
+    assert result.fire_history_latest_year is None
+    assert result.fire_history_latest_date is None
+    assert result.fire_history_radius_km == 12.5
+
+
+def test_data_spatial_provider_supports_a_narrow_district_lookup() -> None:
+    full_calls = 0
+    district_calls = 0
+
+    def full_lookup(_latitude: float, _longitude: float) -> dict:
+        nonlocal full_calls
+        full_calls += 1
+        raise AssertionError("full context lookup should not run")
+
+    def district_lookup(latitude: float, longitude: float) -> str:
+        nonlocal district_calls
+        district_calls += 1
+        assert (latitude, longitude) == (-37.89, 144.12)
+        return "Central"
+
+    provider = DataSpatialProvider(full_lookup, district_lookup)
+
+    assert provider.get_fire_district(-37.89, 144.12) == "Central"
+    assert full_calls == 0
+    assert district_calls == 1
+
+
+def test_data_spatial_provider_maps_bounded_historical_fire_points() -> None:
+    calls = []
+    expected = [
+        {
+            "latitude": -37.7,
+            "longitude": 145.2,
+            "season": 2025,
+            "start_date": "2025-02-03",
+        }
+    ]
+
+    def points_lookup(latitude, longitude, radius_km, limit):
+        calls.append((latitude, longitude, radius_km, limit))
+        return expected
+
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {},
+        lambda _latitude, _longitude: "Central",
+        points_lookup,
     )
+
+    result = provider.get_fire_history_points(
+        -37.74, 145.21, radius_km=20, limit=500
+    )
+
+    assert result == expected
+    assert calls == [(-37.74, 145.21, 20, 500)]
+
+
+def test_data_spatial_provider_hides_point_lookup_failures() -> None:
+    def unavailable(_latitude, _longitude, _radius_km, _limit):
+        raise TimeoutError("private database host timed out")
+
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {},
+        lambda _latitude, _longitude: "Central",
+        unavailable,
+    )
+
+    with pytest.raises(
+        ExternalDataUnavailable,
+        match="Historical fire map data is unavailable",
+    ) as error:
+        provider.get_fire_history_points(
+            -37.74, 145.21, radius_km=20, limit=500
+        )
+
+    assert "private database host" not in str(error.value)
+
+
+def test_data_spatial_provider_rejects_narrow_lookup_without_a_district() -> None:
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {},
+        lambda _latitude, _longitude: None,
+    )
+
+    with pytest.raises(ExternalDataUnavailable, match="CFA fire district"):
+        provider.get_fire_district(-10.0, 120.0)
 
 
 def test_data_spatial_provider_rejects_locations_without_a_district() -> None:

@@ -8,6 +8,16 @@ for the Backend adapter, runtime modes, and complete cross-component contract.
 This README remains the source for datasets, processing, provenance, ingestion,
 and spatial lookup details.
 
+Install the dedicated Data tooling dependencies before running processing,
+GeoParquet validation, or ingestion scripts:
+
+```bash
+python -m pip install -r data/requirements.txt
+```
+
+Normal Backend runtime uses `backend/requirements.txt` instead and does not
+install GeoPandas or PyArrow.
+
 ## Folder structure
 
 - `raw/` — original datasets stored locally or in the team Google Drive and not committed to GitHub.
@@ -414,10 +424,12 @@ The existing table:
 
 has a different purpose. It stores a small derived per-household snapshot of
 location context and is invalidated when the saved household location changes.
+It is refreshed after 24 hours by default; deployments can configure
+`APP_SPATIAL_CACHE_MAX_AGE_HOURS`.
 
 It is not a copy of the Open Data tables.
 
-Vicmap is used separately for address suggestions and verification.
+TomTom Orbis is used separately for address suggestions, verification, and reverse geocoding.
 
 BOM weather and Fire Danger Rating are dynamic official-provider data and are
 not stored in the spatial Open Data tables.
@@ -979,14 +991,21 @@ Each Historical Fire point contains:
 }
 ```
 
-`get_location_context()` exposes these records under:
+### Runtime integration status
+
+`get_location_context()` provides the basic spatial context used by Backend:
+Bushfire Prone Area status, CFA Fire District, and the Historical Fire summary.
+It does not query or return the Historical Fire point list.
+
+`get_fire_history_points()` supplies the dedicated household-scoped Backend
+endpoint:
 
 ```text
-environmental_context.fire_history.historical_fire_points
+GET /api/v1/households/{household_id}/historical-fire-points
 ```
 
-The number of returned points should match
-`historical_fire_record_count` for the same location and search radius.
+The query remains bounded in MySQL: the API defaults to 500 points and accepts
+at most 1000. The ordinary Local Context API does not query or expose points.
 
 ### Intended visualisation
 
@@ -1005,5 +1024,22 @@ The existing Historical Fire summary should remain visible:
 Historical Fire points provide local historical context only and must not be
 labelled as a bushfire risk map or prediction.
 
-Backend must expose `historical_fire_points` through the relevant API response
-before Frontend can render the map.
+These points are historical context only. The endpoint is not a bushfire risk
+map or prediction.
+
+## Final Runtime Architecture
+
+- Basic Local Context uses cached-or-fresh BPA, CFA district, and Historical
+  Fire summary, then obtains FDR and Weather separately.
+- Preparation Support uses a fresh cached district or one narrow district SQL,
+  followed by FDR and authoritative plan completion.
+- Historical Fire map data uses the dedicated bounded endpoint and the existing
+  20 km context.
+- Static household context is cached for 24 hours by default and is invalidated
+  immediately when the saved location changes.
+- Direct Open Data MySQL socket timeouts are configurable with
+  `APP_OPEN_DATA_DB_CONNECT_TIMEOUT_SECONDS`,
+  `APP_OPEN_DATA_DB_READ_TIMEOUT_SECONDS`, and
+  `APP_OPEN_DATA_DB_WRITE_TIMEOUT_SECONDS`.
+- Production Backend spatial reads use MySQL/RDS only. GeoParquet remains for
+  processing, ingestion, reproducibility, and comparison validation.

@@ -1,15 +1,23 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { ApiError, api } from '../api/client'
-import { useHouseholdStore } from './household'
+import { ref, watch } from 'vue'
+import { ApiError, api } from '../api/client.js'
+import { useHouseholdStore } from './household.js'
+
+// Local context includes dynamic BOM weather/FDR. Keep successful responses
+// briefly across route changes, independently from the Backend's 24-hour
+// static spatial cache.
+export const DYNAMIC_DATA_MAX_AGE_MS = 5 * 60 * 1000
+
+export function isDynamicDataFresh(loadedAt, now = Date.now()) {
+  return Number.isFinite(loadedAt) && loadedAt <= now && now - loadedAt <= DYNAMIC_DATA_MAX_AGE_MS
+}
 
 export const useLocalContextStore = defineStore('localContext', () => {
-  // Address persistence, static context, live conditions, and preparation
-  // advice have separate states so one unavailable source does not erase others.
   const householdStore = useHouseholdStore()
   const address = ref('')
   const submittedAddress = ref('')
   const location = ref(null)
+  const locationStatus = ref('idle')
   const saveStatus = ref('idle')
   const nearbyAddresses = ref([])
   const reverseStatus = ref('idle')
@@ -18,9 +26,17 @@ export const useLocalContextStore = defineStore('localContext', () => {
   const contextStatus = ref('idle')
   const contextError = ref(null)
   const contextUnavailable = ref(false)
+  const contextLoadedAt = ref(null)
 
   const prepSupport = ref(null)
   const prepStatus = ref('idle')
+  const prepLoadedAt = ref(null)
+
+  let initRequest = null
+  let contextRequest = null
+  let preparationRequest = null
+  let contextRevision = 0
+  let preparationRevision = 0
 
   function canLoadContext(saved) {
     return (
@@ -31,50 +47,194 @@ export const useLocalContextStore = defineStore('localContext', () => {
     )
   }
 
-  async function submitAddress(next, selectedAddress = null) {
-    // Free text remains saveable. `selectedAddress` only records that the user
-    // deliberately chose an official autocomplete candidate for verification.
-    address.value = next
-    submittedAddress.value = next
-    saveStatus.value = 'loading'
+  function invalidatePreparationSupport() {
+    preparationRevision += 1
+    preparationRequest = null
+    prepSupport.value = null
+    prepStatus.value = 'idle'
+    prepLoadedAt.value = null
+  }
+
+  function invalidateDerivedLocationState() {
+    contextRevision += 1
+    contextRequest = null
+    context.value = null
     contextStatus.value = 'idle'
     contextError.value = null
     contextUnavailable.value = false
+    contextLoadedAt.value = null
+    invalidatePreparationSupport()
+  }
+
+  function resetForHouseholdChange() {
+    address.value = ''
+    submittedAddress.value = ''
+    location.value = null
+    locationStatus.value = 'idle'
+    saveStatus.value = 'idle'
+    nearbyAddresses.value = []
+    reverseStatus.value = 'idle'
+    invalidateDerivedLocationState()
+    initRequest = null
+  }
+
+  function setSavedLocation(saved) {
+    location.value = saved
+    locationStatus.value = 'success'
+    const isDeviceLocation = saved.location_source === 'device_location'
+    address.value = isDeviceLocation ? '' : saved.canonical_address || saved.address
+    submittedAddress.value = isDeviceLocation
+      ? 'Current location'
+      : saved.canonical_address || saved.address
+  }
+
+  async function loadContext({ force = false } = {}) {
+    if (!canLoadContext(location.value)) {
+      context.value = null
+      contextStatus.value = location.value ? 'unverified' : 'idle'
+      contextLoadedAt.value = null
+      invalidatePreparationSupport()
+      return null
+    }
+    if (!force && contextStatus.value === 'success' && isDynamicDataFresh(contextLoadedAt.value)) {
+      return context.value
+    }
+    if (contextRequest) return contextRequest
+
+    const request = (async () => {
+      const revision = contextRevision
+      contextStatus.value = 'loading'
+      contextError.value = null
+      contextUnavailable.value = false
+      let householdId = null
+      try {
+        householdId = await householdStore.ensureHousehold()
+        const loaded = await api.getLocalContext(householdId)
+        if (householdStore.householdId !== householdId || revision !== contextRevision) return null
+        context.value = loaded
+        contextStatus.value = 'success'
+        contextLoadedAt.value = Date.now()
+        return loaded
+      } catch (err) {
+        if (
+          (householdId !== null && householdStore.householdId !== householdId) ||
+          revision !== contextRevision
+        ) return null
+        context.value = null
+        contextLoadedAt.value = null
+        invalidatePreparationSupport()
+        if (err instanceof ApiError && err.status === 409) {
+          contextStatus.value = 'unverified'
+          return null
+        }
+        contextStatus.value = 'error'
+        contextError.value = err instanceof Error ? err.message : 'Local context is temporarily unavailable.'
+        contextUnavailable.value = err instanceof ApiError && err.status === 503
+        return null
+      }
+    })()
+    contextRequest = request
+    try {
+      return await request
+    } finally {
+      if (contextRequest === request) contextRequest = null
+    }
+  }
+
+  async function loadPreparationSupport({ force = false } = {}) {
+    if (!canLoadContext(location.value) || contextStatus.value !== 'success') {
+      invalidatePreparationSupport()
+      return null
+    }
+    if (!force && prepStatus.value === 'success' && isDynamicDataFresh(prepLoadedAt.value)) {
+      return prepSupport.value
+    }
+    if (preparationRequest) return preparationRequest
+
+    const request = (async () => {
+      const revision = preparationRevision
+      prepStatus.value = 'loading'
+      let householdId = null
+      try {
+        householdId = await householdStore.ensureHousehold()
+        const loaded = await api.getPreparationSupport(householdId)
+        if (
+          householdStore.householdId !== householdId ||
+          revision !== preparationRevision
+        ) return null
+        prepSupport.value = loaded
+        prepStatus.value = 'success'
+        prepLoadedAt.value = Date.now()
+        return loaded
+      } catch {
+        if (
+          (householdId !== null && householdStore.householdId !== householdId) ||
+          revision !== preparationRevision
+        ) return null
+        prepSupport.value = null
+        prepStatus.value = 'error'
+        prepLoadedAt.value = null
+        return null
+      }
+    })()
+    preparationRequest = request
+    try {
+      return await request
+    } finally {
+      if (preparationRequest === request) preparationRequest = null
+    }
+  }
+
+  // One rule owns dependent Overview data: usable location, successful
+  // context, then Backend-authoritative preparation support.
+  async function loadContextAndPreparation({ force = false } = {}) {
+    await loadContext({ force })
+    if (contextStatus.value === 'success') {
+      await loadPreparationSupport({ force })
+    }
+  }
+
+  async function submitAddress(next, selectedAddress = null) {
+    // Clear advice before starting the mutation so old-district guidance can
+    // never be presented as current for the replacement address.
+    address.value = next
+    submittedAddress.value = next
+    saveStatus.value = 'loading'
+    locationStatus.value = 'loading'
+    invalidateDerivedLocationState()
     try {
       const householdId = await householdStore.ensureHousehold()
       const saved = await api.saveLocation(householdId, {
         address: next,
         selected_address: selectedAddress,
       })
-      location.value = saved
-      address.value = saved.canonical_address || saved.address
-      submittedAddress.value = saved.canonical_address || saved.address
+      if (householdStore.householdId !== householdId) return
+      setSavedLocation(saved)
       saveStatus.value = 'success'
-      if (canLoadContext(saved)) await loadContext()
+      if (canLoadContext(saved)) await loadContextAndPreparation({ force: true })
       else contextStatus.value = 'unverified'
     } catch (err) {
       saveStatus.value = 'error'
+      locationStatus.value = 'error'
       contextError.value = err instanceof Error ? err.message : 'Could not save the household address.'
     }
   }
 
   async function submitDeviceLocation(latitude, longitude) {
     saveStatus.value = 'loading'
-    contextStatus.value = 'idle'
-    contextError.value = null
-    contextUnavailable.value = false
+    locationStatus.value = 'loading'
+    invalidateDerivedLocationState()
     nearbyAddresses.value = []
     reverseStatus.value = 'idle'
     try {
       const householdId = await householdStore.ensureHousehold()
       const saved = await api.saveDeviceLocation(householdId, { latitude, longitude })
-      location.value = saved
-      address.value = ''
-      submittedAddress.value = 'Current location'
+      if (householdStore.householdId !== householdId) return
+      setSavedLocation(saved)
       saveStatus.value = 'success'
-      // Coordinate capture/save is complete at this point. Load provider-backed
-      // context independently so the geolocation control cannot remain busy on it.
-      void loadContext()
+      // Keep geolocation capture responsive while provider-backed context and
+      // preparation load independently.
+      void loadContextAndPreparation({ force: true })
       reverseStatus.value = 'loading'
       try {
         nearbyAddresses.value = await api.getNearbyAddresses(latitude, longitude)
@@ -85,86 +245,84 @@ export const useLocalContextStore = defineStore('localContext', () => {
       }
     } catch (err) {
       saveStatus.value = 'error'
+      locationStatus.value = 'error'
       contextError.value = err instanceof Error ? err.message : 'Could not save the current location.'
     }
   }
 
-  async function loadContext() {
-    contextStatus.value = 'loading'
-    contextError.value = null
-    contextUnavailable.value = false
-    try {
-      const householdId = await householdStore.ensureHousehold()
-      context.value = await api.getLocalContext(householdId)
-      contextStatus.value = 'success'
-      // Preparation advice depends on FDR and saved-plan completion, but is kept
-      // as a separate response because local weather/context can still display.
-      await loadPreparationSupport()
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
-        contextStatus.value = 'unverified'
-        return
-      }
-      contextStatus.value = 'error'
-      contextError.value = err instanceof Error ? err.message : 'Local context is temporarily unavailable.'
-      contextUnavailable.value = err instanceof ApiError && err.status === 503
-    }
-  }
-
-  async function loadPreparationSupport() {
-    prepStatus.value = 'loading'
-    try {
-      const householdId = await householdStore.ensureHousehold()
-      prepSupport.value = await api.getPreparationSupport(householdId)
-      prepStatus.value = 'success'
-    } catch {
-      prepStatus.value = 'error'
-    }
-  }
-
   async function init() {
-    try {
-      const householdId = await householdStore.ensureHousehold()
-      location.value = await api.getLocation(householdId)
-      const isDeviceLocation = location.value.location_source === 'device_location'
-      address.value = isDeviceLocation
-        ? ''
-        : location.value.canonical_address || location.value.address
-      submittedAddress.value = isDeviceLocation
-        ? 'Current location'
-        : location.value.canonical_address || location.value.address
-      saveStatus.value = 'success'
-      if (canLoadContext(location.value)) await loadContext()
-      else contextStatus.value = 'unverified'
-      if (isDeviceLocation) {
-        reverseStatus.value = 'loading'
-        try {
-          nearbyAddresses.value = await api.getNearbyAddresses(
-            location.value.latitude,
-            location.value.longitude,
-          )
-          reverseStatus.value = nearbyAddresses.value.length ? 'success' : 'empty'
-        } catch {
-          reverseStatus.value = 'unavailable'
+    if (initRequest) return initRequest
+    const request = (async () => {
+      locationStatus.value = 'loading'
+      let householdId = null
+      try {
+        householdId = await householdStore.ensureHousehold()
+        const saved = await api.getLocation(householdId)
+        if (householdStore.householdId !== householdId) return
+        setSavedLocation(saved)
+        if (canLoadContext(saved)) await loadContextAndPreparation()
+        else {
+          context.value = null
+          contextStatus.value = 'unverified'
+          contextLoadedAt.value = null
+          invalidatePreparationSupport()
         }
+        if (saved.location_source === 'device_location') {
+          reverseStatus.value = 'loading'
+          try {
+            nearbyAddresses.value = await api.getNearbyAddresses(saved.latitude, saved.longitude)
+            reverseStatus.value = nearbyAddresses.value.length ? 'success' : 'empty'
+          } catch {
+            reverseStatus.value = 'unavailable'
+          }
+        }
+      } catch (err) {
+        if (householdId !== null && householdStore.householdId !== householdId) return
+        if (err instanceof ApiError && err.status === 404) {
+          location.value = null
+          locationStatus.value = 'empty'
+          address.value = ''
+          submittedAddress.value = ''
+          invalidateDerivedLocationState()
+          return
+        }
+        locationStatus.value = 'error'
+        invalidateDerivedLocationState()
+        contextStatus.value = 'error'
+        contextError.value =
+          err instanceof Error ? err.message : 'Could not reach the local context service.'
+        contextUnavailable.value = err instanceof ApiError && err.status === 503
       }
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        context.value = null
-        contextStatus.value = 'idle'
-        return
-      }
-      contextStatus.value = 'error'
-      contextError.value =
-        err instanceof Error ? err.message : 'Could not reach the local context service.'
-      contextUnavailable.value = err instanceof ApiError && err.status === 503
+    })()
+    initRequest = request
+    try {
+      return await request
+    } finally {
+      if (initRequest === request) initRequest = null
     }
   }
+
+  watch(
+    () => householdStore.householdId,
+    (next, previous) => {
+      if (next !== previous) resetForHouseholdChange()
+    },
+    { flush: 'sync' },
+  )
+
+  watch(
+    () => householdStore.planRevision,
+    (next, previous) => {
+      if (next !== previous) invalidatePreparationSupport()
+    },
+    { flush: 'sync' },
+  )
 
   return {
     address,
     submittedAddress,
     location,
+    locationStatus,
     saveStatus,
     nearbyAddresses,
     reverseStatus,
@@ -172,12 +330,18 @@ export const useLocalContextStore = defineStore('localContext', () => {
     contextStatus,
     contextError,
     contextUnavailable,
+    contextLoadedAt,
     prepSupport,
     prepStatus,
+    prepLoadedAt,
+    canLoadContext,
+    invalidatePreparationSupport,
+    resetForHouseholdChange,
     submitAddress,
     submitDeviceLocation,
     loadContext,
     loadPreparationSupport,
+    loadContextAndPreparation,
     init,
   }
 })

@@ -28,7 +28,7 @@ from app.providers.cfa import (
     parse_cfa_fire_danger,
 )
 from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
-from app.providers.vicmap import VicmapAddressClient, _normalize_address
+from app.providers.tomtom import TomTomAddressClient
 
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -37,380 +37,6 @@ NOW = datetime(2026, 8, 28, 6, 0, tzinfo=timezone.utc)
 
 def fixture(name: str) -> bytes:
     return (FIXTURES / name).read_bytes()
-
-
-def vicmap_feature(
-    address: str = "1 TREASURY PLACE EAST MELBOURNE 3002",
-    *,
-    state: str = "VIC",
-    longitude: float = 144.9749477,
-    latitude: float = -37.8132320,
-) -> dict:
-    return {
-        "attributes": {
-            "ezi_address": address,
-            "locality_name": "EAST MELBOURNE",
-            "state": state,
-            "postcode": "3002",
-            "blg_unit_prefix_1": None,
-            "blg_unit_id_1": 4,
-            "blg_unit_suffix_1": None,
-            "house_prefix_1": None,
-            "house_number_1": 1,
-            "house_suffix_1": None,
-            "road_name": "TREASURY",
-            "road_type": "PLACE",
-            "road_suffix": None,
-        },
-        "geometry": {"x": longitude, "y": latitude},
-    }
-
-
-def dandenong_feature(unit: str) -> dict:
-    feature = vicmap_feature(
-        address=f"{unit}/2029 DANDENONG ROAD CLAYTON 3168",
-        longitude=145.1336488,
-        latitude=-37.9180054,
-    )
-    feature["attributes"].update(
-        {
-            "blg_unit_id_1": unit,
-            "hsa_unit_id": unit,
-            "house_number_1": 2029,
-            "road_name": "DANDENONG",
-            "road_type": "ROAD",
-            "locality_name": "CLAYTON",
-            "postcode": "3168",
-        }
-    )
-    return feature
-
-
-@pytest.mark.parametrize(
-    ("entered", "expected"),
-    [
-        ("2029 DANDENONG ROAD CLAYTON VIC 3168", "2029 DANDENONG ROAD CLAYTON 3168"),
-        ("2029 Dandenong Road, Clayton VIC 3168", "2029 DANDENONG ROAD CLAYTON 3168"),
-        ("  2029   dandenong   rd  ", "2029 DANDENONG ROAD"),
-        ("1 Example St", "1 EXAMPLE STREET"),
-        ("1 Example Ave", "1 EXAMPLE AVENUE"),
-        ("1 Example Dr", "1 EXAMPLE DRIVE"),
-        ("1 Example Hwy", "1 EXAMPLE HIGHWAY"),
-        ("1 Example Ct", "1 EXAMPLE COURT"),
-        ("1 Example Cres", "1 EXAMPLE CRESCENT"),
-        ("1 Example Pde", "1 EXAMPLE PARADE"),
-        ("1 Example Pl", "1 EXAMPLE PLACE"),
-        ("1 Example Ln", "1 EXAMPLE LANE"),
-        ("1 Example Tce", "1 EXAMPLE TERRACE"),
-    ],
-)
-def test_vicmap_address_normalization(entered: str, expected: str) -> None:
-    assert _normalize_address(entered) == expected
-
-
-def test_vicmap_exact_match_returns_standardized_wgs84_location() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.params["returnGeometry"] == "true"
-        assert request.url.params["outSR"] == "4326"
-        assert "ezi_address =" in request.url.params["where"]
-        assert "UPPER(" not in request.url.params["where"]
-        return httpx.Response(200, json={"features": [vicmap_feature()]})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-    result = client.resolve("1 Treasury Place, East Melbourne VIC 3002")
-
-    assert result.address == "1 TREASURY PLACE EAST MELBOURNE VIC 3002"
-    assert result.latitude == pytest.approx(-37.8132320)
-    assert result.longitude == pytest.approx(144.9749477)
-    assert result.unit_number == "4"
-    assert result.street_number == "1"
-    assert result.street_name == "TREASURY PLACE"
-    assert result.suburb_or_locality == "East Melbourne"
-    assert result.state == "VIC"
-    assert result.postcode == "3002"
-    assert result.country == "Australia"
-
-
-def test_selected_exact_suggestion_with_duplicate_official_features_verifies() -> None:
-    first = vicmap_feature(
-        address="84 WATTLE TRACK WARRANDYTE 3113",
-        longitude=145.2229,
-        latitude=-37.7379,
-    )
-    second = vicmap_feature(
-        address="84 WATTLE TRACK WARRANDYTE 3113",
-        longitude=145.2230,
-        latitude=-37.7380,
-    )
-    for feature in (first, second):
-        feature["attributes"]["postcode"] = "3113"
-        feature["attributes"]["locality_name"] = "WARRANDYTE"
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert "ezi_address = '84 WATTLE TRACK WARRANDYTE 3113'" in request.url.params["where"]
-        return httpx.Response(200, json={"features": [first, second]})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    result = client.resolve("84 WATTLE TRACK WARRANDYTE VIC 3113")
-
-    assert result.address == "84 WATTLE TRACK WARRANDYTE VIC 3113"
-    assert result.latitude == pytest.approx(-37.7379)
-
-
-def test_vicmap_suggestions_use_official_structured_results() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert "LIKE" in request.url.params["where"]
-        assert "house_number_1 = 1" in request.url.params["where"]
-        assert "road_name LIKE 'TRE%'" in request.url.params["where"]
-        assert "UPPER(" not in request.url.params["where"]
-        assert "LIKE '%" not in request.url.params["where"]
-        assert request.url.params["resultRecordCount"] == "8"
-        assert request.url.params["orderByFields"].startswith("road_name ASC")
-        return httpx.Response(200, json={"features": [vicmap_feature()]})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    suggestions = client.suggest("1 Tre")
-
-    assert [item.address for item in suggestions] == [
-        "1 TREASURY PLACE EAST MELBOURNE VIC 3002"
-    ]
-    assert suggestions[0].street_name == "TREASURY PLACE"
-    assert suggestions[0].latitude == pytest.approx(-37.8132320)
-
-
-def test_vicmap_structured_suggestions_surface_unit_addresses_for_base_query() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        where = request.url.params["where"]
-        assert "house_number_1 = 2029" in where
-        assert "road_name LIKE 'DA%'" in where
-        assert request.url.params["resultRecordCount"] == "8"
-        return httpx.Response(
-            200,
-            json={"features": [dandenong_feature("101"), dandenong_feature("102")]},
-        )
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    suggestions = client.suggest("2029 da")
-
-    assert [item.address for item in suggestions] == [
-        "101/2029 DANDENONG ROAD CLAYTON VIC 3168",
-        "102/2029 DANDENONG ROAD CLAYTON VIC 3168",
-    ]
-
-
-def test_vicmap_selected_unit_address_resolves_through_structured_fields() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        where = request.url.params["where"]
-        assert "ezi_address = '101/2029 DANDENONG ROAD CLAYTON 3168'" in where
-        return httpx.Response(200, json={"features": [dandenong_feature("101")]})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    result = client.resolve("101/2029 dandenong rd, clayton VIC 3168")
-
-    assert result.address == "101/2029 DANDENONG ROAD CLAYTON VIC 3168"
-    assert result.latitude == pytest.approx(-37.9180054)
-
-
-@pytest.mark.parametrize(
-    "entered",
-    ["2029 Dandenong Rd", "2029 Dandenong Road Clayton VIC 3168"],
-)
-def test_vicmap_base_address_with_multiple_units_is_not_silently_verified(
-    entered: str,
-) -> None:
-    calls = 0
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        return httpx.Response(
-            200,
-            json={
-                "features": (
-                    []
-                    if calls == 1
-                    else [dandenong_feature("101"), dandenong_feature("102")]
-                )
-            },
-        )
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    with pytest.raises(AddressResolutionError, match="select one"):
-        client.resolve(entered)
-
-
-def test_vicmap_unique_incomplete_road_type_abbreviation_is_accepted() -> None:
-    calls = 0
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        features = [] if calls == 1 else [vicmap_feature()]
-        return httpx.Response(200, json={"features": features})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-    result = client.resolve("1 Treasury Pl")
-
-    assert calls == 2
-    assert result.address.endswith("VIC 3002")
-
-
-def test_vicmap_no_match_is_controlled() -> None:
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(200, json={"features": []})
-    )
-    client = VicmapAddressClient(http_client=httpx.Client(transport=transport))
-
-    with pytest.raises(AddressResolutionError, match="complete Victorian"):
-        client.resolve("999 Missing Road Nowhere VIC 3999")
-
-
-def test_vicmap_ambiguous_match_is_rejected() -> None:
-    calls = 0
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        features = [] if calls == 1 else [
-            vicmap_feature(),
-            vicmap_feature(
-                "1 TREASURY PLACE CRAIGIEBURN 3064",
-                longitude=144.9401190,
-                latitude=-37.5860400,
-            ),
-        ]
-        return httpx.Response(200, json={"features": features})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-    with pytest.raises(AddressResolutionError, match="Multiple official addresses"):
-        client.resolve("1 Treasury Place")
-
-
-def test_vicmap_interstate_result_is_rejected() -> None:
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(
-            200, json={"features": [vicmap_feature(state="NSW")]}
-        )
-    )
-    client = VicmapAddressClient(http_client=httpx.Client(transport=transport))
-
-    with pytest.raises(AddressResolutionError, match="complete Victorian"):
-        client.resolve("1 Treasury Place East Melbourne 3002")
-
-
-def test_vicmap_malformed_provider_result_is_unavailable() -> None:
-    malformed = vicmap_feature()
-    malformed.pop("geometry")
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(200, json={"features": [malformed]})
-    )
-    client = VicmapAddressClient(http_client=httpx.Client(transport=transport))
-
-    with pytest.raises(ExternalDataUnavailable, match="invalid"):
-        client.resolve("1 Treasury Place East Melbourne 3002")
-
-
-def test_vicmap_timeout_is_translated() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        raise httpx.ReadTimeout("upstream timeout", request=request)
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-    with pytest.raises(ExternalDataUnavailable, match="address data is unavailable"):
-        client.resolve("1 Treasury Place East Melbourne 3002")
-
-
-def test_vicmap_suggestion_has_one_bounded_upstream_request() -> None:
-    calls = 0
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        assert request.extensions["timeout"] == {
-            "connect": 4.0,
-            "read": 4.0,
-            "write": 4.0,
-            "pool": 4.0,
-        }
-        raise httpx.ReadTimeout("upstream timeout", request=request)
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    with pytest.raises(ExternalDataUnavailable, match="address data is unavailable"):
-        client.suggest("101/2029 da")
-
-    assert calls == 1
-
-
-def test_vicmap_reverse_returns_nearest_official_candidates_for_confirmation() -> None:
-    farther = dandenong_feature("102")
-    farther["geometry"] = {"x": 145.1339, "y": -37.9182}
-    nearer = dandenong_feature("101")
-    nearer["geometry"] = {"x": 145.1336, "y": -37.9180}
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.url.params["geometryType"] == "esriGeometryPoint"
-        assert request.url.params["geometry"] == "145.13361,-37.91801"
-        assert request.url.params["distance"] == "200"
-        return httpx.Response(200, json={"features": [farther, nearer]})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    candidates = client.reverse(-37.91801, 145.13361)
-
-    assert [candidate.unit_number for candidate in candidates] == ["101", "102"]
-    assert all(candidate.verification_status == "unverified" for candidate in candidates)
-
-
-def test_vicmap_reverse_no_result_does_not_invent_an_address() -> None:
-    transport = httpx.MockTransport(
-        lambda request: httpx.Response(200, json={"features": []})
-    )
-    client = VicmapAddressClient(http_client=httpx.Client(transport=transport))
-
-    assert client.reverse(-37.91801, 145.13361) == []
-
-
-def test_vicmap_reverse_outside_victoria_avoids_provider_call() -> None:
-    calls = 0
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
-        return httpx.Response(200, json={"features": []})
-
-    client = VicmapAddressClient(
-        http_client=httpx.Client(transport=httpx.MockTransport(handler))
-    )
-
-    assert client.reverse(-33.0, 151.0) == []
-    assert calls == 0
 
 
 def test_cfa_verified_district_mapping_and_normalization() -> None:
@@ -680,9 +306,10 @@ def test_bom_fire_danger_transport_failure_is_translated() -> None:
         client.get_fire_danger("Central")
 
 
-def test_explicit_provider_modes_do_not_fallback() -> None:
+def test_explicit_provider_modes_do_not_fallback(monkeypatch) -> None:
+    monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
     assert isinstance(build_external_providers("mock").address, MockAddressClient)
-    assert isinstance(build_external_providers("live").address, VicmapAddressClient)
+    assert isinstance(build_external_providers("live").address, TomTomAddressClient)
     assert isinstance(
         build_external_providers("live").fire_danger, BOMFireDangerClient
     )
@@ -690,13 +317,21 @@ def test_explicit_provider_modes_do_not_fallback() -> None:
         build_external_providers("automatic")
 
 
+def test_live_provider_mode_requires_tomtom_key(monkeypatch) -> None:
+    monkeypatch.delenv("TOMTOM_API_KEY", raising=False)
+
+    with pytest.raises(RuntimeError, match="TOMTOM_API_KEY"):
+        build_external_providers("live")
+
+
 def test_absent_data_mode_selects_all_live_official_providers(monkeypatch) -> None:
     monkeypatch.delenv("APP_DATA_MODE", raising=False)
+    monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
 
     providers = build_external_providers()
 
     assert data_mode() == "live"
-    assert isinstance(providers.address, VicmapAddressClient)
+    assert isinstance(providers.address, TomTomAddressClient)
     assert isinstance(providers.fire_danger, BOMFireDangerClient)
     assert isinstance(providers.weather, BOMWeatherClient)
 
@@ -705,10 +340,11 @@ def test_explicit_live_data_mode_selects_all_live_official_providers(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("APP_DATA_MODE", "live")
+    monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
 
     providers = build_external_providers()
 
-    assert isinstance(providers.address, VicmapAddressClient)
+    assert isinstance(providers.address, TomTomAddressClient)
     assert isinstance(providers.fire_danger, BOMFireDangerClient)
     assert isinstance(providers.weather, BOMWeatherClient)
 

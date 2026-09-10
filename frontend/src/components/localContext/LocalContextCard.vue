@@ -131,7 +131,7 @@ function fireHistoryRows(summary) {
     <p v-if="store.contextStatus === 'unverified'" class="state-message">Local information is unavailable until this address is verified.</p>
     <LoadingState v-else-if="store.contextStatus === 'loading'" message="Loading local information..." />
     <div v-else-if="store.contextUnavailable" class="state-message">Official local information is temporarily unavailable. Your household address is still saved.</div>
-    <ErrorState v-else-if="store.contextStatus === 'error'" :message="store.contextError || 'Could not load local information.'" @retry="store.loadContext" />
+    <ErrorState v-else-if="store.contextStatus === 'error'" :message="store.contextError || 'Could not load local information.'" @retry="store.loadContextAndPreparation({ force: true })" />
     <div v-else-if="store.contextStatus === 'success' && store.context" class="context-grid">
       <div>
         <h3>Bushfire context</h3>

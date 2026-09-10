@@ -1,13 +1,15 @@
 """Central runtime selection for deterministic mock or official live data."""
 
 from dataclasses import dataclass
+from datetime import timedelta
+import math
 import os
 
 from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import AddressClient, FireDangerClient, WeatherClient
 from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
-from app.providers.vicmap import VicmapAddressClient
+from app.providers.tomtom import TomTomAddressClient
 
 
 @dataclass(frozen=True)
@@ -38,6 +40,21 @@ def spatial_mode() -> str:
     return mode
 
 
+def spatial_cache_max_age() -> timedelta:
+    raw_hours = os.getenv("APP_SPATIAL_CACHE_MAX_AGE_HOURS", "24")
+    try:
+        hours = float(raw_hours)
+    except ValueError as exc:
+        raise RuntimeError(
+            "APP_SPATIAL_CACHE_MAX_AGE_HOURS must be a positive finite number."
+        ) from exc
+    if not math.isfinite(hours) or hours <= 0:
+        raise RuntimeError(
+            "APP_SPATIAL_CACHE_MAX_AGE_HOURS must be a positive finite number."
+        )
+    return timedelta(hours=hours)
+
+
 def build_external_providers(mode: str | None = None) -> ExternalProviders:
     selected = (mode or data_mode()).strip().lower()
     if selected == "mock":
@@ -48,7 +65,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         )
     if selected == "live":
         return ExternalProviders(
-            address=VicmapAddressClient(),
+            address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )

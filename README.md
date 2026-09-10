@@ -9,7 +9,7 @@ Vue 3 + Vite frontend
   -> HTTP JSON API (/api/v1)
   -> FastAPI routes -> Pydantic schemas -> services
   -> MySQL repositories       -> MySQL application data
-  -> providers                -> Vicmap, BOM, processed GeoParquet
+  -> providers                -> TomTom Orbis, BOM, MySQL spatial Open Data
 ```
 
 The frontend handles interaction and presentation. FastAPI routes are the HTTP boundary; schemas define request/response structure; services own business rules; repositories persist application data; and providers obtain official or spatial information. Scenario and preparation-support logic is transparent, rule-based I1 logic, not AI or fire prediction.
@@ -28,8 +28,9 @@ The top navigation is **My Plan | Overview | Test My Plan**. I1 has no login or 
 ## Data boundaries
 
 - **MySQL:** household plans, locations, normalized arrangement options, responsibilities, and persisted scenario results.
-- **Processed GeoParquet:** BPA, CFA Fire District, and Fire History source data. Raw spatial datasets are not copied wholesale into MySQL.
-- **Vicmap:** optional address suggestions and official verification/enrichment.
+- **MySQL spatial Open Data:** runtime BPA, CFA Fire District, and lightweight Fire History queries.
+- **Processed GeoParquet:** reproducible Data processing, ingestion, and validation artifacts; not loaded by Backend runtime.
+- **TomTom Orbis:** address suggestions, verification/geocoding, and reverse lookup. Live mode requires `TOMTOM_API_KEY`.
 - **BOM:** current weather observations and official Fire Danger Rating data.
 - **Backend-derived:** completion, non-blocking immediate checks, preparation support, scenario evaluation, and cached household-specific static spatial context.
 
@@ -52,9 +53,10 @@ $env:DATABASE_HOST = "127.0.0.1"
 .\.venv\Scripts\python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The editable package makes `data.scripts.location_context` and the repository's
-processed GeoParquet files available when Uvicorn runs directly from `backend/`.
-It does not change Docker or production database configuration. The Backend
+The editable package makes the MySQL-backed `data.scripts.location_context`
+module available when Uvicorn runs directly from `backend/`. GeoParquet tooling
+has separate dependencies in `data/requirements.txt` and is not required by
+normal Backend runtime. The Backend
 database default is already `127.0.0.1`; the explicit local setting above makes
 the host-machine topology clear and must not be used in production.
 
@@ -73,7 +75,7 @@ npm install
 npm run dev
 ```
 
-Vite serves `http://localhost:5173` and proxies `/api` to the configured FastAPI target. The default runtime uses MySQL, processed spatial data, and live official providers. `APP_DATA_MODE=mock` supplies deterministic official-provider substitutes; tests can also select memory persistence and mock spatial data. Required processed GeoParquet files are described in [data/README.md](data/README.md).
+Vite serves `http://localhost:5173` and proxies `/api` to the configured FastAPI target. The default runtime uses MySQL spatial tables and live official providers. `APP_DATA_MODE=mock` supplies deterministic official-provider substitutes; tests can also select memory persistence and mock spatial data. Processing and ingestion artifacts are described in [data/README.md](data/README.md).
 
 ## Verification
 

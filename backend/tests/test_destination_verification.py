@@ -9,10 +9,10 @@ class UnavailableAddressClient:
     def resolve(self, address: str):
         from app.core.exceptions import ExternalDataUnavailable
 
-        raise ExternalDataUnavailable("Vicmap is unavailable.")
+        raise ExternalDataUnavailable("The address provider is unavailable.")
 
 
-def test_manual_destination_address_saves_unverified_when_vicmap_is_unavailable(
+def test_manual_destination_address_saves_unverified_when_provider_is_unavailable(
     complete_plan_data: dict,
 ) -> None:
     repository = InMemoryHouseholdRepository()
