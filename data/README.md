@@ -429,7 +429,7 @@ It is refreshed after 24 hours by default; deployments can configure
 
 It is not a copy of the Open Data tables.
 
-Vicmap is used separately for address suggestions and verification.
+TomTom Orbis is used separately for address suggestions, verification, and reverse geocoding.
 
 BOM weather and Fire Danger Rating are dynamic official-provider data and are
 not stored in the spatial Open Data tables.

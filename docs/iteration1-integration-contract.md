@@ -10,10 +10,10 @@ This is the human-readable contract for the current FIREBREAK I1 implementation.
 | FastAPI routes and Pydantic schemas | HTTP boundary, structural validation, and public JSON contracts. |
 | Services | Plan validation, completion, immediate checks, location/context coordination, preparation support, and scenarios. |
 | Repositories / MySQL | Transactional application persistence. |
-| Providers | Vicmap address lookup; BOM weather and Fire Danger data; MySQL-backed spatial lookup. |
+| Providers | TomTom Orbis address lookup; BOM weather and Fire Danger data; MySQL-backed spatial lookup. |
 | GeoParquet | BPA, CFA Fire District, and Fire History source data—not application tables. |
 
-Normal runtime uses MySQL spatial tables, Vicmap, and BOM. GeoParquet is retained for processing, ingestion, and validation, but is not loaded by Backend runtime. `APP_DATA_MODE=mock` selects deterministic official-provider substitutes; `APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock` are useful controlled development/test modes. They are not the full-stack default.
+Normal runtime uses MySQL spatial tables, TomTom Orbis, and BOM. GeoParquet is retained for processing, ingestion, and validation, but is not loaded by Backend runtime. `APP_DATA_MODE=mock` selects deterministic official-provider substitutes; `APP_REPOSITORY_MODE=memory` and `APP_SPATIAL_MODE=mock` are useful controlled development/test modes. They are not the full-stack default.
 
 ## HTTP endpoints
 
@@ -26,8 +26,8 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `GET /households/{household_id}/completion` | Derive current completion and non-blocking immediate checks. |
 | `GET/PUT /households/{household_id}/location` | Read or save entered household address and optional official enrichment. |
 | `PUT /households/{household_id}/location/device` | Save latitude/longitude explicitly shared through the browser's one-shot current-location action. No postal address is inferred or verified. |
-| `GET /locations/suggestions?q=…` | Return up to eight Vicmap autocomplete candidates. A suggestion is not itself verification. Search normalises case, whitespace, punctuation, and common Australian road-type abbreviations, then prefers indexed house-number/road fields when the input can be structured. |
-| `POST /locations/nearby-addresses` | Return nearby Vicmap candidates for coordinates. Candidates remain unverified until the user explicitly confirms one through the normal address-save flow. |
+| `GET /locations/suggestions?q=…` | Return up to eight TomTom Orbis Suggest v3 candidates, filtered to Victoria. A suggestion is not itself verification and may omit coordinates. |
+| `POST /locations/nearby-addresses` | Return nearby TomTom Orbis Reverse Geocode v2 candidates for coordinates. Candidates remain unverified until the user explicitly confirms one through the normal address-save flow. |
 | `GET /households/{household_id}/local-context` | Return saved location, static spatial context, current weather, and official FDR state. |
 | `GET /households/{household_id}/historical-fire-points?limit=500` | Return a bounded 20 km Historical Fire point set. Limit must be 1-1000; the response reports total/returned counts and truncation. |
 | `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
@@ -66,12 +66,12 @@ Incomplete plans remain saveable. Backup completion reflects whether an applicab
 
 ## Location, context, and freshness
 
-Saving a household address first persists its entered text and then attempts official verification. A unique match stores and displays Vicmap's canonical address and authoritative coordinates; an ambiguous or missing match remains saved but unverified without invented coordinates. Autocomplete makes one bounded Vicmap request with a four-second upstream deadline; the browser also cancels superseded requests and applies a six-second client deadline.
+Saving a household address first persists its entered text and then attempts official verification. A complete address is checked with TomTom Orbis Geocode v2; only one Victorian result that strictly matches the entered house number, street, and any supplied locality/postcode is verified and enriched with provider coordinates. Ambiguous, incomplete, unsupported unit/apartment, or missing matches remain saved but unverified without invented coordinates. Autocomplete makes one bounded TomTom Orbis Suggest v3 request with a four-second upstream deadline; the browser also cancels superseded requests and applies a six-second client deadline.
 
 The alternative current-location action runs only after an explicit click and uses one `navigator.geolocation.getCurrentPosition` request (never continuous watching). Its coordinates are persisted with `location_source: "device_location"`, an empty address, and `verification_status: "unverified"`. These trusted, explicitly shared coordinates can drive Local Context while the UI clearly states that no postal address was verified. Both verified address coordinates and device coordinates allow a processed spatial lookup:
 
-After coordinates are saved, the Backend may query Vicmap for up to five nearby
-official address candidates. Reverse lookup failure does not affect coordinate
+After coordinates are saved, the Backend may query TomTom Orbis for nearby
+address candidates (the provider currently normally returns one result). Reverse lookup failure does not affect coordinate
 persistence or Local Context. A candidate is displayed for confirmation and is
 only saved and verified through the existing address workflow after the user
 chooses **Use this address**; unit candidates are never selected silently.

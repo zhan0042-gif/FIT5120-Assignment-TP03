@@ -9,7 +9,7 @@ from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import AddressClient, FireDangerClient, WeatherClient
 from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
-from app.providers.vicmap import VicmapAddressClient
+from app.providers.tomtom import TomTomAddressClient
 
 
 @dataclass(frozen=True)
@@ -65,7 +65,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         )
     if selected == "live":
         return ExternalProviders(
-            address=VicmapAddressClient(),
+            address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )

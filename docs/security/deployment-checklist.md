@@ -29,7 +29,7 @@
 - [x] `debug = false` / no stack traces in production error responses (threat-model T8) — uvicorn started without `--reload`/debug; all exceptions translated to sanitized `{"detail": ...}` JSON in `backend/app/main.py`
 - [x] CORS restricted to the actual frontend origin(s) — CORS middleware is **not enabled** → same-origin only (cross-origin blocked); frontend and `/api` are served same-origin by Nginx
 - [x] Input length/type validation on all endpoints; error messages sanitized — pydantic request schemas validate input; custom exception handlers emit sanitized messages
-- [x] External API calls (Vicmap / CFA / BOM) have timeouts and graceful failure (T7) — timeouts: Vicmap 20s, BOM 15s, CFA 10s; failures map to 503 via `ExternalDataUnavailable`
+- [x] External API calls (TomTom Orbis / CFA / BOM) have timeouts and graceful failure (T7) — TomTom autocomplete/reverse lookup use a 4s deadline and geocoding uses a 10s deadline; BOM uses 15s and CFA 10s; failures map to 503 via `ExternalDataUnavailable`
 
 ## 5. Security headers / reverse proxy
 

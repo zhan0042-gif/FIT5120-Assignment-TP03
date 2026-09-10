@@ -246,7 +246,7 @@ class HouseholdLocation(BaseModel):
 
 
 class AddressSuggestion(HouseholdLocation):
-    """A canonical Vicmap address candidate returned by autocomplete."""
+    """A normalized Victorian address candidate returned by autocomplete."""
 
 
 class HouseholdLocationContext(BaseModel):

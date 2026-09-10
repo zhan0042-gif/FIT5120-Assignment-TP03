@@ -9,7 +9,7 @@ Vue 3 + Vite frontend
   -> HTTP JSON API (/api/v1)
   -> FastAPI routes -> Pydantic schemas -> services
   -> MySQL repositories       -> MySQL application data
-  -> providers                -> Vicmap, BOM, MySQL spatial Open Data
+  -> providers                -> TomTom Orbis, BOM, MySQL spatial Open Data
 ```
 
 The frontend handles interaction and presentation. FastAPI routes are the HTTP boundary; schemas define request/response structure; services own business rules; repositories persist application data; and providers obtain official or spatial information. Scenario and preparation-support logic is transparent, rule-based I1 logic, not AI or fire prediction.
@@ -30,7 +30,7 @@ The top navigation is **My Plan | Overview | Test My Plan**. I1 has no login or 
 - **MySQL:** household plans, locations, normalized arrangement options, responsibilities, and persisted scenario results.
 - **MySQL spatial Open Data:** runtime BPA, CFA Fire District, and lightweight Fire History queries.
 - **Processed GeoParquet:** reproducible Data processing, ingestion, and validation artifacts; not loaded by Backend runtime.
-- **Vicmap:** optional address suggestions and official verification/enrichment.
+- **TomTom Orbis:** address suggestions, verification/geocoding, and reverse lookup. Live mode requires `TOMTOM_API_KEY`.
 - **BOM:** current weather observations and official Fire Danger Rating data.
 - **Backend-derived:** completion, non-blocking immediate checks, preparation support, scenario evaluation, and cached household-specific static spatial context.
 

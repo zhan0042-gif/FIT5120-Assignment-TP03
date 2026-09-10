@@ -66,7 +66,7 @@ class AddressSuggestionService:
 class LocationService:
     """Persist entered household locations before attempting official enrichment.
 
-    Persistence and verification are deliberately separate: a failed Vicmap
+    Persistence and verification are deliberately separate: a failed provider
     lookup must not discard the address the user entered. Saving a location also
     invalidates any spatial snapshot derived from its previous coordinates.
     """
