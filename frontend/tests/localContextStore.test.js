@@ -148,6 +148,25 @@ test('fresh re-entry reuses dynamic responses and stale re-entry refreshes both'
   assert.deepEqual(calls, { location: 3, context: 2, preparation: 2 })
 })
 
+test('loading and reinitializing a saved location never issues a PUT', async () => {
+  const { localContextStore } = createStores()
+  let saveCalls = 0
+  api.getLocation = async () => ({ ...verifiedLocation })
+  api.getLocalContext = async () => contextResponse
+  api.getPreparationSupport = async () => preparationResponse
+  api.saveLocation = async () => {
+    saveCalls += 1
+    return verifiedLocation
+  }
+
+  await localContextStore.init()
+  await localContextStore.init()
+
+  assert.equal(saveCalls, 0)
+  assert.equal(localContextStore.saveStatus, 'idle')
+  assert.equal(localContextStore.address, verifiedLocation.canonical_address)
+})
+
 test('a context error retries on re-entry and preparation waits for success', async () => {
   const { localContextStore } = createStores()
   let contextCalls = 0
@@ -238,7 +257,88 @@ test('location mutation clears old preparation before the save completes', async
   await new Promise((resolve) => setImmediate(resolve))
   resolveSave({ ...verifiedLocation, address: '12 HIGH STREET WARBURTON VIC 3799' })
   await saving
+  await new Promise((resolve) => setImmediate(resolve))
   assert.equal(localContextStore.prepStatus, 'success')
+})
+
+test('address saving resets after a successful PUT', async () => {
+  const { localContextStore } = createStores()
+  let resolveSave
+  api.saveLocation = () => new Promise((resolve) => { resolveSave = resolve })
+  api.getLocalContext = async () => contextResponse
+  api.getPreparationSupport = async () => preparationResponse
+
+  const saving = localContextStore.submitAddress('60 Waverley Avenue Merrigum VIC 3618')
+  assert.equal(localContextStore.saveStatus, 'loading')
+  await new Promise((resolve) => setImmediate(resolve))
+  resolveSave({
+    ...verifiedLocation,
+    address: '60 Waverley Avenue Merrigum VIC 3618',
+    canonical_address: '60 Waverley Avenue Merrigum VIC 3618',
+  })
+  await saving
+
+  assert.equal(localContextStore.saveStatus, 'success')
+  assert.equal(localContextStore.locationStatus, 'success')
+})
+
+test('address saving resets after a failed PUT', async () => {
+  const { localContextStore } = createStores()
+  api.saveLocation = async () => { throw new Error('save failed') }
+
+  await localContextStore.submitAddress('60 Waverley Avenue Merrigum VIC 3618')
+
+  assert.equal(localContextStore.saveStatus, 'error')
+  assert.equal(localContextStore.locationStatus, 'error')
+})
+
+test('context loading remains separate from completed address saving', async () => {
+  const { localContextStore } = createStores()
+  let resolveContext
+  api.saveLocation = async () => ({ ...verifiedLocation })
+  api.getLocalContext = () => new Promise((resolve) => { resolveContext = resolve })
+  api.getPreparationSupport = async () => preparationResponse
+
+  await localContextStore.submitAddress(verifiedLocation.address)
+
+  assert.equal(localContextStore.saveStatus, 'success')
+  assert.equal(localContextStore.contextStatus, 'loading')
+  assert.equal(localContextStore.prepStatus, 'idle')
+  resolveContext(contextResponse)
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(localContextStore.contextStatus, 'success')
+  assert.equal(localContextStore.prepStatus, 'success')
+})
+
+test('an older address save cannot overwrite a newer address', async () => {
+  const { localContextStore } = createStores()
+  const pending = []
+  api.saveLocation = () => new Promise((resolve) => { pending.push(resolve) })
+  api.getLocalContext = async () => contextResponse
+  api.getPreparationSupport = async () => preparationResponse
+
+  const oldSave = localContextStore.submitAddress('60 Waverley Avenue Merrigum VIC 3618')
+  await new Promise((resolve) => setImmediate(resolve))
+  const newSave = localContextStore.submitAddress('45 Daffodil Crescent Diggers Rest VIC 3427')
+  await new Promise((resolve) => setImmediate(resolve))
+  pending[1]({
+    ...verifiedLocation,
+    address: '45 Daffodil Crescent Diggers Rest VIC 3427',
+    canonical_address: '45 Daffodil Crescent Diggers Rest VIC 3427',
+  })
+  await newSave
+  pending[0]({
+    ...verifiedLocation,
+    address: '60 Waverley Avenue Merrigum VIC 3618',
+    canonical_address: '60 Waverley Avenue Merrigum VIC 3618',
+  })
+  await oldSave
+
+  assert.equal(
+    localContextStore.location.canonical_address,
+    '45 Daffodil Crescent Diggers Rest VIC 3427',
+  )
+  assert.equal(localContextStore.saveStatus, 'success')
 })
 
 test('device-location mutation also clears old preparation immediately', async () => {

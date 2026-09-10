@@ -55,7 +55,7 @@ def test_database_failure_returns_controlled_503(
 
 
 class NoMatchingAddressClient:
-    def resolve(self, address: str):
+    def resolve(self, address: str, *, selected: bool = False):
         raise AddressResolutionError("No matching Victorian household address was found.")
 
 

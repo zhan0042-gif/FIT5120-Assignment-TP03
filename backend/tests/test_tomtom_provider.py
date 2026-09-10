@@ -196,10 +196,6 @@ def test_exact_victorian_address_is_verified_with_geojson_order() -> None:
             "1 Parliament Place East Melbourne VIC 3002",
             tomtom_result(street="Treasury Place"),
         ),
-        (
-            "1 Treasury Place Carlton VIC 3002",
-            tomtom_result(locality="East Melbourne"),
-        ),
     ],
 )
 def test_wrong_address_components_remain_unverified(entered: str, result: dict) -> None:
@@ -259,20 +255,122 @@ def test_selected_full_address_resolves_only_matching_candidate() -> None:
     assert verification.suburb_or_locality == "East Melbourne"
 
 
-def test_unit_input_is_never_falsely_verified_or_sent_upstream() -> None:
+@pytest.mark.parametrize(
+    "selected,result",
+    [
+        (
+            "60 WAVERLEY AVE MERRIGUM VIC 3618",
+            tomtom_result(
+                title="60 Waverley Avenue",
+                house_number="60",
+                street="Waverley Avenue",
+                locality="Greater Shepparton",
+                postcode="3618",
+            ),
+        ),
+        (
+            "45 DAFFODIL CRES. DIGGERS REST VIC 3427",
+            tomtom_result(
+                title="45 Daffodil Crescent",
+                house_number="45",
+                street="Daffodil Crescent",
+                locality="Diggers Rest",
+                postcode="VIC 3427",
+            ),
+        ),
+    ],
+)
+def test_selected_suggestion_accepts_normalized_format_and_support_variations(
+    selected: str, result: dict
+) -> None:
+    client = client_for(
+        lambda request: httpx.Response(200, json={"results": [result]})
+    )
+    verification = AddressVerificationService(client).verify(selected, selected)
+    assert verification.verification_status == "verified"
+
+
+def test_free_text_locality_variation_is_supported_by_matching_postcode() -> None:
+    result = tomtom_result(locality="City of Melbourne")
+    client = client_for(
+        lambda request: httpx.Response(200, json={"results": [result]})
+    )
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Rd East Melbourne VIC 3002"
+    )
+    assert verification.verification_status == "unverified"
+
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Pl Melbourne CBD VIC 3002"
+    )
+    assert verification.verification_status == "verified"
+
+
+def test_selected_suggestion_rejects_clear_locality_and_postcode_contradiction() -> None:
+    client = client_for(
+        lambda request: httpx.Response(200, json={"results": [tomtom_result()]})
+    )
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Place Carlton VIC 3053",
+        "1 Treasury Place Carlton VIC 3053",
+    )
+    assert verification.verification_status == "unverified"
+
+
+def test_selected_suggestion_without_coordinates_is_not_verified() -> None:
+    result = tomtom_result(with_position=False)
+    client = client_for(
+        lambda request: httpx.Response(200, json={"results": [result]})
+    )
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Place East Melbourne VIC 3002",
+        "1 Treasury Place East Melbourne VIC 3002",
+    )
+    assert verification.verification_status == "unverified"
+    assert verification.latitude is None
+
+
+def test_unit_input_verifies_only_the_base_address_and_preserves_unit() -> None:
     calls = 0
 
     def handler(request: httpx.Request) -> httpx.Response:
         nonlocal calls
         calls += 1
+        assert request.url.params["query"] == "1 Treasury Place East Melbourne VIC 3002"
         return httpx.Response(200, json={"results": [tomtom_result()]})
 
     verification = AddressVerificationService(client_for(handler)).verify(
         "4/1 Treasury Place East Melbourne VIC 3002"
     )
+    assert verification.verification_status == "verified"
+    assert verification.unit_number == "4"
+    assert verification.canonical_address == "4/1 Treasury Place East Melbourne VIC 3002"
+    assert "not independently verified" in (verification.verification_message or "")
+    assert calls == 1
+
+
+def test_unit_input_does_not_accept_a_different_base_house_number() -> None:
+    result = tomtom_result(house_number="4")
+    client = client_for(
+        lambda request: httpx.Response(200, json={"results": [result]})
+    )
+    verification = AddressVerificationService(client).verify(
+        "4/84 Treasury Place East Melbourne VIC 3002"
+    )
     assert verification.verification_status == "unverified"
-    assert "unit or apartment" in (verification.verification_message or "").lower()
-    assert calls == 0
+    assert verification.latitude is None
+
+
+def test_missing_coordinates_cannot_be_verified() -> None:
+    client = client_for(
+        lambda request: httpx.Response(
+            200, json={"results": [tomtom_result(with_position=False)]}
+        )
+    )
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Place East Melbourne VIC 3002"
+    )
+    assert verification.verification_status == "unverified"
 
 
 def test_reverse_returns_one_unverified_victorian_address() -> None:

@@ -24,7 +24,9 @@ class SpatialResult(Protocol):
 class AddressClient(Protocol):
     """Supply partial suggestions and stricter final official resolution."""
 
-    def resolve(self, address: str) -> HouseholdLocation: ...
+    def resolve(
+        self, address: str, *, selected: bool = False
+    ) -> HouseholdLocation: ...
 
     def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]: ...
 

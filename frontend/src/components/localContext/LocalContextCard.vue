@@ -12,7 +12,14 @@ const geolocationStatus = ref('idle')
 const geolocationMessage = ref('')
 let mounted = true
 watch(() => store.address, (value) => { draftAddress.value = value })
-function selectSuggestion(suggestion) { store.submitAddress(suggestion.address, suggestion.address); editing.value = false }
+watch(() => store.submittedAddress, (value) => {
+  // A GET-loaded saved location should render as saved, not as a fresh edit.
+  if (value && store.locationStatus === 'success') editing.value = false
+})
+async function selectSuggestion(suggestion) {
+  await store.submitAddress(suggestion.address, suggestion.address)
+  if (store.saveStatus === 'success') editing.value = false
+}
 async function submit() { if (!draftAddress.value.trim()) return; await store.submitAddress(draftAddress.value.trim()); if (store.saveStatus === 'success') editing.value = false }
 function hasMissingForecastPeriods(fireDanger) {
   return ['today', 'tomorrow', 'day_3', 'day_4'].some((period) => fireDanger?.[period] == null)
