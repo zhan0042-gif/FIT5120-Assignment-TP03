@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends, Query, status
 
 from app.core.dependencies import (
+    get_routing_client,
     get_address_client,
     get_fire_danger_client,
     get_household_repository,
@@ -12,6 +13,7 @@ from app.core.dependencies import (
     get_weather_client,
 )
 from app.providers.interfaces import (
+    RoutingClient,
     AddressClient,
     FireDangerClient,
     SpatialProvider,
@@ -30,6 +32,7 @@ from app.schemas.households import (
     PlanCompletion,
     PreparationSupport,
 )
+from app.schemas.rendezvous import RendezvousResult
 from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
 from app.services.context import (
     HistoricalFireMapService,
@@ -38,11 +41,13 @@ from app.services.context import (
     PreparationSupportService,
 )
 from app.services.plans import HouseholdPlanService, PlanCompletionService
+from app.services.rendezvous import RendezvousSimulationService
 from app.services.scenarios import BasicScenarioService
 
 
 router = APIRouter(prefix="/households", tags=["households"])
 RepositoryDependency = Annotated[HouseholdRepository, Depends(get_household_repository)]
+RoutingDependency = Annotated[RoutingClient, Depends(get_routing_client)]
 
 
 @router.post("", response_model=HouseholdCreated, status_code=status.HTTP_201_CREATED)
@@ -203,3 +208,15 @@ def get_preparedness_test_result(
 ) -> ScenarioTestResult:
     """Retrieve a stored test result scoped to its owning household."""
     return repository.get_test_result(household_id, test_run_id)
+
+
+@router.post(
+    "/{household_id}/rendezvous-simulation", response_model=RendezvousResult
+)
+def simulate_rendezvous(
+    household_id: str,
+    repository: RepositoryDependency,
+    routing_client: RoutingDependency,
+) -> RendezvousResult:
+    """Estimate when every member reaches the primary evacuation destination."""
+    return RendezvousSimulationService(repository, routing_client).simulate(household_id)

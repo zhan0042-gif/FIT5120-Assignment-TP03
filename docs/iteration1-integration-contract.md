@@ -32,6 +32,7 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `GET /households/{household_id}/historical-fire-points?limit=500` | Return a bounded 20 km Historical Fire point set. Limit must be 1-1000; the response reports total/returned counts and truncation. |
 | `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
 | `GET /scenarios/basic?household_id=…` | List fixed I1 scenarios relevant to the saved plan. |
+| `POST /households/{household_id}/rendezvous-simulation` | Estimate when every member reaches the primary destination from their declared usual location. Requires a 100% complete plan. Not stored: figures reflect traffic at call time. |
 | `POST /households/{household_id}/tests` | Run one deterministic scenario and persist its result. |
 | `GET /households/{household_id}/tests/{test_run_id}` | Retrieve that stored result. |
 
@@ -100,3 +101,25 @@ Scenarios are deterministic and run only on the latest saved plan. They do not m
 The frontend is Vue + JavaScript. `src/api/client.js` calls relative `/api/v1`; the Vite development proxy targets `http://[::1]:8000`. `firebreak.household-id.v1` is the only application local-storage key: it is browser continuity, not authentication. A plan draft is compared with the latest persisted plan to present saved/unsaved state; failed saves stay unsaved. My Plan saves through a normal bottom-page card, not a sticky/floating bar.
 
 See [database setup and schema](../database/README.md), [processed data](../data/README.md), and [frontend pages](../frontend/README.md).
+
+### Rendezvous simulation
+
+`POST /households/{household_id}/rendezvous-simulation` answers "how long until
+everyone is together?" using TomTom Matrix Routing, in one request for the whole
+household. Nothing is stored, and no figure is ever estimated locally: a
+fabricated travel time is worse than none.
+
+It always returns `200` unless the household is unknown (`404`). `status` is one
+of:
+
+- `ready` — `member_etas`, `everyone_together_seconds`, `slowest_member_id`, `warnings`
+- `not_applicable` — `unavailable_reason`, plus `missing_sections` when the plan is incomplete
+- `unavailable` — the routing provider failed or timed out; no figures are returned
+
+The middle two are answers rather than errors, matching how `BasicScenario` uses
+`enabled` and `disabled_reason`.
+
+Warnings are deterministic rules over saved plan data, not AI output: members
+flagged `is_dependant` or `mobility_support_required` cannot travel alone,
+members absent from every `driver_member_ids` cannot drive to a car-based
+estimate, and the slowest member is named with the wait they impose.
