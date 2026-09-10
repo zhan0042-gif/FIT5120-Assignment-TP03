@@ -25,7 +25,7 @@ class AddressClient(Protocol):
     """Supply partial suggestions and stricter final official resolution."""
 
     def resolve(
-        self, address: str, *, selected: bool = False
+        self, address: str, *, provider_reference: str | None = None
     ) -> HouseholdLocation: ...
 
     def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]: ...

@@ -29,7 +29,7 @@ class MockAddressClient:
     }
 
     def resolve(
-        self, address: str, *, selected: bool = False
+        self, address: str, *, provider_reference: str | None = None
     ) -> HouseholdLocation:
         standardized = " ".join(address.strip().split())
         coordinates = self._KNOWN_ADDRESSES.get(
