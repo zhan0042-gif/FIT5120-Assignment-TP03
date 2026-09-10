@@ -131,7 +131,10 @@ class AddressVerificationService:
         if not entered_address or not entered_address.strip():
             return AddressVerification()
         try:
-            verified = self.address_client.resolve(selected_address or entered_address)
+            verified = self.address_client.resolve(
+                selected_address or entered_address,
+                selected=selected_address is not None,
+            )
         except AddressResolutionError as exc:
             return AddressVerification(verification_message=str(exc))
         except ExternalDataUnavailable:
@@ -146,6 +149,7 @@ class AddressVerificationService:
             )
         return AddressVerification(
             verification_status="verified",
+            verification_message=verified.verification_message,
             canonical_address=verified.address,
             unit_number=verified.unit_number,
             street_number=verified.street_number,

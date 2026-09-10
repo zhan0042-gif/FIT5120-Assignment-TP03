@@ -6,7 +6,7 @@ from app.services.plans import HouseholdPlanService
 
 
 class UnavailableAddressClient:
-    def resolve(self, address: str):
+    def resolve(self, address: str, *, selected: bool = False):
         from app.core.exceptions import ExternalDataUnavailable
 
         raise ExternalDataUnavailable("The address provider is unavailable.")

@@ -28,7 +28,9 @@ class MockAddressClient:
         "melbourne vic 3000": (-37.8136, 144.9631),
     }
 
-    def resolve(self, address: str) -> HouseholdLocation:
+    def resolve(
+        self, address: str, *, selected: bool = False
+    ) -> HouseholdLocation:
         standardized = " ".join(address.strip().split())
         coordinates = self._KNOWN_ADDRESSES.get(
             standardized.casefold(), (-37.814, 144.963)

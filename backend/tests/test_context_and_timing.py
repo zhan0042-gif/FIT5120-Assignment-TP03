@@ -172,9 +172,9 @@ def test_device_location_uses_coordinates_without_claiming_address_verification(
 class RecordingAddressClient:
     called = False
 
-    def resolve(self, address: str):
+    def resolve(self, address: str, *, selected: bool = False):
         self.called = True
-        return MockAddressClient().resolve(address)
+        return MockAddressClient().resolve(address, selected=selected)
 
 
 def test_missing_household_is_rejected_before_address_provider_call() -> None:
@@ -189,7 +189,7 @@ def test_missing_household_is_rejected_before_address_provider_call() -> None:
 
 
 class FailingAddressClient:
-    def resolve(self, address: str):
+    def resolve(self, address: str, *, selected: bool = False):
         raise ValueError("bad provider payload")
 
 
@@ -207,7 +207,7 @@ def test_address_provider_failure_keeps_the_saved_address_unverified() -> None:
 
 
 class CanonicalAddressClient:
-    def resolve(self, address: str):
+    def resolve(self, address: str, *, selected: bool = False):
         assert address == "788 drummond st, carlton north vic 3054"
         return HouseholdLocation(
             address="788 DRUMMOND STREET CARLTON NORTH VIC 3054",

@@ -38,6 +38,7 @@ ROAD_TYPE_ALIASES = {
     "TCE": "TERRACE",
     "TERRACE": "TERRACE",
     "TR": "TRACK",
+    "TRK": "TRACK",
     "TRACK": "TRACK",
 }
 
@@ -57,6 +58,13 @@ def _tokens(value: str) -> list[str]:
 
 def _normalize_component(value: str) -> str:
     return " ".join(ROAD_TYPE_ALIASES.get(token, token) for token in _tokens(value))
+
+
+def _normalize_postcode(value: str | None) -> str | None:
+    if value is None:
+        return None
+    matches = re.findall(r"(?<!\d)\d{4}(?!\d)", value)
+    return matches[0] if len(matches) == 1 else None
 
 
 def _parse_entered_address(value: str) -> _EnteredAddress:
@@ -144,12 +152,10 @@ class TomTomAddressClient:
                 suggestions.append(suggestion)
         return suggestions[:limit]
 
-    def resolve(self, address: str) -> HouseholdLocation:
+    def resolve(
+        self, address: str, *, selected: bool = False
+    ) -> HouseholdLocation:
         entered = _parse_entered_address(address)
-        if entered.unit_number:
-            raise AddressResolutionError(
-                "The unit or apartment could not be verified by the address provider."
-            )
         if entered.house_number is None or entered.street is None:
             raise AddressResolutionError(
                 "Please select a complete Victorian street address from the suggestions."
@@ -161,46 +167,66 @@ class TomTomAddressClient:
             version="2",
             timeout_seconds=self.timeout_seconds,
             params={
-                "query": address.strip(),
+                "query": re.sub(
+                    r"^(?:UNIT\s+)?[A-Z0-9]+\s*/\s*",
+                    "",
+                    address.strip(),
+                    flags=re.IGNORECASE,
+                ),
                 "countryCodesIso2": "AU",
                 "bbox": ",".join(str(value) for value in VICTORIA_BBOX),
                 "types": "address",
                 "maxResults": "20",
             },
         )
-        matches: dict[tuple[str, str, str, str], HouseholdLocation] = {}
+        matches: dict[
+            tuple[str, str, str, str], tuple[int, HouseholdLocation]
+        ] = {}
         for result in self._results(payload):
             if result.get("type") != "address":
                 continue
             suggestion = self._to_suggestion(result, require_position=True)
-            if suggestion is None or not self._matches(entered, suggestion):
+            if suggestion is None:
                 continue
-            if not all(
-                (
-                    suggestion.street_number,
-                    suggestion.street_name,
-                    suggestion.suburb_or_locality,
-                    suggestion.postcode,
-                )
-            ):
+            support = self._match_support(entered, suggestion, selected=selected)
+            if support is None or not suggestion.street_number or not suggestion.street_name:
                 continue
             key = (
-                suggestion.street_number,
-                suggestion.street_name,
-                suggestion.suburb_or_locality,
-                suggestion.postcode,
+                _normalize_component(suggestion.street_number),
+                _normalize_component(suggestion.street_name),
+                _normalize_component(suggestion.suburb_or_locality or ""),
+                _normalize_postcode(suggestion.postcode) or "",
             )
-            matches[key] = HouseholdLocation.model_validate(suggestion.model_dump())
+            matches[key] = (
+                support,
+                HouseholdLocation.model_validate(suggestion.model_dump()),
+            )
 
         if not matches:
             raise AddressResolutionError(
                 "Please select a complete Victorian street address from the suggestions."
             )
-        if len(matches) > 1:
+        best_support = max(support for support, _ in matches.values())
+        best_matches = [
+            match for support, match in matches.values() if support == best_support
+        ]
+        if len(best_matches) > 1:
             raise AddressResolutionError(
                 "Multiple Victorian addresses match. Please select a complete suggestion."
             )
-        return next(iter(matches.values()))
+        resolved = best_matches[0]
+        if entered.unit_number:
+            return resolved.model_copy(
+                update={
+                    "address": f"{entered.unit_number}/{resolved.address}",
+                    "unit_number": entered.unit_number,
+                    "verification_message": (
+                        "The base street address was verified; the unit or apartment "
+                        "was preserved but not independently verified."
+                    ),
+                }
+            )
+        return resolved
 
     def reverse(
         self, latitude: float, longitude: float, limit: int = 5
@@ -298,8 +324,9 @@ class TomTomAddressClient:
         locality = TomTomAddressClient._text(
             address.get("municipalitySubdivision") or address.get("municipality")
         )
-        postcode = TomTomAddressClient._text(address.get("postalCode"))
-        if postcode is not None and not re.fullmatch(r"\d{4}", postcode):
+        raw_postcode = TomTomAddressClient._text(address.get("postalCode"))
+        postcode = _normalize_postcode(raw_postcode)
+        if raw_postcode is not None and postcode is None:
             raise ExternalDataUnavailable("The address service returned invalid data.")
 
         latitude: float | None = None
@@ -347,22 +374,45 @@ class TomTomAddressClient:
         )
 
     @staticmethod
-    def _matches(entered: _EnteredAddress, candidate: AddressSuggestion) -> bool:
+    def _match_support(
+        entered: _EnteredAddress,
+        candidate: AddressSuggestion,
+        *,
+        selected: bool,
+    ) -> int | None:
         if _normalize_component(entered.house_number or "") != _normalize_component(
             candidate.street_number or ""
         ):
-            return False
+            return None
         if _normalize_component(entered.street or "") != _normalize_component(
             candidate.street_name or ""
         ):
-            return False
-        if entered.locality and _normalize_component(entered.locality) != _normalize_component(
-            candidate.suburb_or_locality or ""
-        ):
-            return False
-        if entered.postcode and entered.postcode != candidate.postcode:
-            return False
-        return True
+            return None
+
+        locality_supplied = entered.locality is not None
+        postcode_supplied = entered.postcode is not None
+        locality_matches = locality_supplied and _normalize_component(
+            entered.locality or ""
+        ) == _normalize_component(candidate.suburb_or_locality or "")
+        postcode_matches = postcode_supplied and _normalize_postcode(
+            entered.postcode
+        ) == _normalize_postcode(candidate.postcode)
+        support = int(locality_matches) + int(postcode_matches)
+
+        if selected:
+            # A selected TomTom suggestion already carries disambiguating context.
+            # Reject only when both supplied supporting fields contradict it.
+            if locality_supplied and postcode_supplied and support == 0:
+                return None
+            return support
+
+        # Free text remains conservative. A supplied postcode is a strong
+        # discriminator; locality may vary when the postcode still supports it.
+        if postcode_supplied and not postcode_matches:
+            return None
+        if locality_supplied and not locality_matches and not postcode_matches:
+            return None
+        return support
 
     @staticmethod
     def _inside_victoria_bounds(latitude: float, longitude: float) -> bool:

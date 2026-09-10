@@ -35,6 +35,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
   let initRequest = null
   let contextRequest = null
   let preparationRequest = null
+  let saveRevision = 0
   let contextRevision = 0
   let preparationRevision = 0
 
@@ -67,6 +68,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
   }
 
   function resetForHouseholdChange() {
+    saveRevision += 1
     address.value = ''
     submittedAddress.value = ''
     location.value = null
@@ -197,6 +199,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
   async function submitAddress(next, selectedAddress = null) {
     // Clear advice before starting the mutation so old-district guidance can
     // never be presented as current for the replacement address.
+    const revision = ++saveRevision
     address.value = next
     submittedAddress.value = next
     saveStatus.value = 'loading'
@@ -208,12 +211,16 @@ export const useLocalContextStore = defineStore('localContext', () => {
         address: next,
         selected_address: selectedAddress,
       })
-      if (householdStore.householdId !== householdId) return
+      if (householdStore.householdId !== householdId || revision !== saveRevision) return null
       setSavedLocation(saved)
       saveStatus.value = 'success'
-      if (canLoadContext(saved)) await loadContextAndPreparation({ force: true })
+      // PUT completion owns the save indicator. Spatial context, BOM/FDR, and
+      // preparation support continue independently in their own loading states.
+      if (canLoadContext(saved)) void loadContextAndPreparation({ force: true })
       else contextStatus.value = 'unverified'
+      return saved
     } catch (err) {
+      if (revision !== saveRevision) return null
       saveStatus.value = 'error'
       locationStatus.value = 'error'
       contextError.value = err instanceof Error ? err.message : 'Could not save the household address.'
@@ -221,6 +228,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
   }
 
   async function submitDeviceLocation(latitude, longitude) {
+    const revision = ++saveRevision
     saveStatus.value = 'loading'
     locationStatus.value = 'loading'
     invalidateDerivedLocationState()
@@ -229,7 +237,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
     try {
       const householdId = await householdStore.ensureHousehold()
       const saved = await api.saveDeviceLocation(householdId, { latitude, longitude })
-      if (householdStore.householdId !== householdId) return
+      if (householdStore.householdId !== householdId || revision !== saveRevision) return null
       setSavedLocation(saved)
       saveStatus.value = 'success'
       // Keep geolocation capture responsive while provider-backed context and
@@ -240,10 +248,13 @@ export const useLocalContextStore = defineStore('localContext', () => {
         nearbyAddresses.value = await api.getNearbyAddresses(latitude, longitude)
         reverseStatus.value = nearbyAddresses.value.length ? 'success' : 'empty'
       } catch {
+        if (revision !== saveRevision) return null
         nearbyAddresses.value = []
         reverseStatus.value = 'unavailable'
       }
+      return saved
     } catch (err) {
+      if (revision !== saveRevision) return null
       saveStatus.value = 'error'
       locationStatus.value = 'error'
       contextError.value = err instanceof Error ? err.message : 'Could not save the current location.'
