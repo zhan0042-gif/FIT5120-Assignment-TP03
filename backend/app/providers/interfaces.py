@@ -2,6 +2,8 @@
 
 from typing import Any, Protocol
 
+from pydantic import BaseModel
+
 from app.schemas.households import (
     AddressSuggestion,
     FireDanger,
@@ -62,3 +64,22 @@ class WeatherClient(Protocol):
     """Return authoritative current conditions or signal that they are unavailable."""
 
     def get_weather(self, latitude: float, longitude: float) -> Weather: ...
+
+
+class RouteLeg(BaseModel):
+    """One origin's travel estimate to the shared destination."""
+
+    origin_index: int
+    travel_seconds: int
+    distance_meters: int
+    traffic_delay_seconds: int = 0
+
+
+class RoutingClient(Protocol):
+    """Estimate travel time from several origins to one destination."""
+
+    def travel_times(
+        self,
+        origins: list[tuple[float, float]],
+        destination: tuple[float, float],
+    ) -> list[RouteLeg]: ...
