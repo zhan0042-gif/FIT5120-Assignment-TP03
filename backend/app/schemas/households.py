@@ -82,6 +82,7 @@ class MemberUsualLocation(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     verification_status: Literal["verified", "unverified"] = "unverified"
+    selected_address: str | None = Field(default=None, exclude=True)
 
 
 class HouseholdMember(BaseModel):
