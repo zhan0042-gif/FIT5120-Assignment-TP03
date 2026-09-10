@@ -234,3 +234,15 @@ def test_mock_routing_client_satisfies_the_service(ready_household) -> None:
 
     assert result.status == "ready"
     assert len(result.member_etas) == 2
+
+
+def test_warning_minutes_round_the_way_the_browser_does(ready_household) -> None:
+    """3295s is 54.9 minutes: the heading rounds to 55, so the warning must too."""
+    repository, household_id = ready_household
+
+    result = RendezvousSimulationService(
+        repository, StubRoutingClient([1602, 3295])
+    ).simulate(household_id)
+
+    assert any("55 minutes" in warning for warning in result.warnings)
+    assert not any("54 minutes" in warning for warning in result.warnings)

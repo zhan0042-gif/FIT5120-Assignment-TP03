@@ -10,6 +10,15 @@ from app.schemas.rendezvous import MemberEta, RendezvousResult
 from app.services.plans import PlanCompletionService
 
 
+def _minutes(seconds: float) -> int:
+    """Round to the nearest minute, as the browser does.
+
+    Truncating here instead would print 54 beside a heading that reads 55 for
+    the same journey.
+    """
+    return round(seconds / 60)
+
+
 class _MemberLocationUnusable(Exception):
     """A member's declared location cannot be turned into coordinates."""
 
@@ -159,11 +168,11 @@ class RendezvousSimulationService:
             eta.waiting_seconds for eta in etas if eta.member_id != slowest.member_id
         ]
         if waiting:
-            average_wait = sum(waiting) // len(waiting)
+            average_wait = sum(waiting) / len(waiting)
             warnings.append(
                 f"{slowest.display_name or 'One member'} takes the longest at "
-                f"{slowest.travel_seconds // 60} minutes. The others wait about "
-                f"{average_wait // 60} minutes at the destination."
+                f"{_minutes(slowest.travel_seconds)} minutes. The others wait about "
+                f"{_minutes(average_wait)} minutes at the destination."
             )
         return warnings
 
