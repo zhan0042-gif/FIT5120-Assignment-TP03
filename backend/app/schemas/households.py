@@ -68,6 +68,21 @@ class HouseholdCreated(BaseModel):
     household_id: str
 
 
+class MemberUsualLocation(BaseModel):
+    """Where a member usually is during the day, declared by the user.
+
+    This is a hypothetical starting point for simulations, not a tracked
+    position. `kind="home"` carries no address; the simulation substitutes the
+    household's own verified coordinates.
+    """
+
+    kind: Literal["home", "work", "school", "other"]
+    address: str = ""
+    latitude: float | None = None
+    longitude: float | None = None
+    verification_status: Literal["verified", "unverified"] = "unverified"
+
+
 class HouseholdMember(BaseModel):
     member_id: EntityId
     display_name: str = ""
@@ -76,6 +91,7 @@ class HouseholdMember(BaseModel):
     support_notes: str | None = None
     relationship: Relationship | None = None
     relationship_other: str | None = Field(default=None, max_length=100)
+    usual_location: MemberUsualLocation | None = None
 
 
 class Animal(BaseModel):
