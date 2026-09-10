@@ -133,6 +133,11 @@ export const api = {
       body: JSON.stringify({ scenario_id: scenarioId }),
     }),
 
+  simulateRendezvous: (householdId) =>
+    request(`/households/${encodeURIComponent(householdId)}/rendezvous-simulation`, {
+      method: 'POST',
+    }),
+
   getTestResult: (householdId, testRunId) =>
     request(
       `/households/${encodeURIComponent(householdId)}/tests/${encodeURIComponent(testRunId)}`,
