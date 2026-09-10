@@ -209,6 +209,10 @@ class LocationRequest(BaseModel):
         str | None,
         StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
     ] = None
+    provider_reference: Annotated[
+        str | None,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=300),
+    ] = None
 
 
 class DeviceLocationRequest(BaseModel):
@@ -247,6 +251,8 @@ class HouseholdLocation(BaseModel):
 
 class AddressSuggestion(HouseholdLocation):
     """A normalized Victorian address candidate returned by autocomplete."""
+
+    provider_reference: str | None = Field(default=None, max_length=300)
 
 
 class HouseholdLocationContext(BaseModel):

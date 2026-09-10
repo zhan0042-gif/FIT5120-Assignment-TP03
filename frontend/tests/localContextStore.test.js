@@ -167,6 +167,29 @@ test('loading and reinitializing a saved location never issues a PUT', async () 
   assert.equal(localContextStore.address, verifiedLocation.canonical_address)
 })
 
+test('selected suggestion identity is preserved in the location PUT', async () => {
+  const { localContextStore } = createStores()
+  let savedPayload
+  api.saveLocation = async (_householdId, payload) => {
+    savedPayload = payload
+    return { ...verifiedLocation }
+  }
+  api.getLocalContext = async () => contextResponse
+  api.getPreparationSupport = async () => preparationResponse
+
+  await localContextStore.submitAddress(
+    '1 Treasury Place East Melbourne VIC 3002',
+    '1 Treasury Place East Melbourne VIC 3002',
+    'address:safe-provider-id',
+  )
+
+  assert.deepEqual(savedPayload, {
+    address: '1 Treasury Place East Melbourne VIC 3002',
+    selected_address: '1 Treasury Place East Melbourne VIC 3002',
+    provider_reference: 'address:safe-provider-id',
+  })
+})
+
 test('a context error retries on re-entry and preparation waits for success', async () => {
   const { localContextStore } = createStores()
   let contextCalls = 0

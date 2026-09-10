@@ -80,6 +80,7 @@ def test_suggest_uses_orbis_v3_and_normalizes_without_fabricating_coordinates() 
     assert suggestions[0].latitude is None
     assert suggestions[0].longitude is None
     assert suggestions[0].verification_status == "unverified"
+    assert suggestions[0].provider_reference == "address:safe-provider-id"
 
 
 def test_suggest_rejects_nsw_and_deduplicates_victorian_candidates() -> None:
@@ -237,19 +238,24 @@ def test_ambiguous_results_are_not_verified() -> None:
     assert "Multiple Victorian" in (verification.verification_message or "")
 
 
-def test_selected_full_address_resolves_only_matching_candidate() -> None:
-    unrelated = tomtom_result(
-        title="1 Treasury Place, Craigieburn, VIC, 3064",
-        locality="Craigieburn",
-        postcode="3064",
-    )
-    client = client_for(
-        lambda request: httpx.Response(
-            200, json={"results": [unrelated, tomtom_result()]}
+def test_selected_reference_uses_details_v3_exact_entity() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.method == "GET"
+        assert request.url.path.endswith(
+            "/maps/orbis/places/details/addresses/safe-provider-id"
         )
-    )
-    verification = AddressVerificationService(client).verify(
-        "1 Treasury Pl", "1 Treasury Place East Melbourne VIC 3002"
+        assert request.headers["TomTom-Api-Version"] == "3"
+        assert request.headers["Attributes"] == (
+            "id,type,title,subtitles,position,address"
+        )
+        assert request.headers["TomTom-Api-Key"] == "test-key"
+        assert "key" not in request.url.params
+        return httpx.Response(200, json=tomtom_result())
+
+    verification = AddressVerificationService(client_for(handler)).verify(
+        "typed text",
+        "1 Treasury Place East Melbourne VIC 3002",
+        "address:safe-provider-id",
     )
     assert verification.verification_status == "verified"
     assert verification.suburb_or_locality == "East Melbourne"
@@ -283,10 +289,10 @@ def test_selected_full_address_resolves_only_matching_candidate() -> None:
 def test_selected_suggestion_accepts_normalized_format_and_support_variations(
     selected: str, result: dict
 ) -> None:
-    client = client_for(
-        lambda request: httpx.Response(200, json={"results": [result]})
+    client = client_for(lambda request: httpx.Response(200, json=result))
+    verification = AddressVerificationService(client).verify(
+        selected, selected, "address:safe-provider-id"
     )
-    verification = AddressVerificationService(client).verify(selected, selected)
     assert verification.verification_status == "verified"
 
 
@@ -306,28 +312,123 @@ def test_free_text_locality_variation_is_supported_by_matching_postcode() -> Non
     assert verification.verification_status == "verified"
 
 
-def test_selected_suggestion_rejects_clear_locality_and_postcode_contradiction() -> None:
-    client = client_for(
-        lambda request: httpx.Response(200, json={"results": [tomtom_result()]})
-    )
+def test_selected_reference_is_not_vetoed_by_display_text_differences() -> None:
+    client = client_for(lambda request: httpx.Response(200, json=tomtom_result()))
     verification = AddressVerificationService(client).verify(
         "1 Treasury Place Carlton VIC 3053",
         "1 Treasury Place Carlton VIC 3053",
+        "address:safe-provider-id",
     )
-    assert verification.verification_status == "unverified"
+    assert verification.verification_status == "verified"
+    assert verification.canonical_address == "1 Treasury Place East Melbourne VIC 3002"
 
 
-def test_selected_suggestion_without_coordinates_is_not_verified() -> None:
+def test_selected_reference_without_coordinates_is_not_verified() -> None:
     result = tomtom_result(with_position=False)
-    client = client_for(
-        lambda request: httpx.Response(200, json={"results": [result]})
-    )
+    client = client_for(lambda request: httpx.Response(200, json=result))
     verification = AddressVerificationService(client).verify(
         "1 Treasury Place East Melbourne VIC 3002",
         "1 Treasury Place East Melbourne VIC 3002",
+        "address:safe-provider-id",
     )
     assert verification.verification_status == "unverified"
     assert verification.latitude is None
+
+
+def test_selected_reference_with_coordinates_outside_victoria_is_not_verified() -> None:
+    result = tomtom_result(longitude=151.2093, latitude=-33.8688)
+    client = client_for(lambda request: httpx.Response(200, json=result))
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Place East Melbourne VIC 3002",
+        "1 Treasury Place East Melbourne VIC 3002",
+        "address:safe-provider-id",
+    )
+
+    assert verification.verification_status == "unverified"
+    assert verification.latitude is None
+
+
+def test_selected_reference_preserves_unit_without_claiming_unit_verification() -> None:
+    client = client_for(lambda request: httpx.Response(200, json=tomtom_result()))
+    verification = AddressVerificationService(client).verify(
+        "4/1 Treasury Place East Melbourne VIC 3002",
+        "4/1 Treasury Place East Melbourne VIC 3002",
+        "address:safe-provider-id",
+    )
+
+    assert verification.verification_status == "verified"
+    assert verification.unit_number == "4"
+    assert verification.canonical_address == (
+        "4/1 Treasury Place East Melbourne VIC 3002"
+    )
+    assert "not independently verified" in (verification.verification_message or "")
+
+
+@pytest.mark.parametrize(
+    "reference",
+    ["street:safe-provider-id", "area:safe-provider-id"],
+)
+def test_non_address_suggestion_reference_cannot_verify(reference: str) -> None:
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        return httpx.Response(500)
+
+    verification = AddressVerificationService(client_for(handler)).verify(
+        "Treasury Place East Melbourne VIC 3002",
+        "Treasury Place East Melbourne VIC 3002",
+        reference,
+    )
+    assert verification.verification_status == "unverified"
+    assert calls == 0
+
+
+def test_selected_reference_rejects_interstate_details() -> None:
+    client = client_for(
+        lambda request: httpx.Response(
+            200, json=tomtom_result(subdivision_code="AU-NSW")
+        )
+    )
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Place",
+        "1 Treasury Place",
+        "address:safe-provider-id",
+    )
+    assert verification.verification_status == "unverified"
+    assert verification.latitude is None
+
+
+def test_selected_details_failure_is_safely_unavailable() -> None:
+    client = client_for(
+        lambda request: httpx.Response(
+            503, json={"detailedError": {"message": "secret upstream detail"}}
+        )
+    )
+    verification = AddressVerificationService(client).verify(
+        "1 Treasury Place",
+        "1 Treasury Place",
+        "address:safe-provider-id",
+    )
+    assert verification.verification_status == "unverified"
+    assert verification.verification_message == (
+        "Official address verification is temporarily unavailable."
+    )
+
+
+def test_invalid_provider_reference_keeps_free_text_geocode_path() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path.endswith("/maps/orbis/places/geocode")
+        assert request.headers["TomTom-Api-Version"] == "2"
+        return httpx.Response(200, json={"results": [tomtom_result()]})
+
+    verification = AddressVerificationService(client_for(handler)).verify(
+        "1 Treasury Place East Melbourne VIC 3002",
+        "1 Treasury Place East Melbourne VIC 3002",
+        "not-a-valid-reference",
+    )
+    assert verification.verification_status == "verified"
 
 
 def test_unit_input_verifies_only_the_base_address_and_preserves_unit() -> None:

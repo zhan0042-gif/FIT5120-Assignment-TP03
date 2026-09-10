@@ -196,7 +196,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
     }
   }
 
-  async function submitAddress(next, selectedAddress = null) {
+  async function submitAddress(next, selectedAddress = null, providerReference = null) {
     // Clear advice before starting the mutation so old-district guidance can
     // never be presented as current for the replacement address.
     const revision = ++saveRevision
@@ -210,6 +210,7 @@ export const useLocalContextStore = defineStore('localContext', () => {
       const saved = await api.saveLocation(householdId, {
         address: next,
         selected_address: selectedAddress,
+        provider_reference: providerReference,
       })
       if (householdStore.householdId !== householdId || revision !== saveRevision) return null
       setSavedLocation(saved)

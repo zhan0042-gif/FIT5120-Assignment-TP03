@@ -91,7 +91,10 @@ def save_location(
 ) -> HouseholdLocation:
     """Save entered address text and attempt non-blocking official verification."""
     return LocationService(repository, address_client).save(
-        household_id, request.address, request.selected_address
+        household_id,
+        request.address,
+        request.selected_address,
+        request.provider_reference,
     )
 
 

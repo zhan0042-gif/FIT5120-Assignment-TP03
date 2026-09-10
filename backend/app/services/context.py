@@ -76,14 +76,18 @@ class LocationService:
         self.address_client = address_client
 
     def save(
-        self, household_id: str, address: str, selected_address: str | None = None
+        self,
+        household_id: str,
+        address: str,
+        selected_address: str | None = None,
+        provider_reference: str | None = None,
     ) -> HouseholdLocation:
         if not self.repository.household_exists(household_id):
             raise HouseholdNotFound(f"Household '{household_id}' was not found.")
         saved = HouseholdLocation(address=" ".join(address.split()))
         self.repository.save_location(household_id, saved)
         verification = AddressVerificationService(self.address_client).verify(
-            saved.address, selected_address
+            saved.address, selected_address, provider_reference
         )
         if verification.verification_status == "unverified":
             return saved.model_copy(
@@ -126,14 +130,17 @@ class AddressVerificationService:
         self.address_client = address_client
 
     def verify(
-        self, entered_address: str | None, selected_address: str | None = None
+        self,
+        entered_address: str | None,
+        selected_address: str | None = None,
+        provider_reference: str | None = None,
     ) -> AddressVerification:
         if not entered_address or not entered_address.strip():
             return AddressVerification()
         try:
             verified = self.address_client.resolve(
                 selected_address or entered_address,
-                selected=selected_address is not None,
+                provider_reference=provider_reference,
             )
         except AddressResolutionError as exc:
             return AddressVerification(verification_message=str(exc))

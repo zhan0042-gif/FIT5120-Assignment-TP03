@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 import re
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -13,6 +14,14 @@ from app.schemas.households import AddressSuggestion, HouseholdLocation
 TOMTOM_PLACES_URL = "https://api.tomtom.com/maps/orbis/places"
 VICTORIA_BBOX = (140.96, -39.2, 150.03, -33.98)
 VICTORIA_SUBDIVISION = "AU-VIC"
+DETAIL_TYPE_PATHS = {
+    "address": "addresses",
+    "street": "streets",
+    "area": "areas",
+}
+PROVIDER_REFERENCE_PATTERN = re.compile(
+    r"^(address|street|area):([A-Za-z0-9_-]{1,240})$"
+)
 
 ROAD_TYPE_ALIASES = {
     "RD": "ROAD",
@@ -153,8 +162,12 @@ class TomTomAddressClient:
         return suggestions[:limit]
 
     def resolve(
-        self, address: str, *, selected: bool = False
+        self, address: str, *, provider_reference: str | None = None
     ) -> HouseholdLocation:
+        reference = self._parse_provider_reference(provider_reference)
+        if reference is not None:
+            return self._resolve_reference(address, *reference)
+
         entered = _parse_entered_address(address)
         if entered.house_number is None or entered.street is None:
             raise AddressResolutionError(
@@ -188,7 +201,7 @@ class TomTomAddressClient:
             suggestion = self._to_suggestion(result, require_position=True)
             if suggestion is None:
                 continue
-            support = self._match_support(entered, suggestion, selected=selected)
+            support = self._match_support(entered, suggestion)
             if support is None or not suggestion.street_number or not suggestion.street_name:
                 continue
             key = (
@@ -215,6 +228,56 @@ class TomTomAddressClient:
                 "Multiple Victorian addresses match. Please select a complete suggestion."
             )
         resolved = best_matches[0]
+        if entered.unit_number:
+            return resolved.model_copy(
+                update={
+                    "address": f"{entered.unit_number}/{resolved.address}",
+                    "unit_number": entered.unit_number,
+                    "verification_message": (
+                        "The base street address was verified; the unit or apartment "
+                        "was preserved but not independently verified."
+                    ),
+                }
+            )
+        return resolved
+
+    def _resolve_reference(
+        self, selected_address: str, result_type: str, result_id: str
+    ) -> HouseholdLocation:
+        if result_type != "address":
+            raise AddressResolutionError(
+                "Please select a complete Victorian street address from the suggestions."
+            )
+        payload = self._request_json(
+            "GET",
+            (
+                f"{TOMTOM_PLACES_URL}/details/"
+                f"{DETAIL_TYPE_PATHS[result_type]}/{quote(result_id, safe='')}"
+            ),
+            version="3",
+            timeout_seconds=self.timeout_seconds,
+            attributes="id,type,title,subtitles,position,address",
+        )
+        if payload.get("type") != "address":
+            raise AddressResolutionError(
+                "Please select a complete Victorian street address from the suggestions."
+            )
+        suggestion = self._to_suggestion(payload, require_position=True)
+        if (
+            suggestion is None
+            or not suggestion.street_number
+            or not suggestion.street_name
+            or suggestion.latitude is None
+            or suggestion.longitude is None
+        ):
+            raise AddressResolutionError(
+                "Please select a complete Victorian street address from the suggestions."
+            )
+
+        resolved = HouseholdLocation.model_validate(
+            suggestion.model_dump(exclude={"provider_reference"})
+        )
+        entered = _parse_entered_address(selected_address)
         if entered.unit_number:
             return resolved.model_copy(
                 update={
@@ -262,12 +325,13 @@ class TomTomAddressClient:
         *,
         version: str,
         timeout_seconds: float,
+        attributes: str = "results",
         **kwargs: Any,
     ) -> dict[str, Any]:
         headers = {
             "TomTom-Api-Key": self._api_key,
             "TomTom-Api-Version": version,
-            "Attributes": "results",
+            "Attributes": attributes,
             "Accept": "application/json",
             "Accept-Language": "en-AU",
         }
@@ -371,14 +435,13 @@ class TomTomAddressClient:
             country="Australia",
             latitude=latitude,
             longitude=longitude,
+            provider_reference=TomTomAddressClient._provider_reference(result),
         )
 
     @staticmethod
     def _match_support(
         entered: _EnteredAddress,
         candidate: AddressSuggestion,
-        *,
-        selected: bool,
     ) -> int | None:
         if _normalize_component(entered.house_number or "") != _normalize_component(
             candidate.street_number or ""
@@ -399,13 +462,6 @@ class TomTomAddressClient:
         ) == _normalize_postcode(candidate.postcode)
         support = int(locality_matches) + int(postcode_matches)
 
-        if selected:
-            # A selected TomTom suggestion already carries disambiguating context.
-            # Reject only when both supplied supporting fields contradict it.
-            if locality_supplied and postcode_supplied and support == 0:
-                return None
-            return support
-
         # Free text remains conservative. A supplied postcode is a strong
         # discriminator; locality may vary when the postcode still supports it.
         if postcode_supplied and not postcode_matches:
@@ -413,6 +469,24 @@ class TomTomAddressClient:
         if locality_supplied and not locality_matches and not postcode_matches:
             return None
         return support
+
+    @staticmethod
+    def _provider_reference(result: dict[str, Any]) -> str | None:
+        result_type = result.get("type")
+        result_id = result.get("id")
+        if result_type not in DETAIL_TYPE_PATHS or not isinstance(result_id, str):
+            return None
+        reference = f"{result_type}:{result_id}"
+        return reference if PROVIDER_REFERENCE_PATTERN.fullmatch(reference) else None
+
+    @staticmethod
+    def _parse_provider_reference(value: str | None) -> tuple[str, str] | None:
+        if not value:
+            return None
+        match = PROVIDER_REFERENCE_PATTERN.fullmatch(value)
+        if match is None:
+            return None
+        return match.group(1), match.group(2)
 
     @staticmethod
     def _inside_victoria_bounds(latitude: float, longitude: float) -> bool:

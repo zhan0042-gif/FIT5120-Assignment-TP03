@@ -17,7 +17,13 @@ watch(() => store.submittedAddress, (value) => {
   if (value && store.locationStatus === 'success') editing.value = false
 })
 async function selectSuggestion(suggestion) {
-  await store.submitAddress(suggestion.address, suggestion.address)
+  const unit = draftAddress.value.match(/^\s*(?:unit\s+)?([a-z0-9]+)\s*\/\s*/i)?.[1]
+  const selectedAddress = unit ? `${unit}/${suggestion.address}` : suggestion.address
+  await store.submitAddress(
+    selectedAddress,
+    selectedAddress,
+    suggestion.provider_reference,
+  )
   if (store.saveStatus === 'success') editing.value = false
 }
 async function submit() { if (!draftAddress.value.trim()) return; await store.submitAddress(draftAddress.value.trim()); if (store.saveStatus === 'success') editing.value = false }
@@ -25,7 +31,11 @@ function hasMissingForecastPeriods(fireDanger) {
   return ['today', 'tomorrow', 'day_3', 'day_4'].some((period) => fireDanger?.[period] == null)
 }
 async function confirmNearbyAddress(suggestion) {
-  await store.submitAddress(suggestion.address, suggestion.address)
+  await store.submitAddress(
+    suggestion.address,
+    suggestion.address,
+    suggestion.provider_reference,
+  )
   if (store.saveStatus === 'success') editing.value = false
 }
 

@@ -55,8 +55,52 @@ def test_database_failure_returns_controlled_503(
 
 
 class NoMatchingAddressClient:
-    def resolve(self, address: str, *, selected: bool = False):
+    def resolve(self, address: str, *, provider_reference: str | None = None):
         raise AddressResolutionError("No matching Victorian household address was found.")
+
+
+class RecordingReferenceAddressClient:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str | None]] = []
+
+    def resolve(self, address: str, *, provider_reference: str | None = None):
+        self.calls.append((address, provider_reference))
+        return HouseholdLocation(
+            address="1 Treasury Place East Melbourne VIC 3002",
+            street_number="1",
+            street_name="Treasury Place",
+            suburb_or_locality="East Melbourne",
+            postcode="3002",
+            latitude=-37.8135811,
+            longitude=144.974343,
+        )
+
+
+def test_location_save_passes_optional_provider_reference_unchanged(
+    api: tuple[TestClient, InMemoryHouseholdRepository],
+) -> None:
+    client, _ = api
+    address_client = RecordingReferenceAddressClient()
+    app.dependency_overrides[get_address_client] = lambda: address_client
+    household_id = create_household(client)
+
+    response = client.put(
+        f"/api/v1/households/{household_id}/location",
+        json={
+            "address": "1 Treasury Place East Melbourne VIC 3002",
+            "selected_address": "1 Treasury Place East Melbourne VIC 3002",
+            "provider_reference": "address:safe-provider-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["verification_status"] == "verified"
+    assert address_client.calls == [
+        (
+            "1 Treasury Place East Melbourne VIC 3002",
+            "address:safe-provider-id",
+        )
+    ]
 
 
 def test_address_resolution_error_keeps_the_saved_address_unverified(
