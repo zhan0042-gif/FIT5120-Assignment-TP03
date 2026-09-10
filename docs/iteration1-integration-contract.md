@@ -60,7 +60,9 @@ Destinations have a meaningful `display_name` and an optional `address`. Both ho
 
 ## Completion and immediate checks
 
-Completion is dynamically derived from the latest saved plan, not manually ticked or stored as a completion table. It reports the six ordered sections: `household_profile`, `transport`, `backup_transport`, `primary_destination`, `backup_destination`, and `responsibilities`.
+Completion is dynamically derived from the latest saved plan, not manually ticked or stored as a completion table. It reports the seven ordered sections: `household_profile`, `member_locations`, `transport`, `backup_transport`, `primary_destination`, `backup_destination`, and `responsibilities`.
+
+`member_locations` is complete when every household member has a declared usual location. It was added on 2026-09-10 for the rendezvous simulation: plans saved before that change report 86% until a location is added to each member. No data is lost and no existing endpoint breaks, but the change is visible to users.
 
 Incomplete plans remain saveable. Backup completion reflects whether an applicable usable backup exists under the current backend rules; it does not require every optional backup entry to be complete. Immediate checks are backend-owned, non-blocking practical warnings, including missing backup transport/destination/person and shared primary/backup transport resources.
 

@@ -20,6 +20,7 @@ NonBlankText = Annotated[
 ]
 CompletionSectionName = Literal[
     "household_profile",
+    "member_locations",
     "transport",
     "backup_transport",
     "primary_destination",

@@ -1,7 +1,7 @@
 <script setup>
 import LoadingState from '../common/LoadingState.vue'
 defineProps({ completion: { type: Object, default: null }, loading: { type: Boolean, required: true } })
-const labels = { household_profile: 'Household profile', transport: 'Transport', backup_transport: 'Backup transport', primary_destination: 'Primary destination', backup_destination: 'Backup destination', responsibilities: 'Responsibilities' }
+const labels = { household_profile: 'Household profile', member_locations: 'Member locations', transport: 'Transport', backup_transport: 'Backup transport', primary_destination: 'Primary destination', backup_destination: 'Backup destination', responsibilities: 'Responsibilities' }
 </script>
 <template>
   <section class="card completion-card">

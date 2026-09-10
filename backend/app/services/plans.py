@@ -159,6 +159,7 @@ class PlanCompletionService:
 
     SECTION_ORDER = (
         "household_profile",
+        "member_locations",
         "transport",
         "backup_transport",
         "primary_destination",
@@ -181,6 +182,10 @@ class PlanCompletionService:
             "household_profile": bool(plan.members)
             and all(member.display_name.strip() for member in plan.members)
             and all(animal.animal_type for animal in plan.animals),
+            # The simulation needs a starting point for every member, so a plan
+            # is only complete once each of them has one declared.
+            "member_locations": bool(plan.members)
+            and all(member.usual_location is not None for member in plan.members),
             "transport": explicitly_no_private_transport
             or bool(plan.transports and arrangements.primary_transport_id),
             "backup_transport": explicitly_no_private_transport

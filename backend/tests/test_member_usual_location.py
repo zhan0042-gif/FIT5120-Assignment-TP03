@@ -4,7 +4,11 @@ from app.schemas.households import HouseholdPlan, MemberUsualLocation
 
 
 def test_member_without_usual_location_still_validates(complete_plan_data: dict) -> None:
-    plan = HouseholdPlan.model_validate(deepcopy(complete_plan_data))
+    data = deepcopy(complete_plan_data)
+    for member in data["members"]:
+        member.pop("usual_location", None)
+
+    plan = HouseholdPlan.model_validate(data)
 
     assert plan.members[0].usual_location is None
 
