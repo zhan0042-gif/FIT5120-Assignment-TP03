@@ -12,6 +12,9 @@ from app.schemas.households import (
 )
 
 
+from app.schemas.rendezvous import RendezvousResult
+
+
 class SpatialResult(Protocol):
     is_bushfire_prone_area: bool
     fire_district: str
@@ -83,3 +86,13 @@ class RoutingClient(Protocol):
         origins: list[tuple[float, float]],
         destination: tuple[float, float],
     ) -> list[RouteLeg]: ...
+
+
+class ExplanationClient(Protocol):
+    """Turn a computed simulation result into a short plain-language explanation.
+
+    The implementation never calculates: it receives figures that are already
+    correct and writes prose about them.
+    """
+
+    def explain(self, result: RendezvousResult) -> str: ...
