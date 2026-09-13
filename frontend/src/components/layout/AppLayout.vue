@@ -11,6 +11,7 @@
         <router-link to="/overview">Overview</router-link>
         <router-link to="/map">Fire Map</router-link>
         <router-link to="/scenarios">Test My Plan</router-link>
+        <router-link to="/summary">Summary &amp; Export</router-link>
       </nav>
     </header>
     <main class="content"><router-view /></main>
