@@ -3,7 +3,9 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi.responses import Response
 
+from app.core.exceptions import LocationNotFound
 from app.core.dependencies import (
     get_routing_client,
     get_address_client,
@@ -41,6 +43,7 @@ from app.services.context import (
     PreparationSupportService,
 )
 from app.services.plans import HouseholdPlanService, PlanCompletionService
+from app.services.preparedness_pdf import PreparednessPdfService
 from app.services.rendezvous import RendezvousSimulationService
 from app.services.scenarios import BasicScenarioService
 
@@ -77,6 +80,33 @@ def save_plan(
 def get_plan(household_id: str, repository: RepositoryDependency) -> HouseholdPlan:
     """Return the latest saved aggregate; an absent plan remains a 404 resource."""
     return repository.get_plan(household_id)
+
+
+@router.get("/{household_id}/preparedness-plan.pdf", response_class=Response)
+def export_preparedness_plan(
+    household_id: str, repository: RepositoryDependency
+) -> Response:
+    """Download a printable rendering of the latest saved household plan."""
+    plan = repository.get_plan(household_id)
+    try:
+        location = repository.get_location(household_id)
+        household_address = (
+            location.canonical_address or location.address or ""
+        ).strip()
+    except LocationNotFound:
+        household_address = ""
+    content = PreparednessPdfService().generate(
+        plan, household_address=household_address
+    )
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                'attachment; filename="firebreak-household-plan.pdf"'
+            )
+        },
+    )
 
 
 @router.get("/{household_id}/completion", response_model=PlanCompletion)
