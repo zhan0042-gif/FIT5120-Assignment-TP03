@@ -16,6 +16,7 @@ Iteration 1 handles household preparedness data. Combined, these fields can reve
 - **Pets** — Source: Frontend form — Low–Med sensitivity
 - **Home location / address** — Source: Frontend form (PUT location) — **High** sensitivity — PII + geolocation; store resolved lat/lng server-side only; never in logs or error messages
 - **Primary / backup destinations** — Source: Frontend form — Med–High sensitivity — reveals regular movement patterns
+- **Member usual location (work / school / other address)** — Source: Frontend form (PUT plan) — **High** sensitivity — PII + geolocation, same handling as home address: resolved lat/lng stored server-side only, never in logs or error messages. User-declared *hypothetical* locations for simulation only; no device geolocation is collected and no position is tracked. Optional — the rest of the plan works without them
 - **Responsibilities / household arrangements** — Source: Frontend form — Med sensitivity — who does what in a household
 
 ## 3. Minimisation principles

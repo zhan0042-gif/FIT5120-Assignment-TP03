@@ -32,9 +32,57 @@ class HouseholdPlanService:
     def save(self, household_id: str, plan: HouseholdPlan) -> HouseholdPlan:
         """Save one primary and zero-to-many ordered backup arrangements."""
         self.validate(plan)
+        plan = self._enrich_member_locations(plan)
         plan = self._enrich_destinations(plan)
         self.repository.save_plan(household_id, plan)
         return self.repository.get_plan(household_id)
+
+    def _enrich_member_locations(self, plan: HouseholdPlan) -> HouseholdPlan:
+        """Resolve coordinates for declared member locations that still need them.
+
+        Suggestions carry no coordinates, so an address typed in the browser can
+        only become a point here. Unlike destinations, an already verified
+        location is left alone: re-resolving every member on every save would
+        multiply the provider calls a save already makes. Editing the address
+        clears the flag in the browser, so a changed address is resolved again.
+        """
+        if self.address_verifier is None:
+            return plan
+        members = []
+        for member in plan.members:
+            location = member.usual_location
+            if location is None or location.kind == "home" or not location.address.strip():
+                members.append(member)
+                continue
+            if (
+                location.verification_status == "verified"
+                and location.latitude is not None
+                and location.longitude is not None
+            ):
+                members.append(member.model_copy(
+                    update={"usual_location": location.model_copy(
+                        update={"selected_address": None}
+                    )}
+                ))
+                continue
+            verification = self.address_verifier.verify(
+                location.address, location.selected_address
+            )
+            members.append(
+                member.model_copy(
+                    update={
+                        "usual_location": location.model_copy(
+                            update={
+                                "latitude": verification.latitude,
+                                "longitude": verification.longitude,
+                                "verification_status": verification.verification_status,
+                                "selected_address": None,
+                            }
+                        )
+                    }
+                )
+            )
+        return plan.model_copy(update={"members": members})
 
     def _enrich_destinations(self, plan: HouseholdPlan) -> HouseholdPlan:
         """Verify destination addresses without making verification a save prerequisite."""
@@ -159,6 +207,7 @@ class PlanCompletionService:
 
     SECTION_ORDER = (
         "household_profile",
+        "member_locations",
         "transport",
         "backup_transport",
         "primary_destination",
@@ -181,6 +230,10 @@ class PlanCompletionService:
             "household_profile": bool(plan.members)
             and all(member.display_name.strip() for member in plan.members)
             and all(animal.animal_type for animal in plan.animals),
+            # The simulation needs a starting point for every member, so a plan
+            # is only complete once each of them has one declared.
+            "member_locations": bool(plan.members)
+            and all(member.usual_location is not None for member in plan.members),
             "transport": explicitly_no_private_transport
             or bool(plan.transports and arrangements.primary_transport_id),
             "backup_transport": explicitly_no_private_transport

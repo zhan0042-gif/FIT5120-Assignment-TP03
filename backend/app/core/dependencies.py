@@ -10,6 +10,7 @@ from app.providers.data_spatial import DataSpatialProvider
 from app.providers.interfaces import (
     AddressClient,
     FireDangerClient,
+    RoutingClient,
     SpatialProvider,
     WeatherClient,
 )
@@ -35,6 +36,10 @@ def get_household_repository() -> HouseholdRepository:
 
 def get_address_client() -> AddressClient:
     return _external_providers.address
+
+
+def get_routing_client() -> RoutingClient:
+    return _external_providers.routing
 
 
 def get_spatial_provider() -> SpatialProvider:

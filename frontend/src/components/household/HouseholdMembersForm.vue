@@ -1,9 +1,50 @@
 <script setup>
 import { newId } from '../../api/client'
+import AddressAutocompleteInput from '../common/AddressAutocompleteInput.vue'
 import EmptyState from '../common/EmptyState.vue'
 
 const members = defineModel('members', { required: true })
 const animals = defineModel('animals', { required: true })
+
+const USUAL_LOCATION_KINDS = [
+  ['home', 'Home'],
+  ['work', 'Work'],
+  ['school', 'School'],
+  ['other', 'Somewhere else'],
+]
+
+function setUsualKind(member, kind) {
+  // Changing kind discards any coordinates: they belonged to the previous place.
+  member.usual_location = kind
+    ? { kind, address: '', latitude: null, longitude: null, verification_status: 'unverified' }
+    : null
+}
+
+function setUsualAddress(member, address) {
+  // Typed text is not a verified place. Clearing the flag is what makes the
+  // backend resolve it again on the next save.
+  const location = member.usual_location
+  if (location.address !== address) {
+    location.latitude = null
+    location.longitude = null
+    location.verification_status = 'unverified'
+  }
+  location.address = address
+}
+
+function selectUsualAddress(member, suggestion) {
+  // Suggestions carry no coordinates; selected_address tells the backend which
+  // candidate to resolve, exactly as the destination fields do.
+  setUsualAddress(member, suggestion.address)
+  member.usual_location.selected_address = suggestion.address
+}
+
+function usualLocationHelperText(member) {
+  if (!member.usual_location?.address) return ''
+  return member.usual_location.verification_status === 'verified'
+    ? 'Verified address'
+    : 'Address saved but not verified'
+}
 
 function addMember() {
   members.value.push({
@@ -13,6 +54,7 @@ function addMember() {
     mobility_support_required: false,
     support_notes: null,
     relationship: null,
+    usual_location: null,
     relationship_other: null,
   })
 }
@@ -103,6 +145,28 @@ function changeAnimalCategory(animal) {
           <div v-if="member.relationship === 'other'" class="field member-other-relationship">
             <label>Please specify relationship (optional)</label>
             <input v-model="member.relationship_other" type="text" maxlength="100" placeholder="e.g. Neighbour" />
+          </div>
+          <div class="field member-usual-location">
+            <label :for="`${member.member_id}-usual-kind`">Where are they during the day?</label>
+            <select
+              :id="`${member.member_id}-usual-kind`"
+              :value="member.usual_location?.kind ?? ''"
+              @change="setUsualKind(member, $event.target.value)"
+            >
+              <option value="">Not recorded</option>
+              <option v-for="[value, label] in USUAL_LOCATION_KINDS" :key="value" :value="value">{{ label }}</option>
+            </select>
+            <span v-if="member.usual_location?.kind === 'home'" class="field-help">Uses your home address.</span>
+            <span v-else-if="!member.usual_location" class="field-help">Needed to simulate when everyone can meet.</span>
+          </div>
+          <div v-if="member.usual_location && member.usual_location.kind !== 'home'" class="field member-usual-address">
+            <AddressAutocompleteInput
+              label="Address"
+              :model-value="member.usual_location.address"
+              :helper-text="usualLocationHelperText(member)"
+              @update:model-value="setUsualAddress(member, $event)"
+              @select="selectUsualAddress(member, $event)"
+            />
           </div>
           <div class="field member-support">
             <label>Other support needs (optional)</label>

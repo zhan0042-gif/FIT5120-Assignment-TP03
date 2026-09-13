@@ -2,7 +2,9 @@
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from math import asin, cos, radians, sin, sqrt
 
+from app.providers.interfaces import RouteLeg
 from app.schemas.households import AddressSuggestion, FireDanger, HouseholdLocation, Weather
 
 
@@ -130,3 +132,40 @@ class MockWeatherClient:
             observed_at=self.observed_at,
             station_name="Mock Melbourne Station",
         )
+
+
+def _haversine_metres(a: tuple[float, float], b: tuple[float, float]) -> float:
+    earth_radius_metres = 6_371_000.0
+    lat1, lon1 = radians(a[0]), radians(a[1])
+    lat2, lon2 = radians(b[0]), radians(b[1])
+    d_lat, d_lon = lat2 - lat1, lon2 - lon1
+    h = sin(d_lat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(d_lon / 2) ** 2
+    return 2 * earth_radius_metres * asin(sqrt(h))
+
+
+class MockRoutingClient:
+    """Straight-line estimates for tests and APP_DATA_MODE=mock.
+
+    Deterministic and offline. Never used in live mode: a straight line is not
+    a travel time, and the service must never present one as if it were.
+    """
+
+    AVERAGE_SPEED_METRES_PER_SECOND = 11.0  # ~40 km/h urban average
+
+    def travel_times(
+        self,
+        origins: list[tuple[float, float]],
+        destination: tuple[float, float],
+    ) -> list[RouteLeg]:
+        legs: list[RouteLeg] = []
+        for index, origin in enumerate(origins):
+            metres = int(_haversine_metres(origin, destination))
+            legs.append(
+                RouteLeg(
+                    origin_index=index,
+                    travel_seconds=int(metres / self.AVERAGE_SPEED_METRES_PER_SECOND),
+                    distance_meters=metres,
+                    traffic_delay_seconds=0,
+                )
+            )
+        return legs

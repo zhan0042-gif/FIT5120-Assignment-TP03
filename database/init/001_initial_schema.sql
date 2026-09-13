@@ -29,6 +29,11 @@ CREATE TABLE household_member (
     support_notes TEXT,
     relationship VARCHAR(50),
     relationship_other VARCHAR(100),
+    usual_location_kind VARCHAR(20),
+    usual_location_address VARCHAR(255),
+    usual_latitude DECIMAL(9,6),
+    usual_longitude DECIMAL(9,6),
+    usual_verification_status VARCHAR(20),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT fk_member_household

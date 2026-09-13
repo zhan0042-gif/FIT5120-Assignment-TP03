@@ -23,6 +23,7 @@ def complete_plan_data() -> dict:
                 "support_notes": None,
                 "relationship": "self",
                 "relationship_other": None,
+                "usual_location": {"kind": "home"},
             },
             {
                 "member_id": "m_002",
@@ -32,6 +33,7 @@ def complete_plan_data() -> dict:
                 "support_notes": None,
                 "relationship": "partner",
                 "relationship_other": None,
+                "usual_location": {"kind": "home"},
             },
         ],
         "animals": [

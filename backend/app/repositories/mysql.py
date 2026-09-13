@@ -16,6 +16,7 @@ from app.core.exceptions import (
     TestResultNotFound,
 )
 from app.schemas.households import (
+    MemberUsualLocation,
     Animal,
     Arrangements,
     BackupArrangement,
@@ -32,6 +33,28 @@ from app.schemas.scenarios import (
     ScenarioCheck,
     ScenarioTestResult,
 )
+
+
+def _usual_location(row) -> MemberUsualLocation | None:
+    """Rebuild a member's declared location from its five nullable columns.
+
+    A member who never declared one stores NULLs; the kind column is what
+    distinguishes "no location" from a location whose address is blank, which
+    is the normal shape of kind="home".
+    """
+    if not row["usual_location_kind"]:
+        return None
+    return MemberUsualLocation(
+        kind=row["usual_location_kind"],
+        address=row["usual_location_address"] or "",
+        latitude=(
+            float(row["usual_latitude"]) if row["usual_latitude"] is not None else None
+        ),
+        longitude=(
+            float(row["usual_longitude"]) if row["usual_longitude"] is not None else None
+        ),
+        verification_status=row["usual_verification_status"] or "unverified",
+    )
 
 
 class MySQLHouseholdRepository:
@@ -99,11 +122,17 @@ class MySQLHouseholdRepository:
                             INSERT INTO household_member (
                                 public_id, household_id, display_name,
                                 is_dependant, mobility_support_required, support_notes,
-                                relationship, relationship_other
+                                relationship, relationship_other,
+                                usual_location_kind, usual_location_address,
+                                usual_latitude, usual_longitude,
+                                usual_verification_status
                             ) VALUES (
                                 :public_id, :household_id, :display_name,
                                 :is_dependant, :mobility_support_required, :support_notes,
-                                :relationship, :relationship_other
+                                :relationship, :relationship_other,
+                                :usual_location_kind, :usual_location_address,
+                                :usual_latitude, :usual_longitude,
+                                :usual_verification_status
                             )
                             """
                         ),
@@ -116,6 +145,25 @@ class MySQLHouseholdRepository:
                             "support_notes": member.support_notes,
                             "relationship": member.relationship,
                             "relationship_other": member.relationship_other,
+                            # A member with no declared location stores five NULLs,
+                            # which get_plan reads back as usual_location=None.
+                            "usual_location_kind": (
+                                member.usual_location.kind if member.usual_location else None
+                            ),
+                            "usual_location_address": (
+                                member.usual_location.address if member.usual_location else None
+                            ),
+                            "usual_latitude": (
+                                member.usual_location.latitude if member.usual_location else None
+                            ),
+                            "usual_longitude": (
+                                member.usual_location.longitude if member.usual_location else None
+                            ),
+                            "usual_verification_status": (
+                                member.usual_location.verification_status
+                                if member.usual_location
+                                else None
+                            ),
                         },
                     )
                     member_ids[member.member_id] = int(result.lastrowid)
@@ -750,6 +798,7 @@ class MySQLHouseholdRepository:
                 support_notes=row["support_notes"],
                 relationship=row["relationship"],
                 relationship_other=row["relationship_other"],
+                usual_location=_usual_location(row),
             )
             for row in member_rows
         ]

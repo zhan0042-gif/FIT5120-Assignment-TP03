@@ -7,14 +7,26 @@ import os
 
 from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
-from app.providers.interfaces import AddressClient, FireDangerClient, WeatherClient
-from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
+from app.providers.interfaces import (
+    AddressClient,
+    FireDangerClient,
+    RoutingClient,
+    WeatherClient,
+)
+from app.providers.mock import (
+    MockAddressClient,
+    MockFireDangerClient,
+    MockRoutingClient,
+    MockWeatherClient,
+)
 from app.providers.tomtom import TomTomAddressClient
+from app.providers.tomtom_routing import TomTomRoutingClient
 
 
 @dataclass(frozen=True)
 class ExternalProviders:
     address: AddressClient
+    routing: RoutingClient
     fire_danger: FireDangerClient
     weather: WeatherClient
 
@@ -60,12 +72,14 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
     if selected == "mock":
         return ExternalProviders(
             address=MockAddressClient(),
+            routing=MockRoutingClient(),
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
         )
     if selected == "live":
         return ExternalProviders(
             address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
+            routing=TomTomRoutingClient(api_key=os.getenv("TOMTOM_API_KEY")),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )

@@ -34,6 +34,7 @@ def test_partial_plan_can_be_saved_and_completion_reports_all_gaps() -> None:
     assert completion.overall_status == "needs_information"
     assert [section.section for section in completion.sections] == [
         "household_profile",
+        "member_locations",
         "transport",
         "backup_transport",
         "primary_destination",

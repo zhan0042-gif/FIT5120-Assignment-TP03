@@ -381,3 +381,35 @@ def test_api_services_use_the_persisted_plan_without_mutating_it(
             ).scalar_one() >= 2
     finally:
         app.dependency_overrides.clear()
+
+
+def test_member_usual_location_round_trips(mysql_repository, complete_plan_data) -> None:
+    household_id = mysql_repository.create_household()
+    data = deepcopy(complete_plan_data)
+    data["members"][0]["usual_location"] = {
+        "kind": "work",
+        "address": "200 Bourke Street, Melbourne VIC 3000",
+        "latitude": -37.8125,
+        "longitude": 144.9665,
+        "verification_status": "verified",
+    }
+    data["members"][1]["usual_location"] = {"kind": "home"}
+
+    mysql_repository.save_plan(household_id, HouseholdPlan.model_validate(data))
+    saved = mysql_repository.get_plan(household_id)
+
+    assert saved.members[0].usual_location.kind == "work"
+    assert saved.members[0].usual_location.latitude == -37.8125
+    assert saved.members[0].usual_location.verification_status == "verified"
+    assert saved.members[1].usual_location.kind == "home"
+    assert saved.members[1].usual_location.address == ""
+
+
+def test_member_without_usual_location_stays_none(mysql_repository, complete_plan_data) -> None:
+    household_id = mysql_repository.create_household()
+
+    mysql_repository.save_plan(
+        household_id, HouseholdPlan.model_validate(deepcopy(complete_plan_data))
+    )
+
+    assert mysql_repository.get_plan(household_id).members[0].usual_location is None
