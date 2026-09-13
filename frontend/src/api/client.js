@@ -124,6 +124,11 @@ export const api = {
   getPreparationSupport: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/preparation-support`),
 
+  getHistoricalFirePoints: (householdId, limit = 500) =>
+    request(
+      `/households/${encodeURIComponent(householdId)}/historical-fire-points?limit=${limit}`,
+    ),
+
   getBasicScenarios: (householdId) =>
     request(`/scenarios/basic?household_id=${encodeURIComponent(householdId)}`),
 
