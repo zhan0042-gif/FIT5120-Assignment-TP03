@@ -9,17 +9,20 @@ from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import (
     AddressClient,
+    ExplanationClient,
     FireDangerClient,
     RoutingClient,
     WeatherClient,
 )
 from app.providers.mock import (
     MockAddressClient,
+    MockExplanationClient,
     MockFireDangerClient,
     MockRoutingClient,
     MockWeatherClient,
 )
 from app.providers.tomtom import TomTomAddressClient
+from app.providers.nvidia_explanation import NvidiaExplanationClient
 from app.providers.tomtom_routing import TomTomRoutingClient
 
 
@@ -27,6 +30,7 @@ from app.providers.tomtom_routing import TomTomRoutingClient
 class ExternalProviders:
     address: AddressClient
     routing: RoutingClient
+    explanation: ExplanationClient
     fire_danger: FireDangerClient
     weather: WeatherClient
 
@@ -73,6 +77,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         return ExternalProviders(
             address=MockAddressClient(),
             routing=MockRoutingClient(),
+            explanation=MockExplanationClient(),
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
         )
@@ -80,6 +85,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         return ExternalProviders(
             address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
             routing=TomTomRoutingClient(api_key=os.getenv("TOMTOM_API_KEY")),
+            explanation=NvidiaExplanationClient(api_key=os.getenv("AI_API_KEY")),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )
