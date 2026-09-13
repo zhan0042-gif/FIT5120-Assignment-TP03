@@ -5,7 +5,11 @@ import httpx
 import pytest
 
 from app.core.exceptions import ExternalDataUnavailable
-from app.providers.nvidia_explanation import NvidiaExplanationClient
+from app.core.config import build_external_providers
+from app.providers.nvidia_explanation import (
+    DisabledExplanationClient,
+    NvidiaExplanationClient,
+)
 from app.schemas.rendezvous import MemberEta, RendezvousResult
 
 
@@ -105,3 +109,28 @@ def test_empty_content_becomes_external_data_unavailable() -> None:
 def test_malformed_payload_becomes_external_data_unavailable() -> None:
     with pytest.raises(ExternalDataUnavailable):
         _client(lambda request: httpx.Response(200, json={"nope": 1})).explain(_result())
+
+
+def test_a_missing_key_disables_explanation_without_stopping_the_app(monkeypatch) -> None:
+    """Address lookup and routing are essential; explanation is not."""
+    monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.delenv("AI_API_KEY", raising=False)
+
+    providers = build_external_providers("live")
+
+    assert isinstance(providers.explanation, DisabledExplanationClient)
+    assert not isinstance(providers.address, DisabledExplanationClient)
+
+
+def test_a_present_key_selects_the_real_client(monkeypatch) -> None:
+    monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("AI_API_KEY", "ai-key")
+
+    assert isinstance(
+        build_external_providers("live").explanation, NvidiaExplanationClient
+    )
+
+
+def test_the_disabled_client_refuses_rather_than_returning_text() -> None:
+    with pytest.raises(ExternalDataUnavailable):
+        DisabledExplanationClient().explain(_result())

@@ -117,3 +117,16 @@ def _user_prompt(result: RendezvousResult) -> str:
     lines.append("")
     lines.append("Name the single biggest weakness and suggest one practical fix.")
     return "\n".join(lines)
+
+
+class DisabledExplanationClient:
+    """Stands in when no AI key is configured.
+
+    Explanation is an optional extra; address lookup and routing are not. A
+    missing key here must not stop the application from starting in live mode,
+    so this refuses politely and the service reports "unavailable" — the button
+    simply never produces anything.
+    """
+
+    def explain(self, result: RendezvousResult) -> str:
+        raise ExternalDataUnavailable("No explanation service is configured.")

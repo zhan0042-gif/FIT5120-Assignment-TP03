@@ -22,7 +22,10 @@ from app.providers.mock import (
     MockWeatherClient,
 )
 from app.providers.tomtom import TomTomAddressClient
-from app.providers.nvidia_explanation import NvidiaExplanationClient
+from app.providers.nvidia_explanation import (
+    DisabledExplanationClient,
+    NvidiaExplanationClient,
+)
 from app.providers.tomtom_routing import TomTomRoutingClient
 
 
@@ -71,6 +74,13 @@ def spatial_cache_max_age() -> timedelta:
     return timedelta(hours=hours)
 
 
+def _explanation_client(api_key: str | None) -> ExplanationClient:
+    """Explanation is optional; a missing key disables it rather than the app."""
+    if api_key and api_key.strip():
+        return NvidiaExplanationClient(api_key=api_key)
+    return DisabledExplanationClient()
+
+
 def build_external_providers(mode: str | None = None) -> ExternalProviders:
     selected = (mode or data_mode()).strip().lower()
     if selected == "mock":
@@ -85,7 +95,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         return ExternalProviders(
             address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
             routing=TomTomRoutingClient(api_key=os.getenv("TOMTOM_API_KEY")),
-            explanation=NvidiaExplanationClient(api_key=os.getenv("AI_API_KEY")),
+            explanation=_explanation_client(os.getenv("AI_API_KEY")),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )
