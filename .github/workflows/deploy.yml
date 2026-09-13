@@ -64,6 +64,12 @@ jobs:
       # status file. Running one long, high-output command synchronously
       # crashes the SSM document worker, so the deploy must be detached and
       # monitored instead.
+      #
+      # `set -e` is the first command on purpose. AWS-RunShellScript reports the
+      # exit code of the LAST command in the list, which here is
+      # `echo deploy-started` and therefore always succeeds. Without `set -e`,
+      # a failure anywhere earlier reads as a successful kickoff -- which is how
+      # a failing `git pull` stayed invisible on 2026-09-08.
       - name: Start deploy on server (background)
         id: start
         run: |
@@ -75,10 +81,13 @@ jobs:
             --comment "Start detached deploy" \
             --parameters '{
               "commands": [
+                "set -e",
                 "export HOME=/root",
                 "cd /home/ubuntu/FIT5120-Assignment-TP03",
                 "git config --global --add safe.directory /home/ubuntu/FIT5120-Assignment-TP03",
-                "git pull --ff-only origin main",
+                "rm -f /var/log/fit5120-deploy.status",
+                "git fetch --prune origin",
+                "git reset --hard origin/main",
                 "setsid bash /home/ubuntu/FIT5120-Assignment-TP03/scripts/deploy.sh > /var/log/fit5120-deploy.log 2>&1 < /dev/null &",
                 "echo deploy-started"
               ]
