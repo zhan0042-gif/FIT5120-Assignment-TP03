@@ -62,6 +62,17 @@ async function request(path, init) {
   return await response.json()
 }
 
+async function requestPdf(path) {
+  const response = await fetch(`${API_ROOT}${path}`)
+  if (!response.ok) throw await apiError(response)
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1]
+  return {
+    blob: await response.blob(),
+    filename: filename || 'firebreak-household-plan.pdf',
+  }
+}
+
 export function loadStoredHouseholdId() {
   return localStorage.getItem(HOUSEHOLD_ID_KEY)
 }
@@ -84,6 +95,9 @@ export const api = {
 
   getHouseholdPlan: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/plan`),
+
+  getPreparednessPlanPdf: (householdId) =>
+    requestPdf(`/households/${encodeURIComponent(householdId)}/preparedness-plan.pdf`),
 
   saveHouseholdPlan: (householdId, plan) =>
     request(`/households/${encodeURIComponent(householdId)}/plan`, {
@@ -123,6 +137,11 @@ export const api = {
 
   getPreparationSupport: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/preparation-support`),
+
+  getHistoricalFirePoints: (householdId, limit = 500) =>
+    request(
+      `/households/${encodeURIComponent(householdId)}/historical-fire-points?limit=${limit}`,
+    ),
 
   getBasicScenarios: (householdId) =>
     request(`/scenarios/basic?household_id=${encodeURIComponent(householdId)}`),

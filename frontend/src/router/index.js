@@ -21,9 +21,19 @@ const router = createRouter({
       component: () => import('../views/PlanBuilderView.vue'),
     },
     {
+      path: '/map',
+      name: 'fire-map',
+      component: () => import('../views/MapView.vue'),
+    },
+    {
       path: '/scenarios',
       name: 'scenario-tester',
       component: () => import('../views/ScenarioTesterView.vue'),
+    },
+    {
+      path: '/summary',
+      name: 'preparedness-summary',
+      component: () => import('../views/PreparednessSummaryView.vue'),
     },
     {
       path: '/review',
