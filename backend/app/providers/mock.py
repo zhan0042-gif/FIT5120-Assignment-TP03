@@ -99,6 +99,15 @@ class MockSpatialProvider:
     ) -> list[dict]:
         return []
 
+    def get_nearest_fire_history_point(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+    ) -> dict | None:
+        return None
+
 
 class MockFireDangerClient:
     def __init__(self, source_updated_at: datetime | None = None) -> None:

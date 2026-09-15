@@ -20,14 +20,14 @@
 
 <style scoped>
 .layout { display: grid; grid-template-rows: auto minmax(0, 1fr); width: 100%; height: 100vh; height: 100dvh; overflow: hidden; }
-.app-header { display: flex; align-items: center; justify-content: space-between; gap: 2rem; min-width: 0; padding: 1rem 3rem; background: var(--color-bg-content); border-bottom: 1px solid var(--color-border); }
+.app-header { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 2rem; min-width: 0; padding: 1rem 3rem; background: var(--color-bg-content); border-bottom: 1px solid var(--color-border); }
 .app-brand { align-items: center; color: var(--color-accent); display: flex; font-size: 1.375rem; font-weight: 700; gap: 0.7rem; letter-spacing: 0.06em; line-height: 1.15; text-decoration: none; }
 .app-brand span { color: var(--color-text); }
 .top-nav { display: flex; align-items: center; gap: clamp(0.75rem, 2.5vw, 2rem); }
 .top-nav a { border-radius: var(--radius-pill); color: var(--color-text-muted); font-size: 0.9375rem; font-weight: 500; padding: 0.5rem 1rem; text-decoration: none; white-space: nowrap; }
 .top-nav a:hover, .top-nav a:focus-visible { color: var(--color-text); }
 .top-nav a.router-link-active { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 700; }
-.content { min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 2.5rem 3rem; }
+.content { position: relative; z-index: 1; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 2.5rem 3rem; }
 @media (max-width: 880px) {
   .app-header { gap: 1rem; padding: 0.8rem clamp(1rem, 4vw, 1.5rem); }
   .app-brand { font-size: 1.1875rem; }

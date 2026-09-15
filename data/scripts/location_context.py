@@ -4,6 +4,7 @@ from .open_data_mysql import (
     get_fire_district,
     get_fire_history_context,
     get_fire_history_points,
+    get_nearest_fire_history_point,
 )
 
 
@@ -37,6 +38,26 @@ def get_location_fire_history_points(
                 longitude,
                 radius_km=radius_km,
                 limit=limit,
+            )
+
+
+def get_location_nearest_fire_history_point(
+    latitude,
+    longitude,
+    radius_km=20,
+):
+    """Return the nearest Historical Fire point within a location's radius."""
+    latitude = float(latitude)
+    longitude = float(longitude)
+    radius_km = float(radius_km)
+
+    with get_connection() as connection:
+        with connection.cursor() as cursor:
+            return get_nearest_fire_history_point(
+                cursor,
+                latitude,
+                longitude,
+                radius_km=radius_km,
             )
 
 

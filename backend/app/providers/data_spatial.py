@@ -12,6 +12,9 @@ DistrictLookup = Callable[[float, float], str | None]
 FireHistoryPointsLookup = Callable[
     [float, float, float, int], list[dict[str, Any]]
 ]
+NearestFireHistoryPointLookup = Callable[
+    [float, float, float], dict[str, Any] | None
+]
 
 
 @dataclass(frozen=True)
@@ -38,10 +41,12 @@ class DataSpatialProvider:
         lookup: LocationLookup | None = None,
         district_lookup: DistrictLookup | None = None,
         fire_history_points_lookup: FireHistoryPointsLookup | None = None,
+        nearest_fire_history_point_lookup: NearestFireHistoryPointLookup | None = None,
     ) -> None:
         self._lookup = lookup
         self._district_lookup = district_lookup
         self._fire_history_points_lookup = fire_history_points_lookup
+        self._nearest_fire_history_point_lookup = nearest_fire_history_point_lookup
 
     def get_context(self, latitude: float, longitude: float) -> DataSpatialResult:
         try:
@@ -116,6 +121,24 @@ class DataSpatialProvider:
                 "Historical fire map data is unavailable."
             ) from exc
 
+    def get_nearest_fire_history_point(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+    ) -> dict[str, Any] | None:
+        try:
+            return self._nearest_history_point_lookup()(
+                latitude, longitude, radius_km
+            )
+        except ExternalDataUnavailable:
+            raise
+        except Exception as exc:
+            raise ExternalDataUnavailable(
+                "Historical fire map data is unavailable."
+            ) from exc
+
     def _location_lookup(self) -> LocationLookup:
         if self._lookup is None:
             from data.scripts.location_context import get_location_context
@@ -138,3 +161,14 @@ class DataSpatialProvider:
 
             self._fire_history_points_lookup = get_location_fire_history_points
         return self._fire_history_points_lookup
+
+    def _nearest_history_point_lookup(self) -> NearestFireHistoryPointLookup:
+        if self._nearest_fire_history_point_lookup is None:
+            from data.scripts.location_context import (
+                get_location_nearest_fire_history_point,
+            )
+
+            self._nearest_fire_history_point_lookup = (
+                get_location_nearest_fire_history_point
+            )
+        return self._nearest_fire_history_point_lookup

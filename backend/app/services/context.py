@@ -29,6 +29,7 @@ from app.schemas.households import (
     HistoricalFireMapLocation,
     HistoricalFirePoint,
     HistoricalFirePoints,
+    NearestHistoricalFirePoint,
     LocalContext,
     PlanCompletion,
     PreparationSupport,
@@ -399,6 +400,7 @@ class HistoricalFireMapService:
                 HistoricalFirePoint.model_validate(point)
                 for point in provider_points
             ]
+            most_recent_fire = points[0] if points else None
             returned_count = len(points)
             total_count = context.fire_history_record_count
             if total_count is None:
@@ -411,16 +413,33 @@ class HistoricalFireMapService:
                 raise ExternalDataUnavailable(
                     "Historical fire count is inconsistent with point data."
                 )
+            nearest_fire_data = (
+                self.spatial_provider.get_nearest_fire_history_point(
+                    location.latitude,
+                    location.longitude,
+                    radius_km=radius_km,
+                )
+                if total_count > 0
+                else None
+            )
+            nearest_fire = (
+                NearestHistoricalFirePoint.model_validate(nearest_fire_data)
+                if nearest_fire_data is not None
+                else None
+            )
             return HistoricalFirePoints(
                 household_location=HistoricalFireMapLocation(
                     latitude=location.latitude,
                     longitude=location.longitude,
+                    address=location.canonical_address or location.address or None,
                 ),
                 search_radius_km=radius_km,
                 total_count=total_count,
                 returned_count=returned_count,
                 truncated=total_count > returned_count,
                 points=points,
+                most_recent_fire=most_recent_fire,
+                nearest_fire=nearest_fire,
             )
         except ApplicationError:
             raise
