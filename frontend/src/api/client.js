@@ -157,6 +157,12 @@ export const api = {
       method: 'POST',
     }),
 
+  explainRendezvous: (householdId, result) =>
+    request(`/households/${encodeURIComponent(householdId)}/rendezvous-explanation`, {
+      method: 'POST',
+      body: JSON.stringify(result),
+    }),
+
   getTestResult: (householdId, testRunId) =>
     request(
       `/households/${encodeURIComponent(householdId)}/tests/${encodeURIComponent(testRunId)}`,
