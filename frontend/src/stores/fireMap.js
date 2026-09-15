@@ -12,6 +12,10 @@ export const useFireMapStore = defineStore('fireMap', () => {
   const returnedCount = ref(0)
   const truncated = ref(false)
   const points = ref([])
+  const mostRecentFire = ref(null)
+  const nearestFire = ref(null)
+  const approximateLocations = ref({})
+  const locationLookups = new Map()
 
   const status = ref('idle')
   const error = ref(null)
@@ -28,6 +32,8 @@ export const useFireMapStore = defineStore('fireMap', () => {
       returnedCount.value = data.returned_count
       truncated.value = data.truncated
       points.value = data.points
+      mostRecentFire.value = data.most_recent_fire ?? null
+      nearestFire.value = data.nearest_fire ?? null
       status.value = 'success'
     } catch (err) {
       if (err instanceof ApiError && err.status === 409) {
@@ -39,6 +45,32 @@ export const useFireMapStore = defineStore('fireMap', () => {
     }
   }
 
+  async function resolveApproximateLocation(point) {
+    const key = `${point.latitude},${point.longitude}`
+    if (Object.hasOwn(approximateLocations.value, key)) {
+      return approximateLocations.value[key]
+    }
+    if (locationLookups.has(key)) return locationLookups.get(key)
+
+    const lookup = (async () => {
+      try {
+        const candidates = await api.getNearbyAddresses(point.latitude, point.longitude)
+        const first = candidates[0]
+        const address = first?.canonical_address || first?.address || null
+        approximateLocations.value = { ...approximateLocations.value, [key]: address }
+        return address
+      } catch {
+        approximateLocations.value = { ...approximateLocations.value, [key]: null }
+        return null
+      } finally {
+        locationLookups.delete(key)
+      }
+    })()
+
+    locationLookups.set(key, lookup)
+    return lookup
+  }
+
   return {
     householdLocation,
     searchRadiusKm,
@@ -46,8 +78,12 @@ export const useFireMapStore = defineStore('fireMap', () => {
     returnedCount,
     truncated,
     points,
+    mostRecentFire,
+    nearestFire,
+    approximateLocations,
     status,
     error,
     loadFirePoints,
+    resolveApproximateLocation,
   }
 })
