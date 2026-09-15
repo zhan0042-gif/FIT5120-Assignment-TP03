@@ -9,17 +9,23 @@ from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import (
     AddressClient,
+    ExplanationClient,
     FireDangerClient,
     RoutingClient,
     WeatherClient,
 )
 from app.providers.mock import (
     MockAddressClient,
+    MockExplanationClient,
     MockFireDangerClient,
     MockRoutingClient,
     MockWeatherClient,
 )
 from app.providers.tomtom import TomTomAddressClient
+from app.providers.nvidia_explanation import (
+    DisabledExplanationClient,
+    NvidiaExplanationClient,
+)
 from app.providers.tomtom_routing import TomTomRoutingClient
 
 
@@ -27,6 +33,7 @@ from app.providers.tomtom_routing import TomTomRoutingClient
 class ExternalProviders:
     address: AddressClient
     routing: RoutingClient
+    explanation: ExplanationClient
     fire_danger: FireDangerClient
     weather: WeatherClient
 
@@ -67,12 +74,20 @@ def spatial_cache_max_age() -> timedelta:
     return timedelta(hours=hours)
 
 
+def _explanation_client(api_key: str | None) -> ExplanationClient:
+    """Explanation is optional; a missing key disables it rather than the app."""
+    if api_key and api_key.strip():
+        return NvidiaExplanationClient(api_key=api_key)
+    return DisabledExplanationClient()
+
+
 def build_external_providers(mode: str | None = None) -> ExternalProviders:
     selected = (mode or data_mode()).strip().lower()
     if selected == "mock":
         return ExternalProviders(
             address=MockAddressClient(),
             routing=MockRoutingClient(),
+            explanation=MockExplanationClient(),
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
         )
@@ -80,6 +95,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         return ExternalProviders(
             address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
             routing=TomTomRoutingClient(api_key=os.getenv("TOMTOM_API_KEY")),
+            explanation=_explanation_client(os.getenv("AI_API_KEY")),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )

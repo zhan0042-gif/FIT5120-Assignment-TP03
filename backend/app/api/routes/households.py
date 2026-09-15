@@ -5,8 +5,9 @@ from typing import Annotated
 from fastapi import APIRouter, Body, Depends, Query, status
 from fastapi.responses import Response
 
-from app.core.exceptions import LocationNotFound
+from app.core.exceptions import HouseholdNotFound, LocationNotFound
 from app.core.dependencies import (
+    get_explanation_client,
     get_routing_client,
     get_address_client,
     get_fire_danger_client,
@@ -15,6 +16,7 @@ from app.core.dependencies import (
     get_weather_client,
 )
 from app.providers.interfaces import (
+    ExplanationClient,
     RoutingClient,
     AddressClient,
     FireDangerClient,
@@ -34,6 +36,7 @@ from app.schemas.households import (
     PlanCompletion,
     PreparationSupport,
 )
+from app.schemas.explanation import RendezvousExplanation
 from app.schemas.rendezvous import RendezvousResult
 from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
 from app.services.context import (
@@ -43,6 +46,7 @@ from app.services.context import (
     PreparationSupportService,
 )
 from app.services.plans import HouseholdPlanService, PlanCompletionService
+from app.services.explanation import ExplanationService
 from app.services.preparedness_pdf import PreparednessPdfService
 from app.services.rendezvous import RendezvousSimulationService
 from app.services.scenarios import BasicScenarioService
@@ -51,6 +55,7 @@ from app.services.scenarios import BasicScenarioService
 router = APIRouter(prefix="/households", tags=["households"])
 RepositoryDependency = Annotated[HouseholdRepository, Depends(get_household_repository)]
 RoutingDependency = Annotated[RoutingClient, Depends(get_routing_client)]
+ExplanationDependency = Annotated[ExplanationClient, Depends(get_explanation_client)]
 
 
 @router.post("", response_model=HouseholdCreated, status_code=status.HTTP_201_CREATED)
@@ -250,3 +255,22 @@ def simulate_rendezvous(
 ) -> RendezvousResult:
     """Estimate when every member reaches the primary evacuation destination."""
     return RendezvousSimulationService(repository, routing_client).simulate(household_id)
+
+
+@router.post(
+    "/{household_id}/rendezvous-explanation", response_model=RendezvousExplanation
+)
+def explain_rendezvous(
+    household_id: str,
+    result: RendezvousResult,
+    repository: RepositoryDependency,
+    explanation_client: ExplanationDependency,
+) -> RendezvousExplanation:
+    """Explain a simulation result the browser is already displaying.
+
+    The result arrives in the request rather than being recomputed, so the prose
+    can never describe different figures than the ones on screen.
+    """
+    if not repository.household_exists(household_id):
+        raise HouseholdNotFound(f"Household '{household_id}' was not found.")
+    return ExplanationService(explanation_client).explain(result)
