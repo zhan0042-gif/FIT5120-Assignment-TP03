@@ -1,5 +1,7 @@
 """Provider boundaries keep official-data integrations out of business services."""
 
+from app.schemas.travel_disruptions import RoadDisruption
+
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -83,3 +85,15 @@ class RoutingClient(Protocol):
         origins: list[tuple[float, float]],
         destination: tuple[float, float],
     ) -> list[RouteLeg]: ...
+
+
+class RoadDisruptionClient(Protocol):
+    """Return current official road disruptions near a location."""
+
+    def nearby_disruptions(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+    ) -> list[RoadDisruption]: ...

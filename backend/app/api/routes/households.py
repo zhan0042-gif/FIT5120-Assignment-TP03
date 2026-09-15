@@ -1,5 +1,8 @@
 """Iteration 1 household, plan, location, context, and test endpoints."""
 
+from app.schemas.travel_disruptions import TravelDisruptionResult
+from app.services.travel_disruptions import TravelDisruptionService
+
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Query, status
@@ -10,6 +13,7 @@ from app.core.dependencies import (
     get_routing_client,
     get_address_client,
     get_fire_danger_client,
+    get_road_disruption_client,
     get_household_repository,
     get_spatial_provider,
     get_weather_client,
@@ -17,6 +21,7 @@ from app.core.dependencies import (
 from app.providers.interfaces import (
     RoutingClient,
     AddressClient,
+    RoadDisruptionClient,
     FireDangerClient,
     SpatialProvider,
     WeatherClient,
@@ -51,6 +56,10 @@ from app.services.scenarios import BasicScenarioService
 router = APIRouter(prefix="/households", tags=["households"])
 RepositoryDependency = Annotated[HouseholdRepository, Depends(get_household_repository)]
 RoutingDependency = Annotated[RoutingClient, Depends(get_routing_client)]
+RoadDisruptionDependency = Annotated[
+    RoadDisruptionClient,
+    Depends(get_road_disruption_client),
+]
 
 
 @router.post("", response_model=HouseholdCreated, status_code=status.HTTP_201_CREATED)
@@ -250,3 +259,24 @@ def simulate_rendezvous(
 ) -> RendezvousResult:
     """Estimate when every member reaches the primary evacuation destination."""
     return RendezvousSimulationService(repository, routing_client).simulate(household_id)
+
+
+@router.get(
+    "/{household_id}/travel-disruptions",
+    response_model=TravelDisruptionResult,
+)
+def get_travel_disruptions(
+    household_id: str,
+    repository: RepositoryDependency,
+    road_disruption_client: RoadDisruptionDependency,
+    radius_km: Annotated[float, Query(gt=0, le=50)] = 10.0,
+) -> TravelDisruptionResult:
+    """Return current road disruptions near saved evacuation destinations."""
+
+    return TravelDisruptionService(
+        repository,
+        road_disruption_client,
+    ).get(
+        household_id,
+        radius_km=radius_km,
+    )

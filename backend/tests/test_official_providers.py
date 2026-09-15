@@ -308,6 +308,7 @@ def test_bom_fire_danger_transport_failure_is_translated() -> None:
 
 def test_explicit_provider_modes_do_not_fallback(monkeypatch) -> None:
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
     assert isinstance(build_external_providers("mock").address, MockAddressClient)
     assert isinstance(build_external_providers("live").address, TomTomAddressClient)
     assert isinstance(
@@ -318,6 +319,7 @@ def test_explicit_provider_modes_do_not_fallback(monkeypatch) -> None:
 
 
 def test_live_provider_mode_requires_tomtom_key(monkeypatch) -> None:
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
     monkeypatch.delenv("TOMTOM_API_KEY", raising=False)
 
     with pytest.raises(RuntimeError, match="TOMTOM_API_KEY"):
@@ -327,6 +329,7 @@ def test_live_provider_mode_requires_tomtom_key(monkeypatch) -> None:
 def test_absent_data_mode_selects_all_live_official_providers(monkeypatch) -> None:
     monkeypatch.delenv("APP_DATA_MODE", raising=False)
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
 
     providers = build_external_providers()
 
@@ -341,6 +344,7 @@ def test_explicit_live_data_mode_selects_all_live_official_providers(
 ) -> None:
     monkeypatch.setenv("APP_DATA_MODE", "live")
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
 
     providers = build_external_providers()
 

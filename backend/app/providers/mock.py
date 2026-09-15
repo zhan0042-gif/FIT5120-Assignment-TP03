@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
 
 from app.providers.interfaces import RouteLeg
+from app.schemas.travel_disruptions import RoadDisruption
 from app.schemas.households import AddressSuggestion, FireDanger, HouseholdLocation, Weather
 
 
@@ -169,3 +170,32 @@ class MockRoutingClient:
                 )
             )
         return legs
+    
+
+class MockRoadDisruptionClient:
+    """Stable offline road-disruption data for development and tests."""
+
+    def nearby_disruptions(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+    ) -> list[RoadDisruption]:
+        if radius_km <= 0:
+            return []
+
+        return [
+            RoadDisruption(
+                disruption_id="mock-disruption-1",
+                event_type="Hazard",
+                event_subtype="Road Damage",
+                road_name="Mock Road",
+                description="Example reported road disruption.",
+                impact="Traffic affected",
+                status="Active",
+                latitude=latitude + 0.01,
+                longitude=longitude + 0.01,
+                distance_km=1.4,
+            )
+        ]

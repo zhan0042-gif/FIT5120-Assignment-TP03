@@ -1,5 +1,6 @@
 """Central runtime selection for deterministic mock or official live data."""
 
+from app.providers.road_disruptions import VictorianRoadDisruptionClient
 from dataclasses import dataclass
 from datetime import timedelta
 import math
@@ -10,12 +11,14 @@ from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import (
     AddressClient,
     FireDangerClient,
+    RoadDisruptionClient,
     RoutingClient,
     WeatherClient,
 )
 from app.providers.mock import (
     MockAddressClient,
     MockFireDangerClient,
+    MockRoadDisruptionClient,
     MockRoutingClient,
     MockWeatherClient,
 )
@@ -27,6 +30,7 @@ from app.providers.tomtom_routing import TomTomRoutingClient
 class ExternalProviders:
     address: AddressClient
     routing: RoutingClient
+    road_disruptions: RoadDisruptionClient
     fire_danger: FireDangerClient
     weather: WeatherClient
 
@@ -73,6 +77,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         return ExternalProviders(
             address=MockAddressClient(),
             routing=MockRoutingClient(),
+            road_disruptions=MockRoadDisruptionClient(),
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
         )
@@ -80,6 +85,9 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
         return ExternalProviders(
             address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
             routing=TomTomRoutingClient(api_key=os.getenv("TOMTOM_API_KEY")),
+            road_disruptions=VictorianRoadDisruptionClient(
+                api_key=os.getenv("VIC_ROAD_DISRUPTIONS_API_KEY")
+            ),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )

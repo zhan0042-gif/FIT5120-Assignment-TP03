@@ -123,3 +123,355 @@ create or configure it. Swap protects against short memory spikes. Docker's
 restart policy instead recovers a container after its process exits. A restart
 policy does not prevent an OOM kill, so both measures address different parts
 of the failure mode.
+
+
+## Travel Disruption Awareness
+
+### Overview
+
+The Travel Disruption Awareness feature helps households check for current unplanned road disruptions near their saved evacuation destinations.
+
+The feature uses the Victorian Department of Transport and Planning (DTP) Open Data API:
+
+- Unplanned Disruptions – Road
+- API version: v3
+
+The feature checks for active road disruptions within a configurable radius around:
+
+- Primary destination
+- Backup destinations
+
+The default search radius is 10 km.
+
+> **Important:** This feature reports disruptions near a saved destination. It does not determine whether the household's actual travel route is blocked, unsafe, or inaccessible.
+
+### User Flow
+
+On the **Test My Plan** page, users can select:
+
+**Check disruptions**
+
+The application then:
+
+1. Loads the household's saved primary and backup destinations.
+2. Uses only destinations that have verified coordinates.
+3. Requests current Victorian road disruption data through the backend.
+4. Filters disruptions by distance from each destination.
+5. Displays nearby disruption information when available, including:
+   - Road name
+   - Distance from destination
+   - Disruption type
+   - Description
+   - Impact
+   - Last updated time
+
+If no verified destinations are available, the feature returns a `not_applicable` status.
+
+If the external road disruption API is unavailable, the feature returns an unavailable state instead of causing the whole page to fail.
+
+### Architecture
+
+The feature follows the existing provider/service/API/frontend structure:
+
+```text
+Victorian DTP Open Data API
+        ↓
+VictorianRoadDisruptionClient
+        ↓
+TravelDisruptionService
+        ↓
+Household API endpoint
+        ↓
+Frontend API client
+        ↓
+Pinia store
+        ↓
+TravelDisruptionPanel
+```
+
+Backend endpoint:
+
+```text
+GET /api/v1/households/{household_id}/travel-disruptions
+```
+
+Optional query parameter:
+
+```text
+radius_km
+```
+
+Default radius:
+
+```text
+10 km
+```
+
+Maximum supported radius:
+
+```text
+50 km
+```
+
+### Environment Variable
+
+The backend requires the following environment variable when running with live road disruption data:
+
+```env
+VIC_ROAD_DISRUPTIONS_API_KEY=your_key_here
+```
+
+The real API key must **not** be committed to GitHub.
+
+For local development, store the real key in the root `.env` file.
+
+The committed `.env.example` file should contain only a placeholder such as:
+
+```env
+VIC_ROAD_DISRUPTIONS_API_KEY=your_key_here
+```
+
+The root `.env` file is ignored by Git.
+
+### Deployment Handover
+
+After this feature is merged into the team repository, the teammate responsible for AWS deployment should complete the following steps.
+
+1. Pull the latest project version containing the Travel Disruption Awareness feature.
+
+2. Configure the following production environment variable using the team's existing secure environment or secrets management process:
+
+```env
+VIC_ROAD_DISRUPTIONS_API_KEY=<production-road-disruption-api-key>
+```
+
+3. Do not place the real API key directly in:
+   - GitHub
+   - `.env.example`
+   - `docker-compose.yml`
+   - Python source files
+   - frontend source files
+
+4. Confirm the existing production environment variables are still configured, including the existing TomTom API key:
+
+```env
+TOMTOM_API_KEY=<existing-production-key>
+```
+
+5. Rebuild and redeploy the backend so the following new backend components are included:
+   - DTP road disruption provider
+   - Travel disruption service
+   - Household travel disruption API endpoint
+
+6. Rebuild and redeploy the frontend so the Travel Disruption Awareness panel is included on the **Test My Plan** page.
+
+7. Verify the backend health endpoint after deployment:
+
+```text
+GET /api/health
+```
+
+8. Create or use a household plan containing at least one verified primary or backup destination.
+
+9. Open:
+
+```text
+Test My Plan → Travel disruption awareness
+```
+
+10. Select:
+
+```text
+Check disruptions
+```
+
+11. Confirm that the backend request:
+
+```text
+GET /api/v1/households/{household_id}/travel-disruptions?radius_km=10
+```
+
+returns HTTP `200`.
+
+12. Confirm that the frontend correctly displays one of the supported states:
+   - Nearby disruptions found
+   - No disruptions found
+   - Not applicable because no verified destination is available
+   - Road disruption data temporarily unavailable
+
+### Database Changes
+
+The Travel Disruption Awareness feature does **not** introduce a new database migration.
+
+It uses the destination coordinates already stored by the existing household planning features.
+
+No additional database table is required specifically for this feature.
+
+### Testing
+
+Backend provider tests:
+
+```bash
+cd backend
+pytest tests/test_road_disruption_provider.py
+```
+
+Verified result during development:
+
+```text
+8 passed
+0 failed
+```
+
+Full backend test suite:
+
+```bash
+pytest
+```
+
+Verified result during development:
+
+```text
+316 passed
+15 skipped
+0 failed
+```
+
+The remaining warning is an existing Starlette/AnyIO deprecation warning and is not caused by this feature.
+
+Frontend tests:
+
+```bash
+cd frontend
+npm test
+```
+
+Frontend production build:
+
+```bash
+npm run build
+```
+
+Both frontend tests and the production build were verified successfully during development.
+
+### Main Files
+
+Backend provider:
+
+```text
+backend/app/providers/road_disruptions.py
+```
+
+Backend schema:
+
+```text
+backend/app/schemas/travel_disruptions.py
+```
+
+Backend service:
+
+```text
+backend/app/services/travel_disruptions.py
+```
+
+Backend integration changes:
+
+```text
+backend/app/api/routes/households.py
+backend/app/core/config.py
+backend/app/core/dependencies.py
+backend/app/providers/interfaces.py
+backend/app/providers/mock.py
+docker-compose.yml
+.env.example
+```
+
+Backend tests:
+
+```text
+backend/tests/test_road_disruption_provider.py
+backend/tests/test_travel_disruption_endpoint.py
+backend/tests/test_travel_disruptions.py
+backend/tests/test_official_providers.py
+```
+
+Frontend:
+
+```text
+frontend/src/api/client.js
+frontend/src/stores/travelDisruptions.js
+frontend/src/components/scenario/TravelDisruptionPanel.vue
+frontend/src/views/ScenarioTesterView.vue
+```
+
+Frontend tests:
+
+```text
+frontend/tests/travelDisruptionsStore.test.js
+```
+
+### Current Behaviour
+
+The current version checks for road disruptions near each verified saved destination.
+
+For example:
+
+```text
+Primary destination
+        ↓
+Search road disruptions within 10 km
+        ↓
+Display matching active disruptions
+
+Backup destination
+        ↓
+Search road disruptions within 10 km
+        ↓
+Display matching active disruptions
+```
+
+The result is destination-based proximity information.
+
+It should not be interpreted as confirmation that a planned route is blocked or safe.
+
+### Current Limitations
+
+The current implementation does not determine whether a road disruption intersects the household's actual evacuation route.
+
+The current implementation also calculates disruption proximity from the coordinates provided by the DTP disruption geometry. This is suitable for the current destination-awareness feature but is not route-intersection analysis.
+
+The live DTP API response structure has been validated against the current v3 endpoint during development.
+
+### Future Improvements
+
+Possible future improvements include:
+
+1. **Route-aware disruption checking**
+
+   Combine TomTom route geometry with DTP disruption geometry to determine whether a reported disruption affects the household's actual planned route.
+
+2. **Provider caching**
+
+   Add a short-lived backend cache for the DTP disruption dataset so that checking multiple destinations does not repeatedly download the same road disruption data.
+
+3. **Improved disruption geometry distance calculation**
+
+   Improve distance calculations for long LineString road disruption geometries by measuring distance to line segments rather than only using the supplied geometry points.
+
+4. **User-selectable search radius**
+
+   Allow users to choose a road disruption search radius instead of always using the current default of 10 km.
+
+### Handover Status
+
+At the time of handover:
+
+- Backend provider tests pass.
+- Full backend regression tests pass.
+- Frontend tests pass.
+- Frontend production build passes.
+- The live Victorian DTP API has been tested successfully.
+- The Travel Disruption Awareness endpoint returns HTTP `200` in local live-data testing.
+- The frontend successfully displays live nearby disruption information.
+- No new database migration is required for this feature.
+- Production deployment still requires the deployment owner to configure `VIC_ROAD_DISRUPTIONS_API_KEY` securely in the production environment.

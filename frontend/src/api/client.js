@@ -157,6 +157,11 @@ export const api = {
       method: 'POST',
     }),
 
+    getTravelDisruptions: (householdId, radiusKm = 10) =>
+      request(
+        `/households/${encodeURIComponent(householdId)}/travel-disruptions?radius_km=${radiusKm}`,
+      ),
+
   getTestResult: (householdId, testRunId) =>
     request(
       `/households/${encodeURIComponent(householdId)}/tests/${encodeURIComponent(testRunId)}`,
