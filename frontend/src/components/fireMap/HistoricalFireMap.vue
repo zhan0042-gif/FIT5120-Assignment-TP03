@@ -2,7 +2,10 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import '@maplibre/maplibre-gl-leaflet'
 import { formatAustralianDate } from '../../utils/dateTime'
+import { openFreeMapStyle } from './openFreeMapStyle'
 
 const props = defineProps({
   householdLocation: { type: Object, required: true },
@@ -98,10 +101,9 @@ defineExpose({ focusPoint })
 onMounted(() => {
   map = L.map(mapContainer.value)
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors',
-    crossOrigin: true,
-    maxZoom: 19,
+  L.maplibreGL({
+    style: openFreeMapStyle,
+    interactive: false,
   }).addTo(map)
 
   const householdLatLng = [props.householdLocation.latitude, props.householdLocation.longitude]
@@ -187,10 +189,6 @@ onBeforeUnmount(() => {
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
   background: #ddd;
-}
-
-:deep(.leaflet-container img.leaflet-tile) {
-  mix-blend-mode: normal;
 }
 
 :deep(.firebreak-map-icon) {
