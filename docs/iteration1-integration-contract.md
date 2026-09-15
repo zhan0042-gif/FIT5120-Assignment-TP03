@@ -33,6 +33,7 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
 | `GET /scenarios/basic?household_id=…` | List fixed I1 scenarios relevant to the saved plan. |
 | `POST /households/{household_id}/rendezvous-simulation` | Estimate when every member reaches the primary destination from their declared usual location. Requires a 100% complete plan. Not stored: figures reflect traffic at call time. |
+| `POST /households/{household_id}/rendezvous-explanation` | Explain a rendezvous result in 2-3 sentences. Takes the result the browser is displaying. Returns `explanation: null` when the model is unavailable or the passage fails validation. |
 | `POST /households/{household_id}/tests` | Run one deterministic scenario and persist its result. |
 | `GET /households/{household_id}/tests/{test_run_id}` | Retrieve that stored result. |
 
@@ -123,3 +124,19 @@ Warnings are deterministic rules over saved plan data, not AI output: members
 flagged `is_dependant` or `mobility_support_required` cannot travel alone,
 members absent from every `driver_member_ids` cannot drive to a car-based
 estimate, and the slowest member is named with the wait they impose.
+
+### Rendezvous explanation
+
+Takes a `RendezvousResult` in the request body rather than recomputing it, so
+the prose always describes the figures the user is looking at. Nothing is
+stored.
+
+The generated passage is discarded entirely if it contains a number absent from
+the result, mentions fire or smoke, uses a gendered pronoun, or arrives as a
+list or longer than 120 words. Rejection is expected on a minority of responses
+and returns `explanation: null` — the figures and the deterministic warnings are
+unaffected. `reason` names the gate and is diagnostic only; it is not shown to
+users.
+
+Live mode uses `AI_API_KEY`. Without it the feature is disabled and always
+returns `explanation: null`; the rest of the application is unaffected.

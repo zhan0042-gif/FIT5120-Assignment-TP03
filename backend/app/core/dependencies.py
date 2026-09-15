@@ -9,6 +9,7 @@ from app.core.database import create_database_engine
 from app.providers.data_spatial import DataSpatialProvider
 from app.providers.interfaces import (
     AddressClient,
+    ExplanationClient,
     FireDangerClient,
     RoutingClient,
     SpatialProvider,
@@ -37,6 +38,10 @@ def get_household_repository() -> HouseholdRepository:
 
 def get_address_client() -> AddressClient:
     return _external_providers.address
+
+
+def get_explanation_client() -> ExplanationClient:
+    return _external_providers.explanation
 
 
 def get_routing_client() -> RoutingClient:

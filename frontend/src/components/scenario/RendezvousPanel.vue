@@ -37,6 +37,10 @@ function barWidth(seconds) {
 function run() {
   rendezvousStore.runSimulation(householdStore.householdId)
 }
+
+function explain() {
+  rendezvousStore.requestExplanation(householdStore.householdId)
+}
 </script>
 
 <template>
@@ -84,6 +88,21 @@ function run() {
         <li v-for="warning in result.warnings" :key="warning">⚠️ {{ warning }}</li>
       </ul>
 
+      <p v-if="rendezvousStore.explanation" class="explanation">
+        <span class="explanation-label">Generated summary</span>
+        {{ rendezvousStore.explanation }}
+      </p>
+
+      <button
+        v-else
+        class="btn btn-ghost btn-sm explain-btn"
+        type="button"
+        :disabled="rendezvousStore.explanationStatus === 'loading'"
+        @click="explain"
+      >
+        {{ rendezvousStore.explanationStatus === 'loading' ? 'Thinking…' : 'Explain this result' }}
+      </button>
+
       <p class="caveat">
         An estimate against traffic at the time it was run, not a guarantee.
       </p>
@@ -122,6 +141,20 @@ function run() {
 .warnings li, .missing li { padding: 0.3rem 0; }
 .actions { margin: 0 0 1rem; }
 .caveat { color: var(--color-text-muted); font-size: 0.85rem; }
+.explanation {
+  background: var(--color-bg-card-muted);
+  border-radius: var(--radius);
+  padding: 0.75rem 0.9rem;
+  margin: 0 0 1rem;
+}
+.explanation-label {
+  color: var(--color-text-muted);
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.explain-btn { margin-bottom: 1rem; }
 
 @media (max-width: 520px) {
   .etas li { grid-template-columns: minmax(0, 1fr) auto; }

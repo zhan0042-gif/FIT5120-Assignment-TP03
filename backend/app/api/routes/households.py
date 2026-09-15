@@ -1,39 +1,39 @@
 """Iteration 1 household, plan, location, context, and test endpoints."""
 
-from app.schemas.travel_disruptions import TravelDisruptionResult
-from app.services.travel_disruptions import TravelDisruptionService
-
 from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, Query, status
 from fastapi.responses import Response
 
-from app.core.exceptions import LocationNotFound
 from app.core.dependencies import (
-    get_routing_client,
     get_address_client,
+    get_explanation_client,
     get_fire_danger_client,
-    get_road_disruption_client,
     get_household_repository,
+    get_road_disruption_client,
+    get_routing_client,
     get_spatial_provider,
     get_weather_client,
 )
+from app.core.exceptions import HouseholdNotFound, LocationNotFound
 from app.providers.interfaces import (
-    RoutingClient,
     AddressClient,
-    RoadDisruptionClient,
+    ExplanationClient,
     FireDangerClient,
+    RoadDisruptionClient,
+    RoutingClient,
     SpatialProvider,
     WeatherClient,
 )
 from app.repositories.households import HouseholdRepository
+from app.schemas.explanation import RendezvousExplanation
 from app.schemas.households import (
     DeviceLocationRequest,
+    HistoricalFirePoints,
     HouseholdCreate,
     HouseholdCreated,
     HouseholdLocation,
     HouseholdPlan,
-    HistoricalFirePoints,
     LocalContext,
     LocationRequest,
     PlanCompletion,
@@ -41,28 +41,49 @@ from app.schemas.households import (
 )
 from app.schemas.rendezvous import RendezvousResult
 from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
+from app.schemas.travel_disruptions import TravelDisruptionResult
 from app.services.context import (
     HistoricalFireMapService,
     LocalContextService,
     LocationService,
     PreparationSupportService,
 )
+from app.services.explanation import ExplanationService
 from app.services.plans import HouseholdPlanService, PlanCompletionService
 from app.services.preparedness_pdf import PreparednessPdfService
 from app.services.rendezvous import RendezvousSimulationService
 from app.services.scenarios import BasicScenarioService
+from app.services.travel_disruptions import TravelDisruptionService
 
 
 router = APIRouter(prefix="/households", tags=["households"])
-RepositoryDependency = Annotated[HouseholdRepository, Depends(get_household_repository)]
-RoutingDependency = Annotated[RoutingClient, Depends(get_routing_client)]
+
+RepositoryDependency = Annotated[
+    HouseholdRepository,
+    Depends(get_household_repository),
+]
+
+RoutingDependency = Annotated[
+    RoutingClient,
+    Depends(get_routing_client),
+]
+
 RoadDisruptionDependency = Annotated[
     RoadDisruptionClient,
     Depends(get_road_disruption_client),
 ]
 
+ExplanationDependency = Annotated[
+    ExplanationClient,
+    Depends(get_explanation_client),
+]
 
-@router.post("", response_model=HouseholdCreated, status_code=status.HTTP_201_CREATED)
+
+@router.post(
+    "",
+    response_model=HouseholdCreated,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_household(
     repository: RepositoryDependency,
     request: HouseholdCreate | None = Body(default=None),
@@ -71,42 +92,82 @@ def create_household(
     household_id = repository.create_household(
         display_name=request.display_name if request else None
     )
-    return HouseholdCreated(household_id=household_id)
+
+    return HouseholdCreated(
+        household_id=household_id
+    )
 
 
-@router.put("/{household_id}/plan", response_model=HouseholdPlan)
+@router.put(
+    "/{household_id}/plan",
+    response_model=HouseholdPlan,
+)
 def save_plan(
     household_id: str,
     plan: HouseholdPlan,
     repository: RepositoryDependency,
-    address_client: Annotated[AddressClient, Depends(get_address_client)],
+    address_client: Annotated[
+        AddressClient,
+        Depends(get_address_client),
+    ],
 ) -> HouseholdPlan:
     """Validate, enrich, and transactionally persist the complete plan aggregate."""
-    return HouseholdPlanService(repository, address_client).save(household_id, plan)
+    return HouseholdPlanService(
+        repository,
+        address_client,
+    ).save(
+        household_id,
+        plan,
+    )
 
 
-@router.get("/{household_id}/plan", response_model=HouseholdPlan)
-def get_plan(household_id: str, repository: RepositoryDependency) -> HouseholdPlan:
+@router.get(
+    "/{household_id}/plan",
+    response_model=HouseholdPlan,
+)
+def get_plan(
+    household_id: str,
+    repository: RepositoryDependency,
+) -> HouseholdPlan:
     """Return the latest saved aggregate; an absent plan remains a 404 resource."""
-    return repository.get_plan(household_id)
+    return repository.get_plan(
+        household_id
+    )
 
 
-@router.get("/{household_id}/preparedness-plan.pdf", response_class=Response)
+@router.get(
+    "/{household_id}/preparedness-plan.pdf",
+    response_class=Response,
+)
 def export_preparedness_plan(
-    household_id: str, repository: RepositoryDependency
+    household_id: str,
+    repository: RepositoryDependency,
 ) -> Response:
     """Download a printable rendering of the latest saved household plan."""
-    plan = repository.get_plan(household_id)
+
+    plan = repository.get_plan(
+        household_id
+    )
+
     try:
-        location = repository.get_location(household_id)
+        location = repository.get_location(
+            household_id
+        )
+
         household_address = (
-            location.canonical_address or location.address or ""
+            location.canonical_address
+            or location.address
+            or ""
         ).strip()
+
     except LocationNotFound:
         household_address = ""
+
     content = PreparednessPdfService().generate(
-        plan, household_address=household_address
+        plan,
+        household_address=household_address,
     )
+
     return Response(
         content=content,
         media_type="application/pdf",
@@ -118,23 +179,42 @@ def export_preparedness_plan(
     )
 
 
-@router.get("/{household_id}/completion", response_model=PlanCompletion)
+@router.get(
+    "/{household_id}/completion",
+    response_model=PlanCompletion,
+)
 def get_completion(
-    household_id: str, repository: RepositoryDependency
+    household_id: str,
+    repository: RepositoryDependency,
 ) -> PlanCompletion:
     """Derive completion and immediate checks from the latest saved plan."""
-    return PlanCompletionService().evaluate(repository.get_plan(household_id))
+
+    return PlanCompletionService().evaluate(
+        repository.get_plan(
+            household_id
+        )
+    )
 
 
-@router.put("/{household_id}/location", response_model=HouseholdLocation)
+@router.put(
+    "/{household_id}/location",
+    response_model=HouseholdLocation,
+)
 def save_location(
     household_id: str,
     request: LocationRequest,
     repository: RepositoryDependency,
-    address_client: Annotated[AddressClient, Depends(get_address_client)],
+    address_client: Annotated[
+        AddressClient,
+        Depends(get_address_client),
+    ],
 ) -> HouseholdLocation:
     """Save entered address text and attempt non-blocking official verification."""
-    return LocationService(repository, address_client).save(
+
+    return LocationService(
+        repository,
+        address_client,
+    ).save(
         household_id,
         request.address,
         request.selected_address,
@@ -142,24 +222,43 @@ def save_location(
     )
 
 
-@router.get("/{household_id}/location", response_model=HouseholdLocation)
+@router.get(
+    "/{household_id}/location",
+    response_model=HouseholdLocation,
+)
 def get_location(
-    household_id: str, repository: RepositoryDependency
+    household_id: str,
+    repository: RepositoryDependency,
 ) -> HouseholdLocation:
     """Return saved address data independently of local-context availability."""
-    return repository.get_location(household_id)
+
+    return repository.get_location(
+        household_id
+    )
 
 
-@router.put("/{household_id}/location/device", response_model=HouseholdLocation)
+@router.put(
+    "/{household_id}/location/device",
+    response_model=HouseholdLocation,
+)
 def save_device_location(
     household_id: str,
     request: DeviceLocationRequest,
     repository: RepositoryDependency,
-    address_client: Annotated[AddressClient, Depends(get_address_client)],
+    address_client: Annotated[
+        AddressClient,
+        Depends(get_address_client),
+    ],
 ) -> HouseholdLocation:
     """Save coordinates shared on demand without claiming postal verification."""
-    return LocationService(repository, address_client).save_device_location(
-        household_id, request.latitude, request.longitude
+
+    return LocationService(
+        repository,
+        address_client,
+    ).save_device_location(
+        household_id,
+        request.latitude,
+        request.longitude,
     )
 
 
@@ -170,24 +269,43 @@ def _local_context_service(
     weather_client: WeatherClient,
 ) -> LocalContextService:
     return LocalContextService(
-        repository, spatial_provider, fire_danger_client, weather_client
+        repository,
+        spatial_provider,
+        fire_danger_client,
+        weather_client,
     )
 
 
-@router.get("/{household_id}/local-context", response_model=LocalContext)
+@router.get(
+    "/{household_id}/local-context",
+    response_model=LocalContext,
+)
 def get_local_context(
     household_id: str,
     repository: RepositoryDependency,
-    spatial_provider: Annotated[SpatialProvider, Depends(get_spatial_provider)],
-    fire_danger_client: Annotated[
-        FireDangerClient, Depends(get_fire_danger_client)
+    spatial_provider: Annotated[
+        SpatialProvider,
+        Depends(get_spatial_provider),
     ],
-    weather_client: Annotated[WeatherClient, Depends(get_weather_client)],
+    fire_danger_client: Annotated[
+        FireDangerClient,
+        Depends(get_fire_danger_client),
+    ],
+    weather_client: Annotated[
+        WeatherClient,
+        Depends(get_weather_client),
+    ],
 ) -> LocalContext:
     """Aggregate cached spatial context with current official BOM information."""
+
     return _local_context_service(
-        repository, spatial_provider, fire_danger_client, weather_client
-    ).get(household_id)
+        repository,
+        spatial_provider,
+        fire_danger_client,
+        weather_client,
+    ).get(
+        household_id
+    )
 
 
 @router.get(
@@ -197,30 +315,60 @@ def get_local_context(
 def get_historical_fire_points(
     household_id: str,
     repository: RepositoryDependency,
-    spatial_provider: Annotated[SpatialProvider, Depends(get_spatial_provider)],
-    limit: Annotated[int, Query(ge=1, le=1000)] = 500,
+    spatial_provider: Annotated[
+        SpatialProvider,
+        Depends(get_spatial_provider),
+    ],
+    limit: Annotated[
+        int,
+        Query(ge=1, le=1000),
+    ] = 500,
 ) -> HistoricalFirePoints:
     """Return a bounded, household-scoped Historical Fire map dataset."""
-    return HistoricalFireMapService(repository, spatial_provider).get(
-        household_id, limit=limit
+
+    return HistoricalFireMapService(
+        repository,
+        spatial_provider,
+    ).get(
+        household_id,
+        limit=limit,
     )
 
 
-@router.get("/{household_id}/preparation-support", response_model=PreparationSupport)
+@router.get(
+    "/{household_id}/preparation-support",
+    response_model=PreparationSupport,
+)
 def get_preparation_support(
     household_id: str,
     repository: RepositoryDependency,
-    spatial_provider: Annotated[SpatialProvider, Depends(get_spatial_provider)],
+    spatial_provider: Annotated[
+        SpatialProvider,
+        Depends(get_spatial_provider),
+    ],
     fire_danger_client: Annotated[
-        FireDangerClient, Depends(get_fire_danger_client)
+        FireDangerClient,
+        Depends(get_fire_danger_client),
     ],
 ) -> PreparationSupport:
     """Return rule-based review guidance only when official FDR is usable."""
-    plan = repository.get_plan(household_id)
-    completion = PlanCompletionService().evaluate(plan)
+
+    plan = repository.get_plan(
+        household_id
+    )
+
+    completion = PlanCompletionService().evaluate(
+        plan
+    )
+
     return PreparationSupportService(
-        repository, spatial_provider, fire_danger_client
-    ).get(household_id, completion)
+        repository,
+        spatial_provider,
+        fire_danger_client,
+    ).get(
+        household_id,
+        completion,
+    )
 
 
 @router.post(
@@ -234,23 +382,35 @@ def run_preparedness_test(
     repository: RepositoryDependency,
 ) -> ScenarioTestResult:
     """Run a deterministic scenario against the latest saved plan and store it."""
-    return BasicScenarioService(repository).run_for_household(
-        household_id, request.scenario_id
+
+    return BasicScenarioService(
+        repository
+    ).run_for_household(
+        household_id,
+        request.scenario_id,
     )
 
 
-@router.get("/{household_id}/tests/{test_run_id}", response_model=ScenarioTestResult)
+@router.get(
+    "/{household_id}/tests/{test_run_id}",
+    response_model=ScenarioTestResult,
+)
 def get_preparedness_test_result(
     household_id: str,
     test_run_id: str,
     repository: RepositoryDependency,
 ) -> ScenarioTestResult:
     """Retrieve a stored test result scoped to its owning household."""
-    return repository.get_test_result(household_id, test_run_id)
+
+    return repository.get_test_result(
+        household_id,
+        test_run_id,
+    )
 
 
 @router.post(
-    "/{household_id}/rendezvous-simulation", response_model=RendezvousResult
+    "/{household_id}/rendezvous-simulation",
+    response_model=RendezvousResult,
 )
 def simulate_rendezvous(
     household_id: str,
@@ -258,7 +418,43 @@ def simulate_rendezvous(
     routing_client: RoutingDependency,
 ) -> RendezvousResult:
     """Estimate when every member reaches the primary evacuation destination."""
-    return RendezvousSimulationService(repository, routing_client).simulate(household_id)
+
+    return RendezvousSimulationService(
+        repository,
+        routing_client,
+    ).simulate(
+        household_id
+    )
+
+
+@router.post(
+    "/{household_id}/rendezvous-explanation",
+    response_model=RendezvousExplanation,
+)
+def explain_rendezvous(
+    household_id: str,
+    result: RendezvousResult,
+    repository: RepositoryDependency,
+    explanation_client: ExplanationDependency,
+) -> RendezvousExplanation:
+    """Explain a simulation result the browser is already displaying.
+
+    The result arrives in the request rather than being recomputed, so the prose
+    can never describe different figures than the ones on screen.
+    """
+
+    if not repository.household_exists(
+        household_id
+    ):
+        raise HouseholdNotFound(
+            f"Household '{household_id}' was not found."
+        )
+
+    return ExplanationService(
+        explanation_client
+    ).explain(
+        result
+    )
 
 
 @router.get(
@@ -269,7 +465,10 @@ def get_travel_disruptions(
     household_id: str,
     repository: RepositoryDependency,
     road_disruption_client: RoadDisruptionDependency,
-    radius_km: Annotated[float, Query(gt=0, le=50)] = 10.0,
+    radius_km: Annotated[
+        float,
+        Query(gt=0, le=50),
+    ] = 10.0,
 ) -> TravelDisruptionResult:
     """Return current road disruptions near saved evacuation destinations."""
 

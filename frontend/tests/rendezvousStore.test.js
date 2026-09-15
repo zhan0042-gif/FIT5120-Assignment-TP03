@@ -25,9 +25,11 @@ const READY = {
 }
 
 const originalSimulate = api.simulateRendezvous
+const originalExplain = api.explainRendezvous
 
 afterEach(() => {
   api.simulateRendezvous = originalSimulate
+  api.explainRendezvous = originalExplain
 })
 
 function freshStore() {
@@ -92,4 +94,69 @@ test('a run without a household id never reaches the network', async () => {
 
   assert.equal(called, false)
   assert.equal(store.status, 'error')
+})
+
+test('a returned passage is stored', async () => {
+  api.simulateRendezvous = async () => READY
+  api.explainRendezvous = async () => ({ explanation: 'Lan arrives last.', reason: null })
+  const store = freshStore()
+  await store.runSimulation('hh_1')
+
+  await store.requestExplanation('hh_1')
+
+  assert.equal(store.explanationStatus, 'success')
+  assert.equal(store.explanation, 'Lan arrives last.')
+})
+
+test('a rejected passage leaves no explanation and no error', async () => {
+  api.simulateRendezvous = async () => READY
+  api.explainRendezvous = async () => ({ explanation: null, reason: 'speculation' })
+  const store = freshStore()
+  await store.runSimulation('hh_1')
+
+  await store.requestExplanation('hh_1')
+
+  assert.equal(store.explanationStatus, 'success')
+  assert.equal(store.explanation, null)
+})
+
+test('a thrown explanation request never disturbs the result', async () => {
+  api.simulateRendezvous = async () => READY
+  api.explainRendezvous = async () => {
+    throw new Error('network down')
+  }
+  const store = freshStore()
+  await store.runSimulation('hh_1')
+
+  await store.requestExplanation('hh_1')
+
+  assert.equal(store.explanationStatus, 'error')
+  assert.equal(store.explanation, null)
+  assert.equal(store.result.everyone_together_seconds, 2820)
+})
+
+test('running the simulation again clears the previous passage', async () => {
+  api.simulateRendezvous = async () => READY
+  api.explainRendezvous = async () => ({ explanation: 'Old passage.', reason: null })
+  const store = freshStore()
+  await store.runSimulation('hh_1')
+  await store.requestExplanation('hh_1')
+
+  await store.runSimulation('hh_1')
+
+  assert.equal(store.explanation, null)
+  assert.equal(store.explanationStatus, 'idle')
+})
+
+test('no explanation is requested without a result', async () => {
+  let called = false
+  api.explainRendezvous = async () => {
+    called = true
+    return { explanation: 'x', reason: null }
+  }
+  const store = freshStore()
+
+  await store.requestExplanation('hh_1')
+
+  assert.equal(called, false)
 })

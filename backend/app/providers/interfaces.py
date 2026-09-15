@@ -1,7 +1,5 @@
 """Provider boundaries keep official-data integrations out of business services."""
 
-from app.schemas.travel_disruptions import RoadDisruption
-
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -12,6 +10,8 @@ from app.schemas.households import (
     HouseholdLocation,
     Weather,
 )
+from app.schemas.rendezvous import RendezvousResult
+from app.schemas.travel_disruptions import RoadDisruption
 
 
 class SpatialResult(Protocol):
@@ -29,22 +29,40 @@ class AddressClient(Protocol):
     """Supply partial suggestions and stricter final official resolution."""
 
     def resolve(
-        self, address: str, *, provider_reference: str | None = None
+        self,
+        address: str,
+        *,
+        provider_reference: str | None = None,
     ) -> HouseholdLocation: ...
 
-    def suggest(self, query: str, limit: int = 8) -> list[AddressSuggestion]: ...
+    def suggest(
+        self,
+        query: str,
+        limit: int = 8,
+    ) -> list[AddressSuggestion]: ...
 
     def reverse(
-        self, latitude: float, longitude: float, limit: int = 5
+        self,
+        latitude: float,
+        longitude: float,
+        limit: int = 5,
     ) -> list[AddressSuggestion]: ...
 
 
 class SpatialProvider(Protocol):
     """Resolve static context from verified coordinates."""
 
-    def get_context(self, latitude: float, longitude: float) -> SpatialResult: ...
+    def get_context(
+        self,
+        latitude: float,
+        longitude: float,
+    ) -> SpatialResult: ...
 
-    def get_fire_district(self, latitude: float, longitude: float) -> str: ...
+    def get_fire_district(
+        self,
+        latitude: float,
+        longitude: float,
+    ) -> str: ...
 
     def get_fire_history_points(
         self,
@@ -59,13 +77,20 @@ class SpatialProvider(Protocol):
 class FireDangerClient(Protocol):
     """Return authoritative current FDR or signal that it is unavailable."""
 
-    def get_fire_danger(self, fire_district: str) -> FireDanger: ...
+    def get_fire_danger(
+        self,
+        fire_district: str,
+    ) -> FireDanger: ...
 
 
 class WeatherClient(Protocol):
     """Return authoritative current conditions or signal that they are unavailable."""
 
-    def get_weather(self, latitude: float, longitude: float) -> Weather: ...
+    def get_weather(
+        self,
+        latitude: float,
+        longitude: float,
+    ) -> Weather: ...
 
 
 class RouteLeg(BaseModel):
@@ -97,3 +122,16 @@ class RoadDisruptionClient(Protocol):
         *,
         radius_km: float,
     ) -> list[RoadDisruption]: ...
+
+
+class ExplanationClient(Protocol):
+    """Turn a computed simulation result into a short plain-language explanation.
+
+    The implementation never calculates: it receives figures that are already
+    correct and writes prose about them.
+    """
+
+    def explain(
+        self,
+        result: RendezvousResult,
+    ) -> str: ...

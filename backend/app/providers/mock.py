@@ -6,7 +6,13 @@ from math import asin, cos, radians, sin, sqrt
 
 from app.providers.interfaces import RouteLeg
 from app.schemas.travel_disruptions import RoadDisruption
-from app.schemas.households import AddressSuggestion, FireDanger, HouseholdLocation, Weather
+from app.schemas.rendezvous import RendezvousResult
+from app.schemas.households import (
+    AddressSuggestion,
+    FireDanger,
+    HouseholdLocation,
+    Weather,
+)
 
 
 @dataclass(frozen=True)
@@ -170,7 +176,7 @@ class MockRoutingClient:
                 )
             )
         return legs
-    
+
 
 class MockRoadDisruptionClient:
     """Stable offline road-disruption data for development and tests."""
@@ -199,3 +205,23 @@ class MockRoadDisruptionClient:
                 distance_km=1.4,
             )
         ]
+
+
+class MockExplanationClient:
+    """A fixed passage for tests and APP_DATA_MODE=mock.
+
+    Deliberately says nothing a real model could get wrong, so a test that
+    fails is a test about our code rather than about a sentence.
+    """
+
+    def explain(self, result: RendezvousResult) -> str:
+        slowest = max(
+            result.member_etas, key=lambda eta: eta.travel_seconds, default=None
+        )
+        if slowest is None:
+            return "There is not enough detail in this plan to comment on."
+        return (
+            f"{slowest.display_name or 'One member'} takes the longest to reach "
+            f"{result.destination_name}, so the household is not together until "
+            "that journey finishes. Consider whether anyone could start closer."
+        )
