@@ -216,6 +216,26 @@ class HouseholdPlan(BaseModel):
         return self
 
 
+class PreparednessPlanExportRequest(BaseModel):
+    """Optional, already-reviewed advice carried into a single PDF export."""
+
+    preparedness_advice: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=1_200),
+    ]
+
+    @model_validator(mode="after")
+    def validate_preparedness_advice(self):
+        if len(self.preparedness_advice.split()) > 120:
+            raise ValueError("Preparedness advice must contain 120 words or fewer.")
+        if any(
+            ord(character) < 32 and character not in "\n\r\t"
+            for character in self.preparedness_advice
+        ):
+            raise ValueError("Preparedness advice contains unsupported characters.")
+        return self
+
+
 class LocationRequest(BaseModel):
     """Entered address plus an optional candidate explicitly selected in the UI."""
 

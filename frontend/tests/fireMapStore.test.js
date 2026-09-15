@@ -205,7 +205,7 @@ test('matching featured-fire coordinates share one in-flight reverse lookup', as
   ])
 })
 
-test('the six main routes still map to their intended views', async () => {
+test('the consolidated main routes map to their intended views', async () => {
   const routerSource = await readFile(new URL('../src/router/index.js', import.meta.url), 'utf8')
   const mappings = [
     ['/', 'WelcomeView.vue'],
@@ -213,7 +213,6 @@ test('the six main routes still map to their intended views', async () => {
     ['/overview', 'OverviewView.vue'],
     ['/map', 'MapView.vue'],
     ['/scenarios', 'ScenarioTesterView.vue'],
-    ['/summary', 'PreparednessSummaryView.vue'],
   ]
 
   for (const [path, view] of mappings) {
@@ -222,6 +221,7 @@ test('the six main routes still map to their intended views', async () => {
       new RegExp(`path: '${path.replace('/', '\\/')}'[\\s\\S]*?component: \\(\\) => import\\('\\.\\./views/${view.replace('.', '\\.')}\\'\\)`),
     )
   }
+  assert.match(routerSource, /path: '\/summary',[\s\S]*?redirect: '\/overview'/)
 })
 
 test('an unverified address (409) is a distinct status, not an error', async () => {

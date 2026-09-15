@@ -3,7 +3,11 @@ from datetime import datetime, timezone
 
 from fastapi.testclient import TestClient
 
-from app.core.dependencies import get_household_repository
+from app.core.dependencies import (
+    get_explanation_client,
+    get_household_repository,
+    get_routing_client,
+)
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
 from app.schemas.households import HouseholdLocation, HouseholdPlan
@@ -27,7 +31,7 @@ def test_missing_optional_plan_values_do_not_crash_pdf_generation() -> None:
     assert len(content) > 1_000
 
 
-def test_household_tables_use_saved_daytime_location_and_clear_pet_columns(
+def test_member_rows_use_only_saved_name_daytime_location_and_address(
     complete_plan_data: dict,
 ) -> None:
     data = deepcopy(complete_plan_data)
@@ -35,20 +39,16 @@ def test_household_tables_use_saved_daytime_location_and_clear_pet_columns(
         "kind": "work",
         "address": "1 Treasury Place, East Melbourne VIC 3002",
     }
-    data["animals"][0].update(
-        {"animal_type": "cat", "display_name": "Gift", "quantity": 1}
-    )
     plan = HouseholdPlan.model_validate(data)
     service = PreparednessPdfService()
 
     assert service._member_rows(plan)[0] == [
         "Maya",
-        "Self",
-        "Not recorded",
         "Work",
         "1 Treasury Place, East Melbourne VIC 3002",
     ]
-    assert service._animal_rows(plan)[0] == ["Cat", "Gift", "1"]
+    assert not hasattr(service, "_animal_rows")
+    assert not hasattr(service, "_transport_rows")
 
 
 def test_home_daytime_location_uses_saved_household_address(
@@ -60,9 +60,57 @@ def test_home_daytime_location_uses_saved_household_address(
     service = PreparednessPdfService()
 
     assert service._member_rows(plan, "84 Wattle Track, Warburton VIC 3799")[0][
-        4
+        2
     ] == "84 Wattle Track, Warburton VIC 3799"
-    assert service._member_rows(plan)[0][4] == "Not recorded"
+    assert service._member_rows(plan)[0][2] == "Not recorded"
+
+
+def test_support_entries_are_conditional_and_include_only_relevant_members(
+    complete_plan_data: dict,
+) -> None:
+    service = PreparednessPdfService()
+    no_support = HouseholdPlan.model_validate(deepcopy(complete_plan_data))
+    assert service._support_entries(no_support) == []
+
+    data = deepcopy(complete_plan_data)
+    data["members"][0].update(
+        {
+            "is_dependant": True,
+            "mobility_support_required": True,
+            "support_notes": "Keep medication close.",
+        }
+    )
+    plan = HouseholdPlan.model_validate(data)
+
+    assert service._support_entries(plan) == [
+        (
+            "Maya",
+            [
+                "Dependent household member.",
+                "Mobility support required.",
+                "Keep medication close.",
+            ],
+        )
+    ]
+
+
+def test_key_locations_and_responsibility_checklist_preserve_saved_values(
+    complete_plan,
+) -> None:
+    service = PreparednessPdfService()
+    members = {member.member_id: member.display_name for member in complete_plan.members}
+
+    assert service._key_location_rows(
+        complete_plan, "84 Wattle Track, Warburton VIC 3799"
+    ) == [
+        ["Home", "84 Wattle Track, Warburton VIC 3799"],
+        ["Primary destination", "Relative's House\n1 Example Road"],
+        ["Backup destination", "Community Centre\n2 Safe Street"],
+        ["Meeting point", "Front gate"],
+    ]
+    assert service._responsibility_rows(complete_plan, members) == [
+        ["", "Drive household", "Maya", "Alex"]
+    ]
 
 
 def test_pdf_endpoint_passes_saved_canonical_household_address(
@@ -82,8 +130,16 @@ def test_pdf_endpoint_passes_saved_canonical_household_address(
     )
     received = {}
 
-    def generate(_self, _plan, *, household_address="", generated_at=None):
+    def generate(
+        _self,
+        _plan,
+        *,
+        household_address="",
+        preparedness_advice=None,
+        generated_at=None,
+    ):
         received["household_address"] = household_address
+        received["preparedness_advice"] = preparedness_advice
         return b"%PDF-test"
 
     monkeypatch.setattr(PreparednessPdfService, "generate", generate)
@@ -98,6 +154,73 @@ def test_pdf_endpoint_passes_saved_canonical_household_address(
 
     assert response.status_code == 200
     assert received["household_address"] == "84 Wattle Track, Warburton VIC 3799"
+    assert received["preparedness_advice"] is None
+
+
+def test_pdf_endpoint_includes_bounded_existing_advice_without_regenerating(
+    complete_plan_data: dict, monkeypatch
+) -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    repository.save_plan(
+        household_id, HouseholdPlan.model_validate(deepcopy(complete_plan_data))
+    )
+    received = {}
+
+    def generate(
+        _self,
+        _plan,
+        *,
+        household_address="",
+        preparedness_advice=None,
+        generated_at=None,
+    ):
+        received["preparedness_advice"] = preparedness_advice
+        return b"%PDF-test"
+
+    monkeypatch.setattr(PreparednessPdfService, "generate", generate)
+    def unexpected_provider_call():
+        raise AssertionError("PDF export must not resolve AI or routing providers")
+
+    app.dependency_overrides[get_household_repository] = lambda: repository
+    app.dependency_overrides[get_explanation_client] = unexpected_provider_call
+    app.dependency_overrides[get_routing_client] = unexpected_provider_call
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                f"/api/v1/households/{household_id}/preparedness-plan.pdf",
+                json={
+                    "preparedness_advice": (
+                        "Maya arrives last. Review who can help with the pickup."
+                    )
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert received["preparedness_advice"] == (
+        "Maya arrives last. Review who can help with the pickup."
+    )
+
+
+def test_pdf_endpoint_rejects_unbounded_advice(complete_plan_data: dict) -> None:
+    repository = InMemoryHouseholdRepository()
+    household_id = repository.create_household()
+    repository.save_plan(
+        household_id, HouseholdPlan.model_validate(deepcopy(complete_plan_data))
+    )
+    app.dependency_overrides[get_household_repository] = lambda: repository
+    try:
+        with TestClient(app) as client:
+            response = client.post(
+                f"/api/v1/households/{household_id}/preparedness-plan.pdf",
+                json={"preparedness_advice": "word " * 121},
+            )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 422
 
 
 def test_pdf_export_has_download_headers_and_does_not_modify_saved_plan(
