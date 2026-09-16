@@ -61,22 +61,48 @@ function firePopup(point) {
   popup.append(title)
 
   if (point.start_date) {
-    popup.append(labelledValue('Recorded', formatAustralianDate(point.start_date)).group)
+    popup.append(
+      labelledValue(
+        'Recorded',
+        formatAustralianDate(point.start_date),
+      ).group,
+    )
   } else {
     const unavailable = document.createElement('div')
     unavailable.textContent = 'Recorded date unavailable'
     popup.append(unavailable)
   }
 
-  const location = labelledValue('Approximate location', 'Finding approximate location...')
+  const location = labelledValue(
+    'Approximate location',
+    'Finding approximate location...',
+  )
   popup.append(location.group)
+
+  popup.append(
+    labelledValue(
+      'Area burned',
+      Number.isFinite(point.area_ha)
+        ? `${point.area_ha.toLocaleString(undefined, {
+            maximumFractionDigits: 2,
+          })} ha`
+        : 'Area unavailable',
+    ).group,
+  )
+
   popup.append(
     labelledValue(
       'Distance from your home',
-      Number.isFinite(point.distance_km) ? `${point.distance_km.toFixed(1)} km` : 'Distance unavailable',
+      Number.isFinite(point.distance_km)
+        ? `${point.distance_km.toFixed(1)} km`
+        : 'Distance unavailable',
     ).group,
   )
-  return { popup, locationValue: location.detail }
+
+  return {
+    popup,
+    locationValue: location.detail,
+  }
 }
 
 const mapContainer = ref(null)

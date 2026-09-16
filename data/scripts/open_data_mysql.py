@@ -305,7 +305,8 @@ def get_fire_history_points(
     Returns:
         list[dict]:
             Historical Fire records within the requested radius. Each
-            dictionary contains latitude, longitude, season, and start_date.
+            dictionary contains latitude, longitude, season, start_date,
+            area_ha, and distance_km.
     """
     if not isinstance(limit, int) or isinstance(limit, bool) or limit < 1:
         raise ValueError(
@@ -348,6 +349,7 @@ def get_fire_history_points(
                 ST_Latitude(geometry) AS latitude,
                 season,
                 start_date,
+                area_ha,
                 ST_Distance_Sphere(
                     geometry,
                     ST_GeomFromText(
@@ -366,7 +368,13 @@ def get_fire_history_points(
                 geometry
             )
         )
-        SELECT latitude, longitude, season, start_date, distance_meters
+        SELECT
+            latitude,
+            longitude,
+            season,
+            start_date,
+            area_ha,
+            distance_meters
         FROM candidates
         WHERE distance_meters <= %s
         ORDER BY
@@ -404,6 +412,11 @@ def get_fire_history_points(
                 if row["start_date"] is not None
                 else None
             ),
+            "area_ha": (
+                float(row["area_ha"])
+                if row["area_ha"] is not None
+                else None
+            ),
             "distance_km": float(row["distance_meters"]) / 1000,
         }
         for row in rows
@@ -419,6 +432,7 @@ def get_nearest_fire_history_point(
     """Return the nearest representative fire point inside the search radius."""
     latitude_delta = radius_km / 110.574
     longitude_scale = 111.320 * math.cos(math.radians(latitude))
+
     longitude_delta = (
         180.0
         if abs(longitude_scale) < 1e-9
@@ -429,7 +443,9 @@ def get_nearest_fire_history_point(
     max_lon = longitude + longitude_delta
     min_lat = latitude - latitude_delta
     max_lat = latitude + latitude_delta
+
     point_wkt = f"POINT({longitude} {latitude})"
+
     bbox_wkt = (
         "POLYGON(("
         f"{min_lon} {min_lat},"
@@ -448,6 +464,7 @@ def get_nearest_fire_history_point(
                 ST_Latitude(geometry) AS latitude,
                 season,
                 start_date,
+                area_ha,
                 ST_Distance_Sphere(
                     geometry,
                     ST_GeomFromText(
@@ -466,24 +483,49 @@ def get_nearest_fire_history_point(
                 geometry
             )
         )
-        SELECT latitude, longitude, season, start_date, distance_meters
+        SELECT
+            latitude,
+            longitude,
+            season,
+            start_date,
+            area_ha,
+            distance_meters
         FROM candidates
         WHERE distance_meters <= %s
         ORDER BY distance_meters ASC, fire_history_id DESC
         LIMIT 1
     """
 
-    cursor.execute(sql, (point_wkt, bbox_wkt, radius_km * 1000))
+    cursor.execute(
+        sql,
+        (
+            point_wkt,
+            bbox_wkt,
+            radius_km * 1000,
+        ),
+    )
+
     row = cursor.fetchone()
+
     if row is None:
         return None
+
     return {
         "latitude": float(row["latitude"]),
         "longitude": float(row["longitude"]),
-        "season": int(row["season"]) if row["season"] is not None else None,
+        "season": (
+            int(row["season"])
+            if row["season"] is not None
+            else None
+        ),
         "start_date": (
             row["start_date"].isoformat()
             if row["start_date"] is not None
+            else None
+        ),
+        "area_ha": (
+            float(row["area_ha"])
+            if row["area_ha"] is not None
             else None
         ),
         "distance_km": float(row["distance_meters"]) / 1000,

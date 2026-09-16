@@ -21,7 +21,8 @@ fire_light = fire_history[
     [
         "season",
         "start_date",
-        "geometry"
+        "area_ha",
+        "geometry",
     ]
 ].copy()
 
@@ -48,19 +49,36 @@ print("Records after conversion:", len(fire_light))
 
 print(
     "Geometry types:",
-    fire_light.geometry.geom_type.value_counts().to_dict()
+    fire_light.geometry.geom_type.value_counts().to_dict(),
 )
 
 print(
     "Missing geometries:",
-    fire_light.geometry.isna().sum()
+    fire_light.geometry.isna().sum(),
 )
 
 print(
     "Season range:",
     fire_light["season"].min(),
     "-",
-    fire_light["season"].max()
+    fire_light["season"].max(),
+)
+
+print(
+    "Missing area values:",
+    fire_light["area_ha"].isna().sum(),
+)
+
+print("\nSample:")
+print(
+    fire_light[
+        [
+            "season",
+            "start_date",
+            "area_ha",
+            "geometry",
+        ]
+    ].head()
 )
 
 
@@ -74,7 +92,7 @@ output_path = (
 
 fire_light.to_parquet(
     output_path,
-    index=False
+    index=False,
 )
 
 print("\nSaved lightweight Fire History data to:")
