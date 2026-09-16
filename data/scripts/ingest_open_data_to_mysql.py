@@ -159,9 +159,11 @@ def load_fire_history(cursor, batch_size=5000):
         INSERT INTO open_data_fire_history (
             season,
             start_date,
+            area_ha,
             geometry
         )
         VALUES (
+            %s,
             %s,
             %s,
             ST_GeomFromWKB(%s, 4326, 'axis-order=long-lat')
@@ -186,10 +188,16 @@ def load_fire_history(cursor, batch_size=5000):
             if not pd.isna(row.start_date):
                 start_date = pd.Timestamp(row.start_date).date()
 
+            area_ha = None
+
+            if not pd.isna(row.area_ha):
+                area_ha = float(row.area_ha)
+
             rows.append(
                 (
                     season,
                     start_date,
+                    area_ha,
                     row.geometry.wkb,
                 )
             )

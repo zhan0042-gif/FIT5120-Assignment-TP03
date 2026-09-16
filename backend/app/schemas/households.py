@@ -405,6 +405,7 @@ class HistoricalFirePoint(BaseModel):
     longitude: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
     season: int | None = Field(default=None, ge=0)
     start_date: date | None = None
+    area_ha: float | None = Field(default=None, ge=0, allow_inf_nan=False)
     distance_km: float = Field(ge=0, allow_inf_nan=False)
 
 
