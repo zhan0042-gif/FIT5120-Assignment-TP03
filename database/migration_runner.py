@@ -23,6 +23,10 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_DIRECTORY = ROOT / "database" / "migrations"
 DATA_DIRECTORY = ROOT / "database" / "data_migrations"
 MIGRATION_PATTERN = re.compile(r"^(\d+)_")
+MIGRATION_CREDENTIAL_VARIABLES = (
+    "MIGRATION_DB_USER",
+    "MIGRATION_DB_PASSWORD",
+)
 
 
 class MigrationError(RuntimeError):
@@ -40,13 +44,27 @@ class MigrationFile:
         return self.path.name
 
 
+def migration_credentials() -> tuple[str, str]:
+    """Return dedicated migration credentials or fail without exposing values."""
+    missing = [
+        name for name in MIGRATION_CREDENTIAL_VARIABLES if not os.getenv(name)
+    ]
+    if missing:
+        raise MigrationError(
+            "Missing required migration environment variable(s): "
+            + ", ".join(missing)
+        )
+    return os.environ["MIGRATION_DB_USER"], os.environ["MIGRATION_DB_PASSWORD"]
+
+
 def database_connection():
-    """Connect with the same production RDS environment used by Backend."""
+    """Connect using the dedicated production migration credential."""
+    user, password = migration_credentials()
     return pymysql.connect(
         host=os.getenv("DATABASE_HOST", "127.0.0.1"),
         port=int(os.getenv("DATABASE_PORT", "3306")),
-        user=os.environ["MYSQL_USER"],
-        password=os.environ["MYSQL_PASSWORD"],
+        user=user,
+        password=password,
         database=os.environ["MYSQL_DATABASE"],
         charset="utf8mb4",
         autocommit=False,
@@ -263,6 +281,11 @@ def migration_lock(connection):
 
 
 def run_command(command: str) -> None:
+    if command == "validate":
+        migration_credentials()
+        print("Required migration database credentials are configured.")
+        return
+
     connection = database_connection()
     try:
         with migration_lock(connection):
@@ -276,7 +299,7 @@ def run_command(command: str) -> None:
 
 def parse_args(arguments: Iterable[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("schema", "data", "all"))
+    parser.add_argument("command", choices=("validate", "schema", "data", "all"))
     return parser.parse_args(arguments)
 
 

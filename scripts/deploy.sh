@@ -45,11 +45,13 @@ rm -f "$STATUS"
   # what production was actually running took reading the git reflog.
   echo "=== Deploying commit $(git rev-parse --short HEAD): $(git log -1 --format=%s) ==="
 
-  # Build and run the disposable migration job before replacing Backend. The
-  # job uses the same RDS environment as Backend, while keeping PyArrow out of
-  # the long-running application image. Any non-zero exit stops this subshell,
-  # so the currently running Backend remains active on migration failure.
+  # Build and run the disposable migration job before replacing Backend. It
+  # uses a dedicated RDS credential, while keeping both that credential and
+  # PyArrow out of the long-running Backend container. Validate the required
+  # variables before connecting; any non-zero exit stops this subshell, so the
+  # currently running Backend remains active on migration failure.
   docker compose --profile migration build migration
+  docker compose --profile migration run --rm --no-deps migration validate
   docker compose --profile migration run --rm --no-deps migration schema
   docker compose --profile migration run --rm --no-deps migration data
 

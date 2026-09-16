@@ -8,7 +8,9 @@ Production uses AWS RDS MySQL rather than the local Docker MySQL instance.
 
 Production migrations numbered 009 and later are applied automatically before
 Backend activation. Migrations 001-008 are the legacy baseline and are not
-replayed. See
+replayed. The disposable migration service uses dedicated
+`MIGRATION_DB_USER` / `MIGRATION_DB_PASSWORD` credentials rather than the
+Backend runtime account. See
 [`docs/infrastructure/database-migrations.md`](../docs/infrastructure/database-migrations.md)
 for the tracking, checksum, data-migration, and failure behaviour.
 

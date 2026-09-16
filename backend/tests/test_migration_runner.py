@@ -2,11 +2,15 @@ from pathlib import Path
 
 import pytest
 
+from database import migration_runner
 from database.migration_runner import (
     MigrationError,
     apply_data_migrations,
     apply_schema_migrations,
+    database_connection,
     file_checksum,
+    migration_credentials,
+    run_command,
 )
 
 
@@ -90,6 +94,83 @@ def write_data_migration(
         encoding="utf-8",
     )
     return path
+
+
+def test_migration_credentials_require_dedicated_user(monkeypatch) -> None:
+    monkeypatch.delenv("MIGRATION_DB_USER", raising=False)
+    monkeypatch.setenv("MIGRATION_DB_PASSWORD", "migration-password")
+    monkeypatch.setenv("MYSQL_USER", "backend-user")
+    monkeypatch.setenv("MYSQL_PASSWORD", "backend-password")
+
+    with pytest.raises(MigrationError) as error:
+        migration_credentials()
+
+    assert "MIGRATION_DB_USER" in str(error.value)
+    assert "backend-user" not in str(error.value)
+    assert "backend-password" not in str(error.value)
+
+
+def test_migration_credentials_require_dedicated_password(monkeypatch) -> None:
+    monkeypatch.setenv("MIGRATION_DB_USER", "migration-user")
+    monkeypatch.delenv("MIGRATION_DB_PASSWORD", raising=False)
+    monkeypatch.setenv("MYSQL_USER", "backend-user")
+    monkeypatch.setenv("MYSQL_PASSWORD", "backend-password")
+
+    with pytest.raises(MigrationError) as error:
+        migration_credentials()
+
+    assert "MIGRATION_DB_PASSWORD" in str(error.value)
+    assert "backend-password" not in str(error.value)
+
+
+def test_migration_credentials_do_not_fall_back_to_backend(monkeypatch) -> None:
+    monkeypatch.delenv("MIGRATION_DB_USER", raising=False)
+    monkeypatch.delenv("MIGRATION_DB_PASSWORD", raising=False)
+    monkeypatch.setenv("MYSQL_USER", "backend-user")
+    monkeypatch.setenv("MYSQL_PASSWORD", "backend-password")
+
+    with pytest.raises(MigrationError) as error:
+        migration_credentials()
+
+    message = str(error.value)
+    assert "MIGRATION_DB_USER" in message
+    assert "MIGRATION_DB_PASSWORD" in message
+    assert "backend-user" not in message
+    assert "backend-password" not in message
+
+
+def test_database_connection_uses_dedicated_migration_credentials(
+    monkeypatch,
+) -> None:
+    captured = {}
+    expected_connection = object()
+
+    def fake_connect(**kwargs):
+        captured.update(kwargs)
+        return expected_connection
+
+    monkeypatch.setenv("MIGRATION_DB_USER", "migration-user")
+    monkeypatch.setenv("MIGRATION_DB_PASSWORD", "migration-password")
+    monkeypatch.setenv("MYSQL_USER", "backend-user")
+    monkeypatch.setenv("MYSQL_PASSWORD", "backend-password")
+    monkeypatch.setenv("MYSQL_DATABASE", "fit5120")
+    monkeypatch.setattr(migration_runner.pymysql, "connect", fake_connect)
+
+    assert database_connection() is expected_connection
+    assert captured["user"] == "migration-user"
+    assert captured["password"] == "migration-password"
+
+
+def test_validate_command_does_not_connect(monkeypatch) -> None:
+    monkeypatch.setenv("MIGRATION_DB_USER", "migration-user")
+    monkeypatch.setenv("MIGRATION_DB_PASSWORD", "migration-password")
+
+    def unexpected_connect(**_kwargs):
+        raise AssertionError("validate must not connect to the database")
+
+    monkeypatch.setattr(migration_runner.pymysql, "connect", unexpected_connect)
+
+    run_command("validate")
 
 
 def test_pending_schema_migration_executes_once(tmp_path) -> None:
