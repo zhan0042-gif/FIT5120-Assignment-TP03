@@ -45,7 +45,7 @@
 
 - [x] No addresses / coordinates / support needs in backend logs (privacy-requirements §3) — verified: backend app code performs no logging of requests or addresses; running container logs spot-checked clean (2026-09-02)
 - [x] Browser geolocation requested only on an explicit user gesture, never on load (privacy-requirements §6) — the button in the local-context card is the only caller of `navigator.geolocation.getCurrentPosition`
-- [x] **Schema changes applied to production before the code that needs them** — RDS does not run `database/init/` (that path only runs on first creation of a fresh volume); each change ships as `database/migrations/00X_*.sql` and must be applied by hand. Migration 008 was applied ahead of the deploy that needed it (2026-09-13)
+- [x] **Schema changes applied to production before the code that needs them** — RDS does not run `database/init/`; migrations 009+ and dependent one-time data jobs are tracked and applied automatically before Backend activation. Migrations through 008 remain the manually applied legacy baseline.
 - [x] RDS automated backups configured — **Enabled**, 1-day retention. Note: this account is on the AWS Free Tier, which caps RDS backup retention at 1 day; 7-day retention would require a paid plan — accepted for a student project
 - [x] RDS deletion protection enabled — **Enabled** (2026-09-02, RDS Modify)
 - [x] Encryption at rest enabled on RDS — **Enabled** (AWS managed KMS key `aws/rds`)

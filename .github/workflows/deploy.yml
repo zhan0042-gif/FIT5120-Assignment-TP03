@@ -12,6 +12,7 @@ on:
       - "backend/**"
       - "frontend/**"
       - "data/**"
+      - "database/**"
       - "scripts/**"
       - "docker-compose.yml"
       - ".github/workflows/deploy.yml"
@@ -156,7 +157,9 @@ jobs:
             exit 1
           fi
 
-          for i in $(seq 1 60); do
+          # The first Historical Fire backfill processes about 628k rows, so
+          # allow the detached job up to ~30 minutes while retaining polling.
+          for i in $(seq 1 120); do
             RESULT=$(ssm_run "cat /var/log/fit5120-deploy.status 2>/dev/null || echo RUNNING")
             echo "Poll $i: $RESULT"
             if [ "$RESULT" != "RUNNING" ]; then
@@ -171,5 +174,5 @@ jobs:
             fi
             sleep 15
           done
-          echo "::error::Deployment timed out after ~15 minutes"
+          echo "::error::Deployment timed out after ~30 minutes"
           exit 1

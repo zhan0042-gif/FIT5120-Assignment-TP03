@@ -32,7 +32,7 @@ Key points:
 | --------------- | ------------------------------------------------------------------------------------- |
 | **EC2** | Ubuntu 24.04, t3.micro, `i-060c00865b0bf629e` (ap-southeast-4, public `16.50.155.51`). **Access via AWS SSM Session Manager** as the normal path; **port 22 stays open but restricted to the operator's home IP** (`101.188.108.19/32`) as the emergency fallback when the SSM agent is unavailable (F5/R5 in the vulnerability assessment report). Boot volume is 20 GiB gp3, resized from 8 GiB on 2026-09-02 — the 8 GiB disk repeatedly filled up during builds (see §6 ops notes) |
 | **Backend** | `backend/Dockerfile` (python:3.12-slim, uvicorn on :8000), run as a container via Docker Compose; health check at `/api/health` |
-| **MySQL / RDS** | **Reusing the existing `fit5120-db`** (db.t4g.micro, MySQL 8.4). Production `DATABASE_HOST` points at the RDS endpoint; the `mysql:8.4` service in `docker-compose.yml` is local dev only. Schema was applied manually on deploy — RDS does not auto-run init scripts |
+| **MySQL / RDS** | **Reusing the existing `fit5120-db`** (db.t4g.micro, MySQL 8.4). Production `DATABASE_HOST` points at the RDS endpoint; the `mysql:8.4` service in `docker-compose.yml` is local dev only. Legacy migrations through 008 were applied manually; migrations 009+ and one-time data jobs are automatic and run before Backend activation. |
 | **Frontend** | Vue 3 + Vite. Production build (`npm run build`) output is copied to `/var/www/html/` |
 | **Nginx** | Production config at `/etc/nginx/sites-enabled/default`: `server_name cubesix.me www.cubesix.me`; `location /` serves the static frontend, `location /api/` proxies to `127.0.0.1:8000`; **shared-password basic auth gate** covering `/` and `/api` (see §7 auth) |
 | **HTTPS** | Let's Encrypt via certbot on `cubesix.me` — temporary domain; auto-renewal active |
@@ -57,7 +57,7 @@ Source of truth for variable names: `.env.example` (see `secret-handling.md`).
 
 ## 5. CI/CD path (live)
 
-`.github/workflows/deploy.yml` runs on push/merge to `main` (paths: `backend/**`, `frontend/**`, `data/**`, `scripts/**`, `docker-compose.yml`, the workflow itself) and on `workflow_dispatch`.
+`.github/workflows/deploy.yml` runs on push/merge to `main` (paths: `backend/**`, `frontend/**`, `data/**`, `database/**`, `scripts/**`, `docker-compose.yml`, the workflow itself) and on `workflow_dispatch`.
 
 Pipeline flow (top to bottom):
 
@@ -70,7 +70,7 @@ Pipeline flow (top to bottom):
    4. It tails the log into the Actions run.
 
 
-`scripts/deploy.sh` (server-side) runs inside a subshell with `set -euo pipefail` and does: `git fetch --prune origin` → `git reset --hard origin/main` → log the deployed commit → `docker compose up -d --build --no-deps --wait --wait-timeout 120 backend` (RDS is external; wait for Backend health) → `docker system prune -f` (disk hygiene) → frontend `npm ci` + `npm run build` → copy `dist` to `/var/www/html/` → health-check `curl /api/health` → assert `HEAD == origin/main`.
+`scripts/deploy.sh` (server-side) runs inside a subshell with `set -euo pipefail` and does: `git fetch --prune origin` → `git reset --hard origin/main` → log the deployed commit → build the disposable migration image → apply pending schema migrations → run pending one-time data migrations → `docker compose up -d --build --no-deps --wait --wait-timeout 120 backend` (RDS is external; wait for Backend health) → `docker system prune -f` (disk hygiene) → frontend `npm ci` + `npm run build` → copy `dist` to `/var/www/html/` → health-check `curl /api/health` → assert `HEAD == origin/main`.
 
 Three details here are load-bearing, and all three were learned on 2026-09-08 (see §7 and threat-model T11):
 
@@ -98,7 +98,7 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 - **SSM runs commands as root with no `HOME`** → the kickoff `export HOME=/root` and `git config --global --add safe.directory <repo>` before any git command in the repo (root operating on an ubuntu-owned repo would otherwise be a "dubious ownership" fatal).
 - **Disk is the scarce resource.** The 8 GiB boot volume filled to 100% mid-deploy (killed a frontend copy with `ENOSPC`). Fixed by resizing to 20 GiB (console Modify volume → `growpart /dev/nvme0n1 1` → `resize2fs /dev/nvme0n1p1`) plus `docker system prune -f` after each build in `deploy.sh`. If disk creeps up again: `sudo df -h /`, `sudo du -xh --max-depth=1 / 2>/dev/null | sort -rh | head`, `sudo apt-get autoremove --purge -y`, `sudo journalctl --vacuum-size=20M`.
 - **Deploy log / status** live on the server at `/var/log/fit5120-deploy.log` and `/var/log/fit5120-deploy.status` — the GitHub Actions "tail the log" step prints the end of the former into the run output. The log is overwritten at the start of each run, so it holds only the most recent deploy: read it before the next one. The status file is deleted when a run starts and only written when it finishes, so **a missing status file means "running, or never started"** — read the log tail or `ps aux | grep "[d]eploy.sh"` rather than concluding the deploy failed.
-- **Schema changes are a separate, manual step.** RDS never runs `database/init/` (that path only executes when a fresh volume is created), so every schema change ships as `database/migrations/00X_*.sql` and is applied by hand **before** the code that depends on it merges. Applying it afterwards puts new code on an old schema. Note that the migration numbering skips 007 — there is no 007; 006 is followed by 008.
+- **Schema migrations 009+ are automatic.** RDS never runs `database/init/` (that path only executes when a fresh volume is created). The migration job treats 001-008 as a legacy baseline, tracks newer schema and one-time data migrations by filename and checksum, and runs them before Backend activation. See `database-migrations.md`.
 - **Memory needs host-level protection.** On the approximately 1 GB EC2 host, the deployment lead should add approximately 1–2 GB of swap after approval and monitor `free -h`, `docker stats --no-stream`, `docker ps`, and `docker compose ps`. Inspect kernel OOM evidence with `sudo dmesg -T | grep -i -E "out of memory|killed process|oom"` or the equivalent `sudo journalctl -k --no-pager` pipeline. Swap absorbs short spikes; `restart: unless-stopped` recovers Backend process exits. The restart policy does not prevent OOM.
 
 ## 7. Decisions (recorded)
@@ -114,7 +114,6 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 - **Dependabot** reports 1 high + 1 moderate vulnerability on `main` (as of 2026-09-02) — to be triaged in the repo Security tab.
 - **Branch protection / rulesets on `main` are not configured.** The repo currently allows direct pushes and force-pushes — the workflow violation that broke the deploy on 2026-09-08. This one needs the repo owner.
 - **Input bounds (threat-model T12):** `backup_arrangements` needs `max_items` and `Destination.address` needs `max_length`, so that one request cannot fan out into an unbounded number of paid upstream calls.
-- **Schema discipline:** there is no `schema_migrations` table, so nothing verifies that a migration was applied. A `scripts/migrate.sh` plus that table would make the manual step repeatable; until then the PR template carries the reminder.
 - **The Nginx site config is still not version-controlled** (the repo's `nginx/` holds only a README) and `nginx/**` is not in `deploy.yml`'s `paths:`, so every Nginx change is made by hand on the server — including the SPA `try_files $uri $uri/ /index.html` needed for deep links such as `/map` to survive a hard refresh.
 - **CI action versions** need a bump (`actions/checkout@v4`, `actions/setup-python@v5`) — Node 20 deprecation warnings appear in the run log. Do it as its own PR, because `deploy.yml` is inside the deploy `paths:` list and editing it triggers a production deploy.
 - **RDS admin password rotation** was deferred during I1 and is now due — see `secret-handling.md`.

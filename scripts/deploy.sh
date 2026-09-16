@@ -45,6 +45,14 @@ rm -f "$STATUS"
   # what production was actually running took reading the git reflog.
   echo "=== Deploying commit $(git rev-parse --short HEAD): $(git log -1 --format=%s) ==="
 
+  # Build and run the disposable migration job before replacing Backend. The
+  # job uses the same RDS environment as Backend, while keeping PyArrow out of
+  # the long-running application image. Any non-zero exit stops this subshell,
+  # so the currently running Backend remains active on migration failure.
+  docker compose --profile migration build migration
+  docker compose --profile migration run --rm --no-deps migration schema
+  docker compose --profile migration run --rm --no-deps migration data
+
   # Production uses RDS, so do not start the local-development MySQL service.
   # Wait for the Backend healthcheck before continuing with the frontend.
   docker compose up -d --build --no-deps --wait --wait-timeout 120 backend
