@@ -53,6 +53,9 @@ jobs:
     name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: test
+    concurrency:
+      group: firebreak-production-deployment
+      cancel-in-progress: false
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

@@ -34,6 +34,19 @@ def test_database_changes_trigger_the_production_workflow() -> None:
     assert '- "database/**"' in workflow
 
 
+def test_production_deployments_are_serialized_without_cancellation() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "deploy.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    concurrency = workflow["jobs"]["deploy"]["concurrency"]
+
+    assert concurrency["group"] == "firebreak-production-deployment"
+    assert concurrency["cancel-in-progress"] is False
+    assert "concurrency" not in workflow["jobs"]["test"]
+
+
 def test_compose_uses_disposable_migration_image() -> None:
     compose = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
 

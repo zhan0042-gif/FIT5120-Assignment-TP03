@@ -8,6 +8,25 @@ SOURCE_PATH = Path("data/processed/fire_history_lightweight.parquet")
 BATCH_SIZE = 5_000
 
 
+def validate_backfill_result(
+    source_row_count: int,
+    database_row_count: int,
+    missing_area_rows: int,
+) -> None:
+    if source_row_count <= 0:
+        raise RuntimeError("Historical Fire source contains zero rows")
+    if database_row_count != source_row_count:
+        raise RuntimeError(
+            "Historical Fire backfill row-count mismatch: "
+            f"source_rows={source_row_count}, database_rows={database_row_count}"
+        )
+    if missing_area_rows != 0:
+        raise RuntimeError(
+            "Historical Fire backfill left rows without area_ha: "
+            f"{missing_area_rows}"
+        )
+
+
 def run(connection) -> None:
     import pyarrow.parquet as parquet
 
@@ -21,7 +40,11 @@ def run(connection) -> None:
             + ", ".join(sorted(missing_columns))
         )
 
-    print(f"Reloading Historical Fire rows: {source.metadata.num_rows}")
+    source_row_count = int(source.metadata.num_rows)
+    if source_row_count <= 0:
+        validate_backfill_result(source_row_count, 0, 0)
+
+    print(f"Reloading Historical Fire rows: {source_row_count}")
     insert_sql = """
         INSERT INTO open_data_fire_history (
             season,
@@ -63,7 +86,7 @@ def run(connection) -> None:
                 )
             cursor.executemany(insert_sql, rows)
             inserted += len(rows)
-            print(f"Inserted Historical Fire rows: {inserted}/{source.metadata.num_rows}")
+            print(f"Inserted Historical Fire rows: {inserted}/{source_row_count}")
 
         cursor.execute(
             """
@@ -73,18 +96,17 @@ def run(connection) -> None:
             FROM open_data_fire_history
             """
         )
-        total_rows, missing_area_rows = cursor.fetchone()
+        database_row_count, missing_area_rows = cursor.fetchone()
 
-    total_rows = int(total_rows)
+    database_row_count = int(database_row_count)
     missing_area_rows = int(missing_area_rows or 0)
     print(
         "Historical Fire verification: "
-        f"total_rows={total_rows}, missing_area_rows={missing_area_rows}"
+        f"source_rows={source_row_count}, database_rows={database_row_count}, "
+        f"missing_area_rows={missing_area_rows}"
     )
-    if total_rows == 0:
-        raise RuntimeError("Historical Fire backfill produced zero rows")
-    if missing_area_rows != 0:
-        raise RuntimeError(
-            "Historical Fire backfill left rows without area_ha: "
-            f"{missing_area_rows}"
-        )
+    validate_backfill_result(
+        source_row_count,
+        database_row_count,
+        missing_area_rows,
+    )

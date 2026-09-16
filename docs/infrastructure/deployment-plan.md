@@ -69,6 +69,12 @@ Pipeline flow (top to bottom):
    3. The workflow then polls `/var/log/fit5120-deploy.status` until it reads "0" (success).
    4. It tails the log into the Actions run.
 
+The production `deploy` job uses the stable
+`firebreak-production-deployment` concurrency group with
+`cancel-in-progress: false`. Backend test jobs may run concurrently, but a
+production deployment waits for the active deployment and is never cancelled
+while migrations may be using the shared checkout, log, or status file.
+
 
 `scripts/deploy.sh` (server-side) runs inside a subshell with `set -euo pipefail` and does: `git fetch --prune origin` → `git reset --hard origin/main` → log the deployed commit → build the disposable migration image → validate its dedicated migration credentials → apply pending schema migrations → run pending one-time data migrations → `docker compose up -d --build --no-deps --wait --wait-timeout 120 backend` (RDS is external; wait for Backend health) → `docker system prune -f` (disk hygiene) → frontend `npm ci` + `npm run build` → copy `dist` to `/var/www/html/` → health-check `curl /api/health` → assert `HEAD == origin/main`.
 
@@ -99,7 +105,7 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 - **Disk is the scarce resource.** The 8 GiB boot volume filled to 100% mid-deploy (killed a frontend copy with `ENOSPC`). Fixed by resizing to 20 GiB (console Modify volume → `growpart /dev/nvme0n1 1` → `resize2fs /dev/nvme0n1p1`) plus `docker system prune -f` after each build in `deploy.sh`. If disk creeps up again: `sudo df -h /`, `sudo du -xh --max-depth=1 / 2>/dev/null | sort -rh | head`, `sudo apt-get autoremove --purge -y`, `sudo journalctl --vacuum-size=20M`.
 - **Deploy log / status** live on the server at `/var/log/fit5120-deploy.log` and `/var/log/fit5120-deploy.status` — the GitHub Actions "tail the log" step prints the end of the former into the run output. The log is overwritten at the start of each run, so it holds only the most recent deploy: read it before the next one. The status file is deleted when a run starts and only written when it finishes, so **a missing status file means "running, or never started"** — read the log tail or `ps aux | grep "[d]eploy.sh"` rather than concluding the deploy failed.
 - **Schema migrations 009+ are automatic.** RDS never runs `database/init/` (that path only executes when a fresh volume is created). The migration job treats 001-008 as a legacy baseline, tracks newer schema and one-time data migrations by filename and checksum, and runs them before Backend activation. See `database-migrations.md`.
-- **Migration credentials are separate.** Before enabling automation, the Deployment owner must confirm the RDS 001-008 baseline, create a least-privilege migration user, configure `MIGRATION_DB_USER` / `MIGRATION_DB_PASSWORD` in the protected server `.env`, and verify the migration container can connect. The Backend continues to use only `MYSQL_USER` / `MYSQL_PASSWORD`.
+- **Migration credentials are separate.** Before enabling automation, the Deployment owner must confirm the RDS 001-008 baseline, create a least-privilege migration user, configure `MIGRATION_DB_USER` / `MIGRATION_DB_PASSWORD` in the protected server `.env`, review the required migration privileges (`SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `ALTER`, `DROP`, `INDEX`, `REFERENCES` as applicable), and verify the migration container can connect. The Backend continues to use only `MYSQL_USER` / `MYSQL_PASSWORD`.
 - **Memory needs host-level protection.** On the approximately 1 GB EC2 host, the deployment lead should add approximately 1–2 GB of swap after approval and monitor `free -h`, `docker stats --no-stream`, `docker ps`, and `docker compose ps`. Inspect kernel OOM evidence with `sudo dmesg -T | grep -i -E "out of memory|killed process|oom"` or the equivalent `sudo journalctl -k --no-pager` pipeline. Swap absorbs short spikes; `restart: unless-stopped` recovers Backend process exits. The restart policy does not prevent OOM.
 
 ## 7. Decisions (recorded)

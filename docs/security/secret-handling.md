@@ -29,7 +29,8 @@ Every production secret has a named owner and a way to revoke it. Record a new k
 | `TOMTOM_API_KEY` | TomTom (Orbis Places, Routing) | deployment lead | server `.env` | Regenerate in the TomTom dashboard → replace the value in the server `.env` → `docker compose up -d --no-deps backend` → revoke the old key |
 | `AI_API_KEY` | NVIDIA (`build.nvidia.com`) | deployment lead | server `.env` | Create a new key on the NVIDIA account → replace the value → recreate the container as above → revoke the old key |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS IAM user `github-actions-deploy` | deployment lead | GitHub Actions Secrets | Create a new access key → update the repo secret → confirm the next deploy is green → deactivate the old key |
-| `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | RDS `fit5120-db` | deployment lead | server `.env`; RDS master credentials | **Deferred during I1 and now due** — see deployment-plan §8 |
+| `MYSQL_PASSWORD` | RDS `fit5120-db` application user | deployment lead | server `.env` | Rotate, update the server `.env`, recreate the backend container, confirm `/api/health` |
+| RDS master password (`admin`) | RDS `fit5120-db` | deployment lead | **not held – reset on demand via the RDS console** | **Rotation still due** – see deployment-plan §8 |
 | `MIGRATION_DB_PASSWORD` | RDS `fit5120-db` migration user | deployment lead | server `.env` | Create or rotate independently from the Backend user, update the server `.env`, validate the migration service, then retire the old credential |
 | Site gate password | Nginx basic auth | deployment lead | `/etc/nginx/.htpasswd` on the server only | `htpasswd` to replace the entry → `nginx -s reload` |
 

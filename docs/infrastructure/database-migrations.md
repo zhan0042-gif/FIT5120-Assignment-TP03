@@ -33,9 +33,8 @@ the deployment instead of rerunning it.
 To add schema migration 010 or 011, create an immutable, ordered SQL file such
 as `database/migrations/010_description.sql`. If it needs a one-time backfill,
 add a similarly numbered Python file under `database/data_migrations/`; declare
-its exact `REQUIRES_SCHEMA` filename and expose `run(connection)`. Data jobs are
-deferred until their schema file exists and fail if that schema is present but
-not applied.
+its exact `REQUIRES_SCHEMA` filename and expose `run(connection)`. A missing
+schema file or a schema migration that has not been applied is a hard failure.
 
 ## Team migration rule
 
@@ -51,6 +50,31 @@ not applied.
   Production must be confirmed to match that baseline before automation is
   enabled; migrations `009` and later are managed automatically.
 
+## Compatibility and destructive changes
+
+Schema migrations run before the new Backend is activated, while the previous
+Backend may still be serving requests. A migration must therefore normally
+remain compatible with that old Backend. Safe defaults include adding a table,
+adding a nullable column, or adding a compatible index.
+
+Dropping or renaming columns/tables, incompatible type changes, or removing
+constraints/data still used by the running Backend requires an
+expand/migrate/contract rollout. Deployment A adds the new structure and ships
+Backend code that can work while the old structure remains. A later deployment,
+after old code no longer depends on it, removes the obsolete structure through
+a new migration.
+
+Keep migrations small and forward-only, preferably one logical DDL change per
+file. MySQL DDL may not be transactionally reversible, so a partial DDL failure
+can require Deployment/operator remediation.
+
+## Data migration dependencies
+
+Every numbered data migration must reference an existing schema migration by
+its exact filename. A missing dependency stops deployment before the data job
+can run or be recorded. The referenced schema migration must also be recorded
+as applied before its data migration executes.
+
 ## One-time production setup
 
 Before the automation PR is merged, the Deployment owner must:
@@ -63,11 +87,35 @@ Before the automation PR is merged, the Deployment owner must:
 5. confirm that the migration container can connect to RDS; and
 6. only then approve the automation PR for merge.
 
-The current migration account needs `CREATE`, `ALTER`, `SELECT`, `INSERT`, and
-`DELETE`. Future migration SQL may additionally require `UPDATE`, `INDEX`,
-`REFERENCES`, or another explicitly reviewed privilege. Account creation and
-grants are operator responsibilities; application code does not grant them.
+The migration/deployment account privilege envelope is `SELECT`, `INSERT`,
+`UPDATE`, `DELETE`, `CREATE`, `ALTER`, `DROP`, `INDEX`, and `REFERENCES`. These
+are not Backend runtime privileges. The Deployment owner must review each
+migration and grant only the privileges needed by its SQL; for example, `DROP`,
+`INDEX`, or `REFERENCES` is needed only when the migration performs that kind of
+operation. Account creation and grants are operator responsibilities;
+application code does not grant them. The Backend account remains separate.
 
 Migration output and failures are written to the existing production deployment
 log at `/var/log/fit5120-deploy.log`. A failure produces a non-zero deployment
 status before the new Backend is started.
+
+## When a migration fails partway
+
+MySQL does not roll back DDL: every CREATE, ALTER or DROP commits immediately,
+so a multi-statement migration that fails halfway leaves the schema in a partial
+state. The migration is only recorded after every statement succeeds, so the
+failed run is not recorded and the next deploy retries the same file, failing
+again on the first statement that had already been applied.
+
+Recovery is manual and forward-only:
+
+1. Read the failure in /var/log/fit5120-deploy.log to find the last statement
+   that succeeded.
+2. Connect to RDS and inspect the affected objects.
+3. Either apply the remaining statements by hand, or undo the applied ones. Note
+   that undoing an applied statement can lose data.
+4. Do not edit the migration file. If it was wrong, add a new numbered migration.
+5. If the schema cannot be reconciled by hand, restore the RDS snapshot taken
+   before the change. This returns the whole database, application data
+   included, to that point in time, so it is the last resort.
+6. The next deploy re-runs the file and records it.

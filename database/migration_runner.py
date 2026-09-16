@@ -23,6 +23,9 @@ ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_DIRECTORY = ROOT / "database" / "migrations"
 DATA_DIRECTORY = ROOT / "database" / "data_migrations"
 MIGRATION_PATTERN = re.compile(r"^(\d+)_")
+SCHEMA_MIGRATION_FILENAME_PATTERN = re.compile(
+    r"^\d+_[A-Za-z0-9][A-Za-z0-9_.-]*\.sql$"
+)
 MIGRATION_CREDENTIAL_VARIABLES = (
     "MIGRATION_DB_USER",
     "MIGRATION_DB_PASSWORD",
@@ -42,6 +45,13 @@ class MigrationFile:
     @property
     def migration_id(self) -> str:
         return self.path.name
+
+
+@dataclass(frozen=True)
+class DataMigrationDefinition:
+    migration: MigrationFile
+    module: ModuleType
+    required_schema: str
 
 
 def migration_credentials() -> tuple[str, str]:
@@ -91,10 +101,55 @@ def discover_migrations(directory: Path, suffix: str) -> list[MigrationFile]:
                 checksum=file_checksum(path),
             )
         )
-    return sorted(migrations, key=lambda migration: migration.path.name)
+    return sorted(
+        migrations,
+        key=lambda migration: (migration.version, migration.path.name),
+    )
 
 
-def managed_schema_migrations(directory: Path = SCHEMA_DIRECTORY) -> list[MigrationFile]:
+def validate_managed_schema_sequence(
+    migrations: list[MigrationFile],
+    *,
+    require_contiguous: bool = True,
+) -> None:
+    by_version: dict[int, list[str]] = {}
+    for migration in migrations:
+        by_version.setdefault(migration.version, []).append(migration.migration_id)
+
+    duplicates = {
+        version: filenames
+        for version, filenames in by_version.items()
+        if len(filenames) > 1
+    }
+    if duplicates:
+        version = min(duplicates)
+        raise MigrationError(
+            f"Duplicate managed schema migration numeric prefix {version:03d}: "
+            + ", ".join(sorted(duplicates[version]))
+        )
+
+    if not migrations or not require_contiguous:
+        return
+
+    highest_version = max(by_version)
+    missing_versions = [
+        version
+        for version in range(MANAGED_SCHEMA_VERSION, highest_version + 1)
+        if version not in by_version
+    ]
+    if missing_versions:
+        formatted = ", ".join(f"{version:03d}" for version in missing_versions)
+        raise MigrationError(
+            "Managed schema migration sequence has missing numeric prefix(es): "
+            f"{formatted}; later migrations will not be executed"
+        )
+
+
+def managed_schema_migrations(
+    directory: Path = SCHEMA_DIRECTORY,
+    *,
+    require_contiguous: bool = True,
+) -> list[MigrationFile]:
     migrations = discover_migrations(directory, ".sql")
     legacy = [item.migration_id for item in migrations if item.version < MANAGED_SCHEMA_VERSION]
     if legacy:
@@ -102,7 +157,12 @@ def managed_schema_migrations(directory: Path = SCHEMA_DIRECTORY) -> list[Migrat
             "Legacy schema baseline (not executed automatically): "
             + ", ".join(legacy)
         )
-    return [item for item in migrations if item.version >= MANAGED_SCHEMA_VERSION]
+    managed = [item for item in migrations if item.version >= MANAGED_SCHEMA_VERSION]
+    validate_managed_schema_sequence(
+        managed,
+        require_contiguous=require_contiguous,
+    )
+    return managed
 
 
 def data_migrations(directory: Path = DATA_DIRECTORY) -> list[MigrationFile]:
@@ -175,11 +235,15 @@ def execute_sql_migration(connection, migration: MigrationFile) -> None:
 def apply_schema_migrations(
     connection,
     directory: Path = SCHEMA_DIRECTORY,
+    data_directory: Path = DATA_DIRECTORY,
 ) -> list[str]:
+    migrations = managed_schema_migrations(directory, require_contiguous=False)
+    validate_data_migration_schema_dependencies(data_directory, directory)
+    validate_managed_schema_sequence(migrations)
     ensure_tracking_tables(connection)
     applied = applied_migrations(connection, "schema_migrations")
     executed = []
-    for migration in managed_schema_migrations(directory):
+    for migration in migrations:
         if verify_checksum(migration, applied):
             print(f"Schema migration already applied: {migration.migration_id}")
             continue
@@ -208,6 +272,67 @@ def load_data_migration(migration: MigrationFile) -> ModuleType:
     return module
 
 
+def validate_data_migration_metadata(
+    migration: MigrationFile,
+    module: ModuleType,
+    schema_directory: Path = SCHEMA_DIRECTORY,
+) -> DataMigrationDefinition:
+    required_schema = getattr(module, "REQUIRES_SCHEMA", None)
+    if not isinstance(required_schema, str) or not required_schema.strip():
+        raise MigrationError(
+            "Data migration REQUIRES_SCHEMA must be a non-empty string: "
+            f"{migration.migration_id}"
+        )
+    if required_schema != required_schema.strip():
+        raise MigrationError(
+            "Data migration REQUIRES_SCHEMA must be an exact filename without "
+            f"surrounding whitespace: {migration.migration_id}"
+        )
+    if (
+        "/" in required_schema
+        or "\\" in required_schema
+        or Path(required_schema).name != required_schema
+        or SCHEMA_MIGRATION_FILENAME_PATTERN.fullmatch(required_schema) is None
+    ):
+        raise MigrationError(
+            "Data migration REQUIRES_SCHEMA must name a numbered .sql file "
+            f"inside database/migrations: {migration.migration_id} -> "
+            f"{required_schema}"
+        )
+
+    run = getattr(module, "run", None)
+    if not callable(run):
+        raise MigrationError(
+            f"Data migration has no callable run(connection): {migration.migration_id}"
+        )
+
+    dependency_path = schema_directory / required_schema
+    if not dependency_path.is_file():
+        raise MigrationError(
+            f"Data migration {migration.migration_id} requires missing schema "
+            f"migration {required_schema}"
+        )
+
+    return DataMigrationDefinition(
+        migration=migration,
+        module=module,
+        required_schema=required_schema,
+    )
+
+
+def validate_data_migration_schema_dependencies(
+    data_directory: Path,
+    schema_directory: Path,
+) -> None:
+    """Require every data migration's schema dependency to exist."""
+    for data_migration in data_migrations(data_directory):
+        validate_data_migration_metadata(
+            data_migration,
+            load_data_migration(data_migration),
+            schema_directory,
+        )
+
+
 def apply_data_migrations(
     connection,
     directory: Path = DATA_DIRECTORY,
@@ -216,43 +341,37 @@ def apply_data_migrations(
     ensure_tracking_tables(connection)
     applied_schema = applied_migrations(connection, "schema_migrations")
     applied_data = applied_migrations(connection, "data_migrations")
-    schema_files = {
-        migration.migration_id
-        for migration in managed_schema_migrations(schema_directory)
-    }
     executed = []
+    migrations = data_migrations(directory)
 
-    for migration in data_migrations(directory):
-        if verify_checksum(migration, applied_data):
+    # Check immutable history before importing code, then validate every numbered
+    # data migration definition before executing any pending job.
+    for migration in migrations:
+        verify_checksum(migration, applied_data)
+    definitions = [
+        validate_data_migration_metadata(
+            migration,
+            load_data_migration(migration),
+            schema_directory,
+        )
+        for migration in migrations
+    ]
+
+    for definition in definitions:
+        migration = definition.migration
+        if migration.migration_id in applied_data:
             print(f"Data migration already applied: {migration.migration_id}")
             continue
 
-        module = load_data_migration(migration)
-        required_schema = getattr(module, "REQUIRES_SCHEMA", None)
-        if not required_schema:
-            raise MigrationError(
-                f"Data migration has no REQUIRES_SCHEMA: {migration.migration_id}"
-            )
-        if required_schema not in schema_files:
-            print(
-                f"Data migration deferred because {required_schema} is not present: "
-                f"{migration.migration_id}"
-            )
-            continue
-        if required_schema not in applied_schema:
+        if definition.required_schema not in applied_schema:
             raise MigrationError(
                 f"Data migration {migration.migration_id} requires unapplied schema "
-                f"migration {required_schema}"
-            )
-        run = getattr(module, "run", None)
-        if not callable(run):
-            raise MigrationError(
-                f"Data migration has no callable run(connection): {migration.migration_id}"
+                f"migration {definition.required_schema}"
             )
 
         print(f"Applying data migration: {migration.migration_id}")
         try:
-            run(connection)
+            definition.module.run(connection)
             record_migration(connection, "data_migrations", migration)
             connection.commit()
         except Exception:
