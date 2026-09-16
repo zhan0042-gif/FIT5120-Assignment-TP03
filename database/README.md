@@ -6,6 +6,14 @@ The database runs locally through Docker Compose.
 
 Production uses AWS RDS MySQL rather than the local Docker MySQL instance.
 
+Production migrations numbered 009 and later are applied automatically before
+Backend activation. Migrations 001-008 are the legacy baseline and are not
+replayed. The disposable migration service uses dedicated
+`MIGRATION_DB_USER` / `MIGRATION_DB_PASSWORD` credentials rather than the
+Backend runtime account. See
+[`docs/infrastructure/database-migrations.md`](../docs/infrastructure/database-migrations.md)
+for the tracking, checksum, data-migration, and failure behaviour.
+
 See [`docs/iteration1-integration-contract.md`](../docs/iteration1-integration-contract.md)
 for the API/domain mapping, aggregate transaction semantics, and cross-component
 ownership contract.

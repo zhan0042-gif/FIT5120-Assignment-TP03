@@ -92,6 +92,7 @@ class PointCursor:
                 "longitude": 145.20,
                 "season": 2025,
                 "start_date": date(2025, 2, 3),
+                "area_ha": 125.75,
                 "distance_meters": 5400.0,
             },
             {
@@ -99,6 +100,7 @@ class PointCursor:
                 "longitude": 145.19,
                 "season": 2024,
                 "start_date": None,
+                "area_ha": 48.2,
                 "distance_meters": 3250.0,
             },
         ]
@@ -119,12 +121,14 @@ def test_historical_fire_points_query_is_bounded_and_deterministic() -> None:
     assert cursor.parameters[0] == "POINT(145.21 -37.74)"
     assert cursor.parameters[1].startswith("POLYGON((")
     assert cursor.parameters[-1] == 2
+
     assert result == [
         {
             "latitude": -37.70,
             "longitude": 145.20,
             "season": 2025,
             "start_date": "2025-02-03",
+            "area_ha": 125.75,
             "distance_km": 5.4,
         },
         {
@@ -132,6 +136,7 @@ def test_historical_fire_points_query_is_bounded_and_deterministic() -> None:
             "longitude": 145.19,
             "season": 2024,
             "start_date": None,
+            "area_ha": 48.2,
             "distance_km": 3.25,
         },
     ]
@@ -152,6 +157,7 @@ class NearestPointCursor(PointCursor):
             "longitude": 145.205,
             "season": 2019,
             "start_date": date(2019, 1, 12),
+            "area_ha": 210.5,
             "distance_meters": 812.5,
         }
 
@@ -169,11 +175,13 @@ def test_nearest_fire_query_searches_the_full_radius_and_returns_distance() -> N
     assert "ORDER BY distance_meters ASC" in cursor.sql
     assert "LIMIT 1" in cursor.sql
     assert cursor.parameters[-1] == 20_000
+
     assert result == {
         "latitude": -37.735,
         "longitude": 145.205,
         "season": 2019,
         "start_date": "2019-01-12",
+        "area_ha": 210.5,
         "distance_km": 0.8125,
     }
 

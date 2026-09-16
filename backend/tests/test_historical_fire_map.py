@@ -112,6 +112,7 @@ def sample_points() -> list[dict]:
             "longitude": 145.20,
             "season": 2025,
             "start_date": date(2025, 2, 3),
+            "area_ha": 125.75,
             "distance_km": 5.4,
         },
         {
@@ -119,6 +120,7 @@ def sample_points() -> list[dict]:
             "longitude": 145.19,
             "season": 2024,
             "start_date": None,
+            "area_ha": 48.2,
             "distance_km": 3.25,
         },
     ]
@@ -137,6 +139,7 @@ def test_historical_fire_map_returns_structured_response_with_default_limit(
             "longitude": 145.19,
             "season": 2024,
             "start_date": None,
+            "area_ha": 48.2,
             "distance_km": 3.25,
         },
     )
@@ -162,6 +165,7 @@ def test_historical_fire_map_returns_structured_response_with_default_limit(
             "longitude": 145.20,
             "season": 2025,
             "start_date": "2025-02-03",
+            "area_ha": 125.75,
             "distance_km": 5.4,
         },
         "nearest_fire": {
@@ -169,6 +173,7 @@ def test_historical_fire_map_returns_structured_response_with_default_limit(
             "longitude": 145.19,
             "season": 2024,
             "start_date": None,
+            "area_ha": 48.2,
             "distance_km": 3.25,
         },
         "points": [
@@ -177,6 +182,7 @@ def test_historical_fire_map_returns_structured_response_with_default_limit(
                 "longitude": 145.20,
                 "season": 2025,
                 "start_date": "2025-02-03",
+                "area_ha": 125.75,
                 "distance_km": 5.4,
             },
             {
@@ -184,6 +190,7 @@ def test_historical_fire_map_returns_structured_response_with_default_limit(
                 "longitude": 145.19,
                 "season": 2024,
                 "start_date": None,
+                "area_ha": 48.2,
                 "distance_km": 3.25,
             },
         ],
@@ -221,6 +228,7 @@ def test_nearest_fire_uses_the_full_radius_not_the_limited_point_list(map_api) -
         "longitude": 145.205,
         "season": 2019,
         "start_date": date(2019, 1, 12),
+        "area_ha": 210.5,
         "distance_km": 0.8,
     }
     provider = MapSpatialProvider(sample_points(), total_count=12, nearest_point=nearest)
@@ -237,6 +245,7 @@ def test_nearest_fire_uses_the_full_radius_not_the_limited_point_list(map_api) -
         "longitude": 145.20,
         "season": 2025,
         "start_date": "2025-02-03",
+        "area_ha": 125.75,
         "distance_km": 5.4,
     }
     assert response.json()["nearest_fire"] == {
@@ -244,6 +253,7 @@ def test_nearest_fire_uses_the_full_radius_not_the_limited_point_list(map_api) -
         "longitude": 145.205,
         "season": 2019,
         "start_date": "2019-01-12",
+        "area_ha": 210.5,
         "distance_km": 0.8,
     }
     assert provider.point_calls == [(-37.74, 145.21, 20.0, 1)]

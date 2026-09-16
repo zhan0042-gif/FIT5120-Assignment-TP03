@@ -9,4 +9,4 @@ description = "FIREBREAK Iteration 1 processed spatial lookup package"
 requires-python = ">=3.12"
 
 [tool.setuptools]
-packages = ["data", "data.scripts"]
+packages = ["data", "data.scripts", "database", "database.data_migrations"]

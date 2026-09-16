@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY database/requirements-migrations.txt ./database/requirements-migrations.txt
+RUN pip install --no-cache-dir -r database/requirements-migrations.txt
+
+COPY database ./database
+COPY data/__init__.py ./data/__init__.py
+COPY data/processed/fire_history_lightweight.parquet ./data/processed/fire_history_lightweight.parquet
+
+ENTRYPOINT ["python", "-m", "database.migration_runner"]
+CMD ["all"]

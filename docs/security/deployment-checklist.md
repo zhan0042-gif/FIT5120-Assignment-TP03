@@ -24,6 +24,7 @@
 - [x] Production secrets in AWS Secrets Manager (or equivalent), not hard-coded — **not used**: `.env` on the server remains the accepted arrangement (see deployment-plan §4); revisit if the project outlives the course
 - [x] GitHub Actions secrets set, not written in workflow files — `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` stored as repo secrets
 - [x] Every production key present on the server and **owned** — `TOMTOM_API_KEY` and `AI_API_KEY` are set in the server `.env` and recorded with an owner and a rotation path in `secret-handling.md`. Verify presence without printing the value: `docker compose exec -T backend printenv AI_API_KEY | wc -c` (prints a length, never the key)
+- [ ] Dedicated migration credentials configured — `MIGRATION_DB_USER` and `MIGRATION_DB_PASSWORD` belong only to the disposable migration service; Backend continues to receive only `MYSQL_USER` and `MYSQL_PASSWORD`
 - [x] Secrets written with an editor, never as a command-line argument — an SSM `send-command` command string is recorded in full, so the value must go in through `sudo nano`, not `export` or an inline argument
 
 ## 4. API / application config
@@ -45,7 +46,11 @@
 
 - [x] No addresses / coordinates / support needs in backend logs (privacy-requirements §3) — verified: backend app code performs no logging of requests or addresses; running container logs spot-checked clean (2026-09-02)
 - [x] Browser geolocation requested only on an explicit user gesture, never on load (privacy-requirements §6) — the button in the local-context card is the only caller of `navigator.geolocation.getCurrentPosition`
-- [x] **Schema changes applied to production before the code that needs them** — RDS does not run `database/init/` (that path only runs on first creation of a fresh volume); each change ships as `database/migrations/00X_*.sql` and must be applied by hand. Migration 008 was applied ahead of the deploy that needed it (2026-09-13)
+- [x] **Schema changes applied to production before the code that needs them** — RDS does not run `database/init/`; migrations 009+ and dependent one-time data jobs are tracked and applied automatically before Backend activation. Migrations through 008 remain the manually applied legacy baseline.
+- [ ] **Automatic migration preflight completed** — confirm RDS matches legacy 001–008, provision the dedicated least-privilege migration user, configure its two protected environment variables, and verify the migration container can connect before merging the automation PR
+- [ ] **Migration grants reviewed** — the separate deployment account may require `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `CREATE`, `ALTER`, `DROP`, `INDEX`, and `REFERENCES`, but grant only those used by reviewed migration SQL; these are not Backend runtime privileges
+- [ ] **Migration remains compatible with the running Backend** — default to additive changes; destructive changes use expand/migrate/contract across deployments, remain small and forward-only, and include an operator plan because MySQL DDL may not roll back after a partial failure
+- [x] **Team migration rule documented** — every production schema change, including an existing-table change, is a new numbered migration; applied files are immutable; the runner uses files/history rather than schema diffing; manual production DDL is reserved for emergency operator remediation
 - [x] RDS automated backups configured — **Enabled**, 1-day retention. Note: this account is on the AWS Free Tier, which caps RDS backup retention at 1 day; 7-day retention would require a paid plan — accepted for a student project
 - [x] RDS deletion protection enabled — **Enabled** (2026-09-02, RDS Modify)
 - [x] Encryption at rest enabled on RDS — **Enabled** (AWS managed KMS key `aws/rds`)
