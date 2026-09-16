@@ -56,6 +56,14 @@ class SpatialProvider(Protocol):
         limit: int,
     ) -> list[dict[str, Any]]: ...
 
+    def get_nearest_fire_history_point(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+    ) -> dict[str, Any] | None: ...
+
 
 class FireDangerClient(Protocol):
     """Return authoritative current FDR or signal that it is unavailable."""

@@ -341,28 +341,34 @@ def get_fire_history_points(
     )
 
     sql = """
-        SELECT
-            ST_Longitude(geometry) AS longitude,
-            ST_Latitude(geometry) AS latitude,
-            season,
-            start_date
-        FROM open_data_fire_history
-        WHERE MBRContains(
-            ST_GeomFromText(
-                %s,
-                4326,
-                'axis-order=long-lat'
-            ),
-            geometry
-        )
-        AND ST_Distance_Sphere(
-            geometry,
-            ST_GeomFromText(
-                %s,
-                4326,
-                'axis-order=long-lat'
+        WITH candidates AS (
+            SELECT
+                fire_history_id,
+                ST_Longitude(geometry) AS longitude,
+                ST_Latitude(geometry) AS latitude,
+                season,
+                start_date,
+                ST_Distance_Sphere(
+                    geometry,
+                    ST_GeomFromText(
+                        %s,
+                        4326,
+                        'axis-order=long-lat'
+                    )
+                ) AS distance_meters
+            FROM open_data_fire_history
+            WHERE MBRContains(
+                ST_GeomFromText(
+                    %s,
+                    4326,
+                    'axis-order=long-lat'
+                ),
+                geometry
             )
-        ) <= %s
+        )
+        SELECT latitude, longitude, season, start_date, distance_meters
+        FROM candidates
+        WHERE distance_meters <= %s
         ORDER BY
             start_date IS NULL,
             start_date DESC,
@@ -375,8 +381,8 @@ def get_fire_history_points(
     cursor.execute(
         sql,
         (
-            bbox_wkt,
             point_wkt,
+            bbox_wkt,
             radius_km * 1000,
             limit,
         ),
@@ -398,6 +404,87 @@ def get_fire_history_points(
                 if row["start_date"] is not None
                 else None
             ),
+            "distance_km": float(row["distance_meters"]) / 1000,
         }
         for row in rows
     ]
+
+
+def get_nearest_fire_history_point(
+    cursor,
+    latitude,
+    longitude,
+    radius_km=20,
+):
+    """Return the nearest representative fire point inside the search radius."""
+    latitude_delta = radius_km / 110.574
+    longitude_scale = 111.320 * math.cos(math.radians(latitude))
+    longitude_delta = (
+        180.0
+        if abs(longitude_scale) < 1e-9
+        else radius_km / abs(longitude_scale)
+    )
+
+    min_lon = longitude - longitude_delta
+    max_lon = longitude + longitude_delta
+    min_lat = latitude - latitude_delta
+    max_lat = latitude + latitude_delta
+    point_wkt = f"POINT({longitude} {latitude})"
+    bbox_wkt = (
+        "POLYGON(("
+        f"{min_lon} {min_lat},"
+        f"{max_lon} {min_lat},"
+        f"{max_lon} {max_lat},"
+        f"{min_lon} {max_lat},"
+        f"{min_lon} {min_lat}"
+        "))"
+    )
+
+    sql = """
+        WITH candidates AS (
+            SELECT
+                fire_history_id,
+                ST_Longitude(geometry) AS longitude,
+                ST_Latitude(geometry) AS latitude,
+                season,
+                start_date,
+                ST_Distance_Sphere(
+                    geometry,
+                    ST_GeomFromText(
+                        %s,
+                        4326,
+                        'axis-order=long-lat'
+                    )
+                ) AS distance_meters
+            FROM open_data_fire_history
+            WHERE MBRContains(
+                ST_GeomFromText(
+                    %s,
+                    4326,
+                    'axis-order=long-lat'
+                ),
+                geometry
+            )
+        )
+        SELECT latitude, longitude, season, start_date, distance_meters
+        FROM candidates
+        WHERE distance_meters <= %s
+        ORDER BY distance_meters ASC, fire_history_id DESC
+        LIMIT 1
+    """
+
+    cursor.execute(sql, (point_wkt, bbox_wkt, radius_km * 1000))
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return {
+        "latitude": float(row["latitude"]),
+        "longitude": float(row["longitude"]),
+        "season": int(row["season"]) if row["season"] is not None else None,
+        "start_date": (
+            row["start_date"].isoformat()
+            if row["start_date"] is not None
+            else None
+        ),
+        "distance_km": float(row["distance_meters"]) / 1000,
+    }
