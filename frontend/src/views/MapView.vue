@@ -115,6 +115,10 @@ onMounted(async () => {
       <p class="subhead">See past bushfire records near your home.</p>
     </header>
 
+    <p class="disclaimer-banner" role="note">
+      This map displays historical bushfire records for contextual and informational purposes only. It does not constitute a forecast or prediction of future bushfire risk.
+    </p>
+
     <section class="conditions-grid" aria-label="Current conditions">
       <article class="card condition-metric"><h2>Temperature</h2><p>{{ temperature }}</p></article>
       <article class="card condition-metric"><h2>Humidity</h2><p>{{ humidity }}</p></article>
@@ -221,6 +225,16 @@ onMounted(async () => {
 
 .state-message {
   color: var(--color-text-muted);
+}
+
+.disclaimer-banner {
+  background: var(--color-warning-soft);
+  border-left: 4px solid var(--color-warning);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-weight: 600;
+  margin-bottom: 1.75rem;
+  padding: 0.75rem 1rem;
 }
 
 .conditions-grid {
