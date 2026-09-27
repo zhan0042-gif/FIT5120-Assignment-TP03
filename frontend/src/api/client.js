@@ -98,9 +98,23 @@ async function request(path, init) {
   return await response.json()
 }
 
-async function requestPdf(path) {
+async function requestPdf(path, init) {
+  const headers = new Headers(init?.headers)
+
+  if (init?.body !== undefined) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  const requestInit = init
+    ? {
+        ...init,
+        headers,
+      }
+    : undefined
+
   const response = await fetch(
     `${API_ROOT}${path}`,
+    requestInit,
   )
 
   if (!response.ok) {
@@ -156,9 +170,20 @@ export const api = {
       `/households/${encodeURIComponent(householdId)}/plan`,
     ),
 
-  getPreparednessPlanPdf: (householdId) =>
+  getPreparednessPlanPdf: (
+    householdId,
+    preparednessAdvice = null,
+  ) =>
     requestPdf(
       `/households/${encodeURIComponent(householdId)}/preparedness-plan.pdf`,
+      preparednessAdvice
+        ? {
+            method: 'POST',
+            body: JSON.stringify({
+              preparedness_advice: preparednessAdvice,
+            }),
+          }
+        : undefined,
     ),
 
   saveHouseholdPlan: (

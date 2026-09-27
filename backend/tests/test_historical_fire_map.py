@@ -23,11 +23,18 @@ class MapSpatialResult:
 
 
 class MapSpatialProvider:
-    def __init__(self, points: list[dict], total_count: int | None = None) -> None:
+    def __init__(
+        self,
+        points: list[dict],
+        total_count: int | None = None,
+        nearest_point: dict | None = None,
+    ) -> None:
         self.points = points
         self.total_count = len(points) if total_count is None else total_count
+        self.nearest_point = nearest_point
         self.full_calls = 0
         self.point_calls: list[tuple[float, float, float, int]] = []
+        self.nearest_calls: list[tuple[float, float, float]] = []
 
     def get_context(self, latitude: float, longitude: float) -> MapSpatialResult:
         self.full_calls += 1
@@ -63,6 +70,16 @@ class MapSpatialProvider:
         self.point_calls.append((latitude, longitude, radius_km, limit))
         return self.points[:limit]
 
+    def get_nearest_fire_history_point(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+    ) -> dict | None:
+        self.nearest_calls.append((latitude, longitude, radius_km))
+        return self.nearest_point
+
 
 @pytest.fixture
 def map_api():
@@ -95,12 +112,16 @@ def sample_points() -> list[dict]:
             "longitude": 145.20,
             "season": 2025,
             "start_date": date(2025, 2, 3),
+            "area_ha": 125.75,
+            "distance_km": 5.4,
         },
         {
             "latitude": -37.71,
             "longitude": 145.19,
             "season": 2024,
             "start_date": None,
+            "area_ha": 48.2,
+            "distance_km": 3.25,
         },
     ]
 
@@ -111,7 +132,17 @@ def test_historical_fire_map_returns_structured_response_with_default_limit(
     client, repository = map_api
     household_id = repository.create_household()
     save_verified_location(repository, household_id)
-    provider = MapSpatialProvider(sample_points())
+    provider = MapSpatialProvider(
+        sample_points(),
+        nearest_point={
+            "latitude": -37.71,
+            "longitude": 145.19,
+            "season": 2024,
+            "start_date": None,
+            "area_ha": 48.2,
+            "distance_km": 3.25,
+        },
+    )
     app.dependency_overrides[get_spatial_provider] = lambda: provider
 
     response = client.get(
@@ -123,28 +154,50 @@ def test_historical_fire_map_returns_structured_response_with_default_limit(
         "household_location": {
             "latitude": -37.74,
             "longitude": 145.21,
+            "address": "84 Yarra Street, Warrandyte VIC 3113",
         },
         "search_radius_km": 20.0,
         "total_count": 2,
         "returned_count": 2,
         "truncated": False,
+        "most_recent_fire": {
+            "latitude": -37.70,
+            "longitude": 145.20,
+            "season": 2025,
+            "start_date": "2025-02-03",
+            "area_ha": 125.75,
+            "distance_km": 5.4,
+        },
+        "nearest_fire": {
+            "latitude": -37.71,
+            "longitude": 145.19,
+            "season": 2024,
+            "start_date": None,
+            "area_ha": 48.2,
+            "distance_km": 3.25,
+        },
         "points": [
             {
                 "latitude": -37.70,
                 "longitude": 145.20,
                 "season": 2025,
                 "start_date": "2025-02-03",
+                "area_ha": 125.75,
+                "distance_km": 5.4,
             },
             {
                 "latitude": -37.71,
                 "longitude": 145.19,
                 "season": 2024,
                 "start_date": None,
+                "area_ha": 48.2,
+                "distance_km": 3.25,
             },
         ],
     }
     assert provider.full_calls == 1
     assert provider.point_calls == [(-37.74, 145.21, 20.0, 500)]
+    assert provider.nearest_calls == [(-37.74, 145.21, 20.0)]
 
 
 def test_historical_fire_map_is_supported_by_default_mock_provider(map_api) -> None:
@@ -162,6 +215,49 @@ def test_historical_fire_map_is_supported_by_default_mock_provider(map_api) -> N
     assert response.json()["returned_count"] == 0
     assert response.json()["truncated"] is False
     assert response.json()["points"] == []
+    assert response.json()["most_recent_fire"] is None
+    assert response.json()["nearest_fire"] is None
+
+
+def test_nearest_fire_uses_the_full_radius_not_the_limited_point_list(map_api) -> None:
+    client, repository = map_api
+    household_id = repository.create_household()
+    save_verified_location(repository, household_id)
+    nearest = {
+        "latitude": -37.735,
+        "longitude": 145.205,
+        "season": 2019,
+        "start_date": date(2019, 1, 12),
+        "area_ha": 210.5,
+        "distance_km": 0.8,
+    }
+    provider = MapSpatialProvider(sample_points(), total_count=12, nearest_point=nearest)
+    app.dependency_overrides[get_spatial_provider] = lambda: provider
+
+    response = client.get(
+        f"/api/v1/households/{household_id}/historical-fire-points?limit=1"
+    )
+
+    assert response.status_code == 200
+    assert response.json()["truncated"] is True
+    assert response.json()["most_recent_fire"] == {
+        "latitude": -37.70,
+        "longitude": 145.20,
+        "season": 2025,
+        "start_date": "2025-02-03",
+        "area_ha": 125.75,
+        "distance_km": 5.4,
+    }
+    assert response.json()["nearest_fire"] == {
+        "latitude": -37.735,
+        "longitude": 145.205,
+        "season": 2019,
+        "start_date": "2019-01-12",
+        "area_ha": 210.5,
+        "distance_km": 0.8,
+    }
+    assert provider.point_calls == [(-37.74, 145.21, 20.0, 1)]
+    assert provider.nearest_calls == [(-37.74, 145.21, 20.0)]
 
 
 def test_historical_fire_map_applies_custom_limit_and_reports_truncation(

@@ -92,6 +92,7 @@ def test_data_spatial_provider_maps_bounded_historical_fire_points() -> None:
             "longitude": 145.2,
             "season": 2025,
             "start_date": "2025-02-03",
+            "distance_km": 5.4,
         }
     ]
 
@@ -132,6 +133,35 @@ def test_data_spatial_provider_hides_point_lookup_failures() -> None:
         )
 
     assert "private database host" not in str(error.value)
+
+
+def test_data_spatial_provider_maps_the_nearest_historical_fire_point() -> None:
+    calls = []
+    expected = {
+        "latitude": -37.735,
+        "longitude": 145.205,
+        "season": 2019,
+        "start_date": "2019-01-12",
+        "distance_km": 0.8125,
+    }
+
+    def nearest_lookup(latitude, longitude, radius_km):
+        calls.append((latitude, longitude, radius_km))
+        return expected
+
+    provider = DataSpatialProvider(
+        lambda _latitude, _longitude: {},
+        lambda _latitude, _longitude: "Central",
+        lambda _latitude, _longitude, _radius, _limit: [],
+        nearest_lookup,
+    )
+
+    result = provider.get_nearest_fire_history_point(
+        -37.74, 145.21, radius_km=20
+    )
+
+    assert result == expected
+    assert calls == [(-37.74, 145.21, 20)]
 
 
 def test_data_spatial_provider_rejects_narrow_lookup_without_a_district() -> None:

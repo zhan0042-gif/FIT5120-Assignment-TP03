@@ -37,6 +37,7 @@ from app.schemas.households import (
     LocalContext,
     LocationRequest,
     PlanCompletion,
+    PreparednessPlanExportRequest,
     PreparationSupport,
 )
 from app.schemas.rendezvous import RendezvousResult
@@ -135,19 +136,12 @@ def get_plan(
     )
 
 
-@router.get(
-    "/{household_id}/preparedness-plan.pdf",
-    response_class=Response,
-)
-def export_preparedness_plan(
+def _preparedness_plan_response(
     household_id: str,
-    repository: RepositoryDependency,
+    repository: HouseholdRepository,
+    preparedness_advice: str | None = None,
 ) -> Response:
-    """Download a printable rendering of the latest saved household plan."""
-
-    plan = repository.get_plan(
-        household_id
-    )
+    plan = repository.get_plan(household_id)
 
     try:
         location = repository.get_location(
@@ -166,6 +160,7 @@ def export_preparedness_plan(
     content = PreparednessPdfService().generate(
         plan,
         household_address=household_address,
+        preparedness_advice=preparedness_advice,
     )
 
     return Response(
@@ -176,6 +171,38 @@ def export_preparedness_plan(
                 'attachment; filename="firebreak-household-plan.pdf"'
             )
         },
+    )
+
+
+@router.get(
+    "/{household_id}/preparedness-plan.pdf",
+    response_class=Response,
+)
+def export_preparedness_plan(
+    household_id: str,
+    repository: RepositoryDependency,
+) -> Response:
+    """Download a printable plan without optional in-memory advice."""
+    return _preparedness_plan_response(
+        household_id,
+        repository,
+    )
+
+
+@router.post(
+    "/{household_id}/preparedness-plan.pdf",
+    response_class=Response,
+)
+def export_preparedness_plan_with_advice(
+    household_id: str,
+    request: PreparednessPlanExportRequest,
+    repository: RepositoryDependency,
+) -> Response:
+    """Include bounded advice that the user already requested and saw."""
+    return _preparedness_plan_response(
+        household_id,
+        repository,
+        request.preparedness_advice,
     )
 
 

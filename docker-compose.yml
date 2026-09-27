@@ -1,4 +1,16 @@
 services:
+  migration:
+    profiles: ["migration"]
+    build:
+      context: .
+      dockerfile: database/Dockerfile.migrations
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-mysql}
+      DATABASE_PORT: ${DATABASE_PORT:-3306}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-fit5120}
+      MIGRATION_DB_USER: ${MIGRATION_DB_USER-}
+      MIGRATION_DB_PASSWORD: ${MIGRATION_DB_PASSWORD-}
+
   backend:
     build:
       context: .

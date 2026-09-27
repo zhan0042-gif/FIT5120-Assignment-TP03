@@ -32,8 +32,7 @@ const router = createRouter({
     },
     {
       path: '/summary',
-      name: 'preparedness-summary',
-      component: () => import('../views/PreparednessSummaryView.vue'),
+      redirect: '/overview',
     },
     {
       path: '/review',
