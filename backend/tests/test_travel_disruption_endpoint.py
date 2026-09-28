@@ -1,3 +1,8 @@
+import os
+from pathlib import Path
+import subprocess
+import sys
+
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -6,6 +11,7 @@ from app.core.dependencies import (
     get_road_disruption_client,
 )
 from app.providers.mock import MockRoadDisruptionClient
+from app.providers.road_disruptions import DisabledRoadDisruptionClient
 from app.repositories.households import InMemoryHouseholdRepository
 from app.schemas.households import (
     Arrangements,
@@ -122,3 +128,61 @@ def test_travel_disruption_endpoint_rejects_invalid_radius():
         app.dependency_overrides.clear()
 
     assert response.status_code == 422
+
+
+def test_missing_road_key_returns_feature_unavailable():
+    repository, household_id = build_repository()
+
+    app.dependency_overrides[get_household_repository] = lambda: repository
+    app.dependency_overrides[get_road_disruption_client] = (
+        lambda: DisabledRoadDisruptionClient()
+    )
+
+    client = TestClient(app)
+
+    try:
+        response = client.get(
+            f"/api/v1/households/{household_id}/travel-disruptions"
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "unavailable"
+    assert "not configured" in response.json()["unavailable_reason"]
+
+
+def test_backend_starts_without_road_key_in_live_mode():
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "APP_DATA_MODE": "live",
+            "APP_REPOSITORY_MODE": "memory",
+            "APP_SPATIAL_MODE": "mock",
+            "TOMTOM_API_KEY": "test-key",
+        }
+    )
+    environment.pop("VIC_ROAD_DISRUPTIONS_API_KEY", None)
+
+    backend_root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from fastapi.testclient import TestClient; "
+                "from app.main import app; "
+                "client = TestClient(app); "
+                "assert client.get('/api/health').status_code == 200; "
+                "assert client.post('/api/v1/households').status_code == 201"
+            ),
+        ],
+        cwd=backend_root,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

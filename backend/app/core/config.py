@@ -27,7 +27,10 @@ from app.providers.nvidia_explanation import (
     DisabledExplanationClient,
     NvidiaExplanationClient,
 )
-from app.providers.road_disruptions import VictorianRoadDisruptionClient
+from app.providers.road_disruptions import (
+    DisabledRoadDisruptionClient,
+    VictorianRoadDisruptionClient,
+)
 from app.providers.tomtom import TomTomAddressClient
 from app.providers.tomtom_routing import TomTomRoutingClient
 
@@ -118,6 +121,19 @@ def _explanation_client(
     return DisabledExplanationClient()
 
 
+def _road_disruption_client(
+    api_key: str | None,
+) -> RoadDisruptionClient:
+    """Road disruptions are optional and must not prevent application startup."""
+
+    if api_key and api_key.strip():
+        return VictorianRoadDisruptionClient(
+            api_key=api_key
+        )
+
+    return DisabledRoadDisruptionClient()
+
+
 def build_external_providers(
     mode: str | None = None,
 ) -> ExternalProviders:
@@ -147,8 +163,8 @@ def build_external_providers(
                     "TOMTOM_API_KEY"
                 )
             ),
-            road_disruptions=VictorianRoadDisruptionClient(
-                api_key=os.getenv(
+            road_disruptions=_road_disruption_client(
+                os.getenv(
                     "VIC_ROAD_DISRUPTIONS_API_KEY"
                 )
             ),

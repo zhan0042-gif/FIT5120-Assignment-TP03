@@ -198,6 +198,22 @@ def _distance_to_geometry_km(
     )
 
 
+class DisabledRoadDisruptionClient:
+    """Report that this optional integration has not been configured."""
+
+    def nearby_disruptions(
+        self,
+        latitude: float,
+        longitude: float,
+        *,
+        radius_km: float,
+    ) -> list[RoadDisruption]:
+        raise ExternalDataUnavailable(
+            "Current road-disruption information is unavailable because "
+            "VIC_ROAD_DISRUPTIONS_API_KEY is not configured."
+        )
+
+
 class VictorianRoadDisruptionClient:
     """
     Read near-real-time Victorian road disruptions from DTP Open Data.
