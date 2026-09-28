@@ -70,3 +70,46 @@ class VoiceAnswer(BaseModel):
 
 class VoiceJudgeResponse(BaseModel):
     answers: list[VoiceAnswer]
+
+
+class VoiceLoggedAnswer(BaseModel):
+    """`answer` may be withheld; the probability always stays."""
+
+    id: str = Field(min_length=1, max_length=160)
+    answer: str | None = Field(default=None, max_length=300)
+    probability: float = Field(ge=0.0, le=1.0)
+
+
+class VoiceLoggedAction(BaseModel):
+    """`target` is a target id, never a spoken label: labels can hold member names."""
+
+    kind: Literal["page", "command", "button", "select", "text", "checkbox", "address"]
+    target: str = Field(min_length=1, max_length=160)
+    value: str | None = Field(default=None, max_length=MAX_TRANSCRIPT_CHARS)
+
+
+class VoiceLatency(BaseModel):
+    judge: int | None = Field(default=None, ge=0, le=600_000)
+    turn: int = Field(ge=0, le=600_000)
+
+
+class VoiceTurnLog(BaseModel):
+    """One finished utterance: what was heard, what was chosen, what happened."""
+
+    turn_id: str = Field(min_length=1, max_length=80)
+    page: str | None = Field(default=None, max_length=80)
+    step: str | None = Field(default=None, max_length=80)
+    mode: Literal["normal", "confirming", "choosing", "dictating"]
+    transcript: str | None = Field(default=None, max_length=MAX_TRANSCRIPT_CHARS)
+    answers: list[VoiceLoggedAnswer] = Field(default_factory=list, max_length=MAX_QUESTIONS)
+    decision: Literal[
+        "execute", "confirm", "dictate", "choose", "keep", "reject",
+        "stop", "cancel", "unclear", "dictated", "unavailable",
+    ]
+    action: VoiceLoggedAction | None = None
+    outcome: Literal["ok", "fail", "pending", "none"]
+    latency_ms: VoiceLatency
+
+
+class VoiceLogAccepted(BaseModel):
+    accepted: bool = True

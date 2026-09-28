@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 import math
 import os
+from pathlib import Path
 
 from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
@@ -88,6 +89,15 @@ def voice_mode() -> str:
     if mode not in {"off", "mock"}:
         raise RuntimeError("APP_VOICE_MODE must be either 'off' or 'mock'.")
     return mode
+
+
+def voice_log_settings() -> tuple[Path, bool]:
+    """Where voice turns are logged, and whether transcripts and values are kept."""
+    path = Path(os.getenv("VOICE_LOG_PATH", "logs/voice-turns.jsonl"))
+    include_content = os.getenv("VOICE_LOG_CONTENT", "false").strip().lower() in {
+        "1", "true", "yes",
+    }
+    return path, include_content
 
 
 def _explanation_client(api_key: str | None) -> ExplanationClient:

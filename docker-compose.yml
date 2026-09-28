@@ -33,6 +33,8 @@ services:
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change_me}
       AI_API_KEY: ${AI_API_KEY:-}
       APP_VOICE_MODE: ${APP_VOICE_MODE:-off}
+      VOICE_LOG_PATH: ${VOICE_LOG_PATH:-logs/voice-turns.jsonl}
+      VOICE_LOG_CONTENT: ${VOICE_LOG_CONTENT:-false}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
