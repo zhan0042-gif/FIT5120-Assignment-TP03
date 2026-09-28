@@ -331,6 +331,18 @@ export const useVoiceStore = defineStore('voice', () => {
     const target = held
     const action = { kind: target.kind, target, value: transcript }
     if (target.kind !== 'address') {
+      // The field was chosen by the judge, possibly the wrong row: replacing
+      // something already typed waits for yes, as it does everywhere else.
+      const live = snapshotTargets().find((item) => item.id === target.id)
+      if (live?.kind === 'text' && live.current && live.current !== transcript) {
+        held = action
+        reasked = false
+        setPhase('confirming')
+        message.value = ''
+        prompt.value = `${describeAction({ ...action, target: live })}? Say yes or no.`
+        logTurn({ ...turn, decision: 'confirm', action, outcome: 'pending' })
+        return
+      }
       await perform(action, turn, 'dictated', mySession)
       return
     }

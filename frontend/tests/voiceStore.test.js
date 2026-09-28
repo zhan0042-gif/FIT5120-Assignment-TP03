@@ -245,6 +245,29 @@ test('a value the judge could not lift is dictated and written exactly as heard'
   assert.equal(store.status, 'listening')
 })
 
+test('dictation that would replace something already typed asks first', async () => {
+  // The judge may pick the wrong row ("fill in the name" with two members);
+  // the dictated value must not silently rename Minh.
+  let name = 'Minh'
+  registerTargets(() => [textTarget({
+    id: 'm1-name', label: 'Name (Minh)', current: name, set: (value) => { name = value },
+  })])
+  judgeReplies(
+    [a('command', 'fill in Name (Minh)', 0.72), a('span', NO_SPAN, 0.9), NO_STOP],
+    [a('confirm', 'yes', 0.95), NO_STOP],
+  )
+  const { store, say } = begin()
+
+  await say('fill in the name')
+  await say('Lan Nguyen')
+  assert.equal(name, 'Minh')
+  assert.equal(store.status, 'confirming')
+  assert.equal(store.prompt, 'Fill in Name (Minh) with “Lan Nguyen”? Say yes or no.')
+
+  await say('yes')
+  assert.equal(name, 'Lan Nguyen')
+})
+
 test('a spoken address is typed as heard, then a numbered suggestion is chosen', async () => {
   const place = { text: '', searched: false, results: RESULTS, chosen: null }
   registerTargets(() => [destination(place)])
