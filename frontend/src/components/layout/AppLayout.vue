@@ -1,3 +1,47 @@
+<script setup>
+import { ref } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import VoiceButton from '../voice/VoiceButton.vue'
+import { useVoiceCommands, useVoiceContext } from '../../voice/registry.js'
+import { commandTarget, pageTarget } from '../../voice/targets.js'
+
+const router = useRouter()
+const route = useRoute()
+// The page scrolls inside <main>, not the window: the layout fixes its height
+// and hides window overflow.
+const content = ref(null)
+
+const PAGES = [
+  ['page-home', 'Home', '/'],
+  ['page-plan', 'My Plan', '/plan'],
+  ['page-overview', 'Overview', '/overview'],
+  ['page-map', 'Fire Map', '/map'],
+  ['page-scenarios', 'Test My Plan', '/scenarios'],
+]
+
+function scrollByScreens(screens) {
+  const main = content.value
+  main?.scrollBy({ top: main.clientHeight * screens, behavior: 'smooth' })
+}
+
+function scrollToEnd(end) {
+  const main = content.value
+  main?.scrollTo({ top: end === 'top' ? 0 : main.scrollHeight, behavior: 'smooth' })
+}
+
+useVoiceContext(() => ({ page: typeof route.name === 'string' ? route.name : null }))
+
+// Registered first, so these survive if a page offers more than the judge accepts.
+useVoiceCommands(() => [
+  ...PAGES.map(([id, label, path]) => pageTarget({ id, label, go: () => router.push(path) })),
+  commandTarget({ id: 'go-back', label: 'go back', run: () => router.back() }),
+  commandTarget({ id: 'scroll-down', label: 'scroll down', run: () => scrollByScreens(0.8) }),
+  commandTarget({ id: 'scroll-up', label: 'scroll up', run: () => scrollByScreens(-0.8) }),
+  commandTarget({ id: 'scroll-top', label: 'scroll to the top', run: () => scrollToEnd('top') }),
+  commandTarget({ id: 'scroll-bottom', label: 'scroll to the bottom', run: () => scrollToEnd('bottom') }),
+])
+</script>
+
 <template>
   <div class="layout">
     <header class="app-header">
@@ -13,7 +57,8 @@
         <router-link to="/scenarios">Test My Plan</router-link>
       </nav>
     </header>
-    <main class="content"><router-view /></main>
+    <main ref="content" class="content"><router-view /></main>
+    <VoiceButton />
   </div>
 </template>
 
