@@ -2,7 +2,7 @@
 import { onBeforeUnmount, ref, useId, watch } from 'vue'
 import { api } from '../../api/client'
 import { useVoiceCommands } from '../../voice/registry.js'
-import { addressTarget } from '../../voice/targets.js'
+import { addressTarget, describeAddressSuggestion } from '../../voice/targets.js'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -123,10 +123,6 @@ function keydown(event) {
   }
 }
 
-function describeSuggestion(suggestion) {
-  return `${suggestion.address}, ${suggestion.suburb_or_locality} ${suggestion.state} ${suggestion.postcode}`
-}
-
 // Suggestions are offered only once a lookup has finished for the current text,
 // so a list left over from earlier typing is never read out as the new result.
 useVoiceCommands(() => (props.voiceLabel && !props.disabled
@@ -135,7 +131,7 @@ useVoiceCommands(() => (props.voiceLabel && !props.disabled
       label: props.voiceLabel,
       current: props.modelValue,
       setText: update,
-      suggestions: () => (status.value === 'success' ? suggestions.value.map(describeSuggestion) : []),
+      suggestions: () => (status.value === 'success' ? suggestions.value.map(describeAddressSuggestion) : []),
       choose: (index) => select(suggestions.value[index]),
     })]
   : []))

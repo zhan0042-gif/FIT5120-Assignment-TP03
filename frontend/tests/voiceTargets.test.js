@@ -6,6 +6,7 @@ const {
   addressTarget,
   buttonTarget,
   checkboxTarget,
+  describeAddressSuggestion,
   rowName,
   selectTarget,
   spokenWholeNumber,
@@ -76,6 +77,18 @@ test('an address target exposes its text, suggestions and chooser', () => {
   assert.deepEqual(target.suggestions(), ['12 Smith St, Ballarat VIC 3350'])
   target.choose(0)
   assert.deepEqual(chosen, [0])
+})
+
+test('an address suggestion reads without the parts it does not have', () => {
+  assert.equal(
+    describeAddressSuggestion({ address: '12 Smith St', suburb_or_locality: 'Ballarat', state: 'VIC', postcode: '3350' }),
+    '12 Smith St, Ballarat VIC 3350',
+  )
+  assert.equal(
+    describeAddressSuggestion({ address: 'Warrandyte Vic 3113', suburb_or_locality: null, state: 'VIC', postcode: null }),
+    'Warrandyte Vic 3113, VIC',
+  )
+  assert.equal(describeAddressSuggestion({ address: 'Somewhere' }), 'Somewhere')
 })
 
 test('rows are named by the person, or by position until they have a name', () => {

@@ -47,6 +47,15 @@ export function addressTarget({ id, label, current, setText, suggestions, choose
   return { id, kind: 'address', label, current: current ?? '', run: setText, suggestions, choose }
 }
 
+// How a suggestion is read in the voice panel. Providers may omit the locality
+// or postcode; missing parts are left out rather than printed as "null".
+export function describeAddressSuggestion(suggestion) {
+  const place = [suggestion.suburb_or_locality, suggestion.state, suggestion.postcode]
+    .filter((part) => part)
+    .join(' ')
+  return place ? `${suggestion.address}, ${place}` : suggestion.address
+}
+
 export function uniqueLabels(labels) {
   const used = new Set()
   return labels.map((label) => {
