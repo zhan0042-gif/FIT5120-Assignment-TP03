@@ -178,6 +178,12 @@ export const api = {
     request(
       `/households/${encodeURIComponent(householdId)}/tests/${encodeURIComponent(testRunId)}`,
     ),
+
+  judgeVoiceCommand: (batch) =>
+    request('/voice/judge', { method: 'POST', body: JSON.stringify(batch) }),
+
+  logVoiceTurn: (turn) =>
+    request('/voice/log', { method: 'POST', body: JSON.stringify(turn) }),
 }
 
 export function newId(prefix) {
