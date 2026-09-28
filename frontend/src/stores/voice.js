@@ -269,7 +269,8 @@ export const useVoiceStore = defineStore('voice', () => {
       return
     }
     if (decision.type === 'execute') {
-      await perform(action, turn, 'execute', mySession)
+      if (action.kind === 'address') await enterAddress(action, turn, 'execute', mySession)
+      else await perform(action, turn, 'execute', mySession)
       return
     }
     if (decision.type === 'unclear' && !reasked) {
@@ -329,28 +330,36 @@ export const useVoiceStore = defineStore('voice', () => {
       answers: [], catalogue: [], judgeMs: null, startedAt: Date.now(),
     }
     const target = held
-    const action = { kind: target.kind, target, value: transcript }
-    if (target.kind !== 'address') {
-      // The field was chosen by the judge, possibly the wrong row: replacing
-      // something already typed waits for yes, as it does everywhere else.
-      const live = snapshotTargets().find((item) => item.id === target.id)
-      if (live?.kind === 'text' && live.current && live.current !== transcript) {
-        held = action
-        reasked = false
-        setPhase('confirming')
-        message.value = ''
-        prompt.value = `${describeAction({ ...action, target: live })}? Say yes or no.`
-        logTurn({ ...turn, decision: 'confirm', action, outcome: 'pending' })
-        return
-      }
-      await perform(action, turn, 'dictated', mySession)
+    // Speech recognition may end a sentence with a full stop; it is not part of
+    // a name, a number or an address.
+    const action = { kind: target.kind, target, value: transcript.replace(/[.!?,]+$/, '') }
+
+    // The field was chosen by the judge, possibly the wrong row: replacing
+    // something already entered (and, for an address, its verification) waits
+    // for yes, as it does everywhere else.
+    const live = snapshotTargets().find((item) => item.id === target.id)
+    if (live && (live.kind === 'text' || live.kind === 'address')
+      && live.current && live.current !== action.value) {
+      held = action
+      reasked = false
+      setPhase('confirming')
+      message.value = ''
+      prompt.value = `${describeAction({ ...action, target: live })}? Say yes or no.`
+      logTurn({ ...turn, decision: 'confirm', action, outcome: 'pending' })
       return
     }
 
-    // The address goes in exactly as heard; the component's own lookup runs.
+    if (target.kind === 'address') await enterAddress(action, turn, 'dictated', mySession)
+    else await perform(action, turn, 'dictated', mySession)
+  }
+
+  // The address goes in exactly as heard; the component's own lookup runs, and
+  // the user picks from what it finds.
+  async function enterAddress(action, turn, decision, mySession) {
+    const { target } = action
     const result = await executeAction(action, snapshotTargets())
     if (!result.ok) {
-      logTurn({ ...turn, decision: 'dictated', action, outcome: 'fail' })
+      logTurn({ ...turn, decision, action, outcome: 'fail' })
       if (mySession !== session) return
       clearHeld()
       setPhase('normal')
@@ -362,7 +371,7 @@ export const useVoiceStore = defineStore('voice', () => {
     const found = await waitForSuggestions(target.id, mySession)
     if (mySession !== session) return
     if (!found.length) {
-      logTurn({ ...turn, decision: 'dictated', action, outcome: 'ok' })
+      logTurn({ ...turn, decision, action, outcome: 'ok' })
       setPhase('normal')
       message.value = 'No matching addresses were found. The address is kept as entered and is not verified.'
       return
@@ -373,7 +382,7 @@ export const useVoiceStore = defineStore('voice', () => {
     setPhase('choosing')
     message.value = ''
     prompt.value = 'Say a number from the list, or none.'
-    logTurn({ ...turn, decision: 'dictated', action, outcome: 'pending' })
+    logTurn({ ...turn, decision, action, outcome: 'pending' })
   }
 
   async function waitForSuggestions(targetId, mySession) {

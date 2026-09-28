@@ -39,7 +39,12 @@ export function selectTarget({ id, label, choices, current, set }) {
     label,
     options,
     current: currentIndex === -1 ? null : options[currentIndex],
-    run: (option) => set(valueByOption.get(option)),
+    // Picking the option already selected does nothing, as with the mouse: the
+    // browser fires no change event, and some setters discard data when called.
+    run: (option) => {
+      const value = valueByOption.get(option)
+      if (value !== current) set(value)
+    },
   }
 }
 
@@ -77,7 +82,7 @@ const NUMBER_WORDS = {
 }
 
 export function spokenWholeNumber(text) {
-  const word = String(text).trim().toLowerCase()
+  const word = String(text).trim().toLowerCase().replace(/[.!?,]+$/, '')
   const value = NUMBER_WORDS[word] ?? (word === '' ? Number.NaN : Number(word))
   if (!Number.isInteger(value) || value < 1) {
     throw new VoiceActionError('Say the quantity as a whole number, such as 2.')

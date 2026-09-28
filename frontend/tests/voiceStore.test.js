@@ -268,6 +268,42 @@ test('dictation that would replace something already typed asks first', async ()
   assert.equal(name, 'Lan Nguyen')
 })
 
+test('recognition punctuation at the end of dictation does not reach the plan', async () => {
+  let name = ''
+  registerTargets(() => [textTarget({
+    id: 'm2-name', label: 'Name (member 2)', current: name, set: (value) => { name = value },
+  })])
+  judgeReplies([a('command', 'fill in Name (member 2)', 0.95), a('span', NO_SPAN, 0.9), NO_STOP])
+  const { say } = begin()
+
+  await say('fill in the name')
+  await say('Lan Nguyen.')
+  assert.equal(name, 'Lan Nguyen')
+})
+
+test('a dictated address that would replace one already entered asks first', async () => {
+  // Replacing an address clears its verification; the judge may have picked
+  // the wrong row, so this waits for yes like any other overwrite.
+  const place = { text: '1 Old Road', searched: false, results: RESULTS, chosen: null }
+  registerTargets(() => [destination(place)])
+  judgeReplies(
+    ADDRESS_COMMAND,
+    [a('confirm', 'yes', 0.95), NO_STOP],
+  )
+  const { store, say } = begin({ suggestionWaitMs: 500 })
+
+  await say('primary destination')
+  await say('12 smith road sale')
+  assert.equal(place.text, '1 Old Road')
+  assert.equal(store.status, 'confirming')
+  assert.equal(store.prompt, 'Enter “12 smith road sale” for Primary destination address? Say yes or no.')
+
+  await say('yes')
+  assert.equal(place.text, '12 smith road sale')
+  assert.equal(store.status, 'choosing')
+  assert.deepEqual(store.suggestions, RESULTS)
+})
+
 test('a spoken address is typed as heard, then a numbered suggestion is chosen', async () => {
   const place = { text: '', searched: false, results: RESULTS, chosen: null }
   registerTargets(() => [destination(place)])

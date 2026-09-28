@@ -30,6 +30,23 @@ test('a select offers labels and stores the value behind the chosen one', () => 
   assert.equal(stored, null)
 })
 
+test('choosing the option already selected changes nothing, as with the mouse', () => {
+  // Setters such as setUsualKind discard data; the browser never fires @change
+  // for the same option, so voice must not call them either.
+  let calls = 0
+  const target = selectTarget({
+    id: 'kind',
+    label: 'Where they are during the day (Minh)',
+    choices: [{ label: 'Not recorded', value: '' }, { label: 'Work', value: 'work' }],
+    current: 'work',
+    set: () => { calls += 1 },
+  })
+  target.run('Work')
+  assert.equal(calls, 0)
+  target.run('Not recorded')
+  assert.equal(calls, 1)
+})
+
 test('repeated option labels are numbered and still map to their own values', () => {
   let stored
   const target = selectTarget({
@@ -101,6 +118,7 @@ test('whole numbers can be said as words or digits', () => {
   assert.equal(spokenWholeNumber('two'), 2)
   assert.equal(spokenWholeNumber(' 3 '), 3)
   assert.equal(spokenWholeNumber('Twelve'), 12)
+  assert.equal(spokenWholeNumber('Two.'), 2)
 })
 
 test('anything that is not a whole number of at least one is refused with a message', () => {
