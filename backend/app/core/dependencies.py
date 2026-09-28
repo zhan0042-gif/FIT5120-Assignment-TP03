@@ -11,6 +11,7 @@ from app.providers.interfaces import (
     AddressClient,
     ExplanationClient,
     FireDangerClient,
+    JudgementClient,
     RoutingClient,
     SpatialProvider,
     WeatherClient,
@@ -57,3 +58,7 @@ def get_fire_danger_client() -> FireDangerClient:
 
 def get_weather_client() -> WeatherClient:
     return _external_providers.weather
+
+
+def get_judgement_client() -> JudgementClient:
+    return _external_providers.judgement

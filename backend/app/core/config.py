@@ -11,6 +11,7 @@ from app.providers.interfaces import (
     AddressClient,
     ExplanationClient,
     FireDangerClient,
+    JudgementClient,
     RoutingClient,
     WeatherClient,
 )
@@ -18,6 +19,7 @@ from app.providers.mock import (
     MockAddressClient,
     MockExplanationClient,
     MockFireDangerClient,
+    MockJudgementClient,
     MockRoutingClient,
     MockWeatherClient,
 )
@@ -26,6 +28,7 @@ from app.providers.nvidia_explanation import (
     DisabledExplanationClient,
     NvidiaExplanationClient,
 )
+from app.providers.jev_judgement import DisabledJudgementClient
 from app.providers.tomtom_routing import TomTomRoutingClient
 
 
@@ -36,6 +39,7 @@ class ExternalProviders:
     explanation: ExplanationClient
     fire_danger: FireDangerClient
     weather: WeatherClient
+    judgement: JudgementClient
 
 
 def data_mode() -> str:
@@ -74,11 +78,30 @@ def spatial_cache_max_age() -> timedelta:
     return timedelta(hours=hours)
 
 
+def voice_mode() -> str:
+    """Which judge answers voice commands in live data mode.
+
+    Mock data mode always uses the mock judge. The live JEV client adds a third
+    value once it exists.
+    """
+    mode = os.getenv("APP_VOICE_MODE", "off").strip().lower()
+    if mode not in {"off", "mock"}:
+        raise RuntimeError("APP_VOICE_MODE must be either 'off' or 'mock'.")
+    return mode
+
+
 def _explanation_client(api_key: str | None) -> ExplanationClient:
     """Explanation is optional; a missing key disables it rather than the app."""
     if api_key and api_key.strip():
         return NvidiaExplanationClient(api_key=api_key)
     return DisabledExplanationClient()
+
+
+def _judgement_client(mode: str) -> JudgementClient:
+    """Voice control is optional; switched off, it refuses rather than stopping the app."""
+    if mode == "mock":
+        return MockJudgementClient()
+    return DisabledJudgementClient()
 
 
 def build_external_providers(mode: str | None = None) -> ExternalProviders:
@@ -90,6 +113,7 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
             explanation=MockExplanationClient(),
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
+            judgement=MockJudgementClient(),
         )
     if selected == "live":
         return ExternalProviders(
@@ -98,5 +122,6 @@ def build_external_providers(mode: str | None = None) -> ExternalProviders:
             explanation=_explanation_client(os.getenv("AI_API_KEY")),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
+            judgement=_judgement_client(voice_mode()),
         )
     raise RuntimeError("Provider mode must be either 'mock' or 'live'.")

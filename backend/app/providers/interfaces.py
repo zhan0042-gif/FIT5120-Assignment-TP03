@@ -13,6 +13,7 @@ from app.schemas.households import (
 
 
 from app.schemas.rendezvous import RendezvousResult
+from app.schemas.voice import VoiceAnswer, VoiceQuestion, VoiceState
 
 
 class SpatialResult(Protocol):
@@ -104,3 +105,15 @@ class ExplanationClient(Protocol):
     """
 
     def explain(self, result: RendezvousResult) -> str: ...
+
+
+class JudgementClient(Protocol):
+    """Answer a batch of typed questions about one spoken command.
+
+    Every answer is one of the options offered, with a probability. The
+    implementation never writes text.
+    """
+
+    def judge(
+        self, state: VoiceState, questions: list[VoiceQuestion]
+    ) -> list[VoiceAnswer]: ...

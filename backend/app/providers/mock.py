@@ -1,12 +1,14 @@
 """Stable mock providers for local development and automated tests."""
 
 from dataclasses import dataclass
+import re
 from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
 
 from app.providers.interfaces import RouteLeg
 from app.schemas.rendezvous import RendezvousResult
 from app.schemas.households import AddressSuggestion, FireDanger, HouseholdLocation, Weather
+from app.schemas.voice import VoiceAnswer, VoiceQuestion, VoiceState
 
 
 @dataclass(frozen=True)
@@ -199,3 +201,133 @@ class MockExplanationClient:
             f"{result.destination_name}, so the household is not together until "
             "that journey finishes. Consider whether anyone could start closer."
         )
+
+
+_TOKEN = re.compile(r"[a-z0-9']+")
+# Words that say what kind of command a phrase is, not which target it names.
+_COMMAND_WORDS = {
+    "go", "to", "press", "set", "fill", "in", "tick", "or", "untick", "enter",
+    "the", "address", "for", "say", "a", "an", "of",
+}
+_STOP_WORDS = {"stop", "cancel"}
+_STOP_PHRASES = ("never mind", "forget it")
+_YES_WORDS = {"yes", "yeah", "yep", "sure", "correct", "ok", "okay", "confirm"}
+_NO_WORDS = {"no", "nope", "don't", "not"}
+_NEGATIONS = {"not", "no", "untick", "uncheck", "isn't", "doesn't", "can't", "cannot", "don't"}
+_VALUE_CUES = {"is", "to", "called", "named", "as"}
+_NONE_OPTIONS = {"none of these", "(none)", "none"}
+_ORDINAL_WORDS = {"first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+                  "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9}
+_DIGITS = {str(number): number for number in range(1, 10)}
+_CARDINALS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+              "six": 6, "seven": 7, "eight": 8, "nine": 9}
+
+
+class MockJudgementClient:
+    """Word-overlap stand-in for JEV, for tests and for trying voice control locally.
+
+    Deterministic and deliberately simple. It is not a model of how JEV judges;
+    it exists so everything around the judge can be built and exercised.
+    """
+
+    def judge(
+        self, state: VoiceState, questions: list[VoiceQuestion]
+    ) -> list[VoiceAnswer]:
+        heard = state.transcript.lower()
+        tokens = _tokens(heard)
+        answers = []
+        for question in questions:
+            if question.type == "yes_no":
+                answer, probability = _yes_no(question.id, heard, set(tokens))
+            elif question.id == "span":
+                answer, probability = _span(question.options, tokens)
+            elif question.id == "suggestion":
+                answer, probability = _suggestion(question.options, tokens)
+            else:
+                answer, probability = _best_overlap(question.options, set(tokens))
+            answers.append(
+                VoiceAnswer(id=question.id, answer=answer, probability=probability)
+            )
+        return answers
+
+
+def _tokens(text: str) -> list[str]:
+    """Lower-case words, with possessives reduced ("Minh's" → "minh")."""
+    return [
+        token[:-2] if token.endswith("'s") else token
+        for token in _TOKEN.findall(text.lower())
+    ]
+
+
+def _yes_no(question_id: str, heard: str, words: set[str]) -> tuple[str, float]:
+    if question_id == "stop":
+        said = bool(words & _STOP_WORDS) or any(p in heard for p in _STOP_PHRASES)
+        return ("yes" if said else "no"), 0.95
+    if question_id == "checked":
+        return ("no" if words & _NEGATIONS else "yes"), 0.9
+    if words & _YES_WORDS and not words & _NO_WORDS:
+        return "yes", 0.95
+    if words & _NO_WORDS:
+        return "no", 0.95
+    return "no", 0.4
+
+
+def _none_option(options: list[str]) -> str:
+    return next((o for o in options if o.lower() in _NONE_OPTIONS), options[-1])
+
+
+def _span(options: list[str], tokens: list[str]) -> tuple[str, float]:
+    cues = [index for index, token in enumerate(tokens) if token in _VALUE_CUES]
+    if cues:
+        value = " ".join(tokens[cues[-1] + 1 :])
+        for option in options:
+            if value and " ".join(_tokens(option)) == value:
+                return option, 0.9
+    return _none_option(options), 0.9
+
+
+def _suggestion(options: list[str], tokens: list[str]) -> tuple[str, float]:
+    for table in (_ORDINAL_WORDS, _DIGITS, _CARDINALS):
+        for token in tokens:
+            if token in table:
+                prefix = f"{table[token]} "
+                for option in options:
+                    if option.startswith(prefix):
+                        return option, 0.95
+    if "none" in tokens:
+        return _none_option(options), 0.95
+    return _none_option(options), 0.3
+
+
+def _overlap(option: str, words: set[str]) -> tuple[float, int]:
+    """Share of the option's naming words that were said, then raw words in common."""
+    best = 0.0
+    for alternative in option.lower().split(", or say "):
+        alternative_words = set(_tokens(alternative))
+        naming = (alternative_words - _COMMAND_WORDS) or alternative_words
+        if naming:
+            best = max(best, len(naming & words) / len(naming))
+    return best, len(set(_tokens(option)) & words)
+
+
+def _best_overlap(options: list[str], words: set[str]) -> tuple[str, float]:
+    best: tuple[float, int] | None = None
+    best_index = 0
+    tied = False
+    for index, option in enumerate(options):
+        if option.lower() in _NONE_OPTIONS:
+            continue
+        key = _overlap(option, words)
+        if key[0] == 0:
+            continue
+        if best is None or key > best:
+            best, best_index, tied = key, index, False
+        elif key == best:
+            tied = True
+    if best is None:
+        none = _none_option(options)
+        return none, (0.9 if none.lower() in _NONE_OPTIONS else 0.2)
+    probability = 0.5 + 0.45 * best[0]
+    if tied:
+        probability = min(probability, 0.6)
+    return options[best_index], round(probability, 2)
