@@ -57,7 +57,9 @@ onBeforeUnmount(() => {
 <style scoped>
 /* Raised above the plan builder's save bar so it never covers Save plan. */
 .voice { position: fixed; right: 1.5rem; bottom: 6.5rem; z-index: 30; display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem; pointer-events: none; }
-.voice > * { pointer-events: auto; }
+/* The panel only shows text, so clicks pass through it to whatever it covers
+   (the plan builder's Continue button sits right under it). */
+.voice-button { pointer-events: auto; }
 .voice-panel { width: min(22rem, calc(100vw - 3rem)); padding: 0.9rem 1rem; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-bg-card); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16); }
 .voice-panel p { margin: 0; }
 .voice-panel > * + * { margin-top: 0.5rem; }
