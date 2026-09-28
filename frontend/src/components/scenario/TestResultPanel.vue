@@ -1,4 +1,7 @@
 <script setup>
+import { useRouter } from 'vue-router'
+import { useVoiceCommands } from '../../voice/registry.js'
+import { buttonTarget } from '../../voice/targets.js'
 import { formatAustralianDateTime } from '../../utils/dateTime'
 const props = defineProps({ result: { type: Object, required: true } })
 const labels = { backup_transport: 'Backup transport', backup_driver: 'Eligible backup driver', backup_person: 'Different backup person', backup_destination: 'Backup destination' }
@@ -26,6 +29,12 @@ function failureReason(result) {
   }
   return result.result_reason
 }
+
+const router = useRouter()
+
+useVoiceCommands(() => (props.result.overall_status !== 'pass'
+  ? [buttonTarget({ id: 'edit-my-plan', label: 'Edit my plan', press: () => router.push(editPlanTarget(props.result)) })]
+  : []))
 </script>
 <template>
   <div class="result">

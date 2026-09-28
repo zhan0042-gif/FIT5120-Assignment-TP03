@@ -1,4 +1,7 @@
 <script setup>
+import { useRouter } from 'vue-router'
+import { useVoiceCommands } from '../voice/registry.js'
+import { buttonTarget } from '../voice/targets.js'
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
 import CompletionOverview from '../components/completion/CompletionOverview.vue'
@@ -101,6 +104,22 @@ async function exportPdf() {
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') await householdStore.loadPlan()
   await localContextStore.init()
+})
+
+const router = useRouter()
+
+useVoiceCommands(() => {
+  const targets = [buttonTarget({
+    id: 'export-plan',
+    label: 'Export preparedness plan',
+    aliases: ['download my plan'],
+    disabled: noSavedPlan.value || exportStatus.value === 'loading',
+    press: exportPdf,
+  })]
+  if (noSavedPlan.value) {
+    targets.push(buttonTarget({ id: 'create-plan', label: 'Create my plan', press: () => router.push('/plan') }))
+  }
+  return targets
 })
 </script>
 

@@ -1,4 +1,6 @@
 <script setup>
+import { useVoiceCommands } from '../voice/registry.js'
+import { buttonTarget } from '../voice/targets.js'
 import { computed, onMounted } from 'vue'
 import { useHouseholdStore } from '../stores/household'
 import { useScenarioStore } from '../stores/scenario'
@@ -22,6 +24,15 @@ const selectedDescription = computed(() => ({
 })[selectedScenario.value?.scenario_id] ?? selectedScenario.value?.description)
 onMounted(async () => { if (householdStore.planStatus === 'idle') await householdStore.loadPlan(); if (!noSavedPlan.value) await scenarioStore.loadScenarios() })
 async function retryPlanAvailability() { await householdStore.loadPlan(); if (!noSavedPlan.value) await scenarioStore.loadScenarios() }
+
+useVoiceCommands(() => (scenarioStore.selectedScenarioId
+  ? [buttonTarget({
+      id: 'run-test',
+      label: 'Run test',
+      disabled: scenarioStore.testStatus === 'loading' || !selectedScenario.value?.enabled,
+      press: () => scenarioStore.runTest(),
+    })]
+  : []))
 </script>
 <template>
   <div class="scenario-tester">

@@ -1,11 +1,20 @@
 <script setup>
-defineProps({ scenarios: { type: Array, required: true }, selectedId: { type: String, default: null } })
+import { useVoiceCommands } from '../../voice/registry.js'
+import { buttonTarget } from '../../voice/targets.js'
+const props = defineProps({ scenarios: { type: Array, required: true }, selectedId: { type: String, default: null } })
 const emit = defineEmits(['select'])
 const copy = {
   vehicle_unavailable: { title: 'Primary transport unavailable', description: 'Check whether another recorded transport option and an eligible driver are available.', disabled: 'Add a primary transport to your plan before running this test.' },
   person_unavailable: { title: 'Primary responsible person unavailable', description: 'Check whether important responsibilities have a different backup person.', disabled: 'Add a primary responsible person to a responsibility before running this test.' },
   destination_unavailable: { title: 'Primary destination unavailable', description: 'Check whether another recorded destination is available.', disabled: 'Add a primary destination to your plan before running this test.' },
 }
+
+useVoiceCommands(() => props.scenarios.map((scenario) => buttonTarget({
+  id: `scenario-${scenario.scenario_id}`,
+  label: `${copy[scenario.scenario_id]?.title ?? scenario.title} scenario`,
+  disabled: !scenario.enabled,
+  press: () => emit('select', scenario.scenario_id),
+})))
 </script>
 <template>
   <ul class="scenario-list">

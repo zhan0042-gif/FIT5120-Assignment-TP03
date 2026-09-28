@@ -1,4 +1,6 @@
 <script setup>
+import { useVoiceCommands } from '../voice/registry.js'
+import { buttonTarget } from '../voice/targets.js'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useFireMapStore } from '../stores/fireMap'
 import { useLocalContextStore } from '../stores/localContext'
@@ -105,6 +107,23 @@ onMounted(async () => {
   await localContextStore.init()
   await loadMap()
   watchLocationChanges = true
+})
+
+useVoiceCommands(() => {
+  const targets = []
+  if (store.nearestFire) {
+    targets.push(buttonTarget({
+      id: 'nearest-fire', label: 'Nearest historical fire', aliases: ['show the nearest fire'],
+      press: () => focusFire(store.nearestFire),
+    }))
+  }
+  if (store.mostRecentFire) {
+    targets.push(buttonTarget({
+      id: 'most-recent-fire', label: 'Most recent historical fire', aliases: ['show the most recent fire'],
+      press: () => focusFire(store.mostRecentFire),
+    }))
+  }
+  return targets
 })
 </script>
 

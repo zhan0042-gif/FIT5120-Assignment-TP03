@@ -1,6 +1,18 @@
 <script setup>
+import { useRouter } from 'vue-router'
+import { useVoiceCommands } from '../voice/registry.js'
+import { buttonTarget } from '../voice/targets.js'
 import { useHouseholdStore } from '../stores/household'
 const householdStore = useHouseholdStore()
+
+const router = useRouter()
+
+useVoiceCommands(() => (householdStore.householdId
+  ? [
+      buttonTarget({ id: 'continue-plan', label: 'Continue my plan', press: () => router.push('/plan') }),
+      buttonTarget({ id: 'see-where-i-am', label: 'See where I am', press: () => router.push('/overview') }),
+    ]
+  : [buttonTarget({ id: 'start-plan', label: 'Start my plan', press: () => router.push('/plan') })]))
 </script>
 
 <template>

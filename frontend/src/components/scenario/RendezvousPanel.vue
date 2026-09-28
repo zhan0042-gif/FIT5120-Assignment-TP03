@@ -1,4 +1,6 @@
 <script setup>
+import { useVoiceCommands } from '../../voice/registry.js'
+import { buttonTarget } from '../../voice/targets.js'
 import { computed } from 'vue'
 import { useHouseholdStore } from '../../stores/household'
 import { useRendezvousStore } from '../../stores/rendezvous'
@@ -41,6 +43,25 @@ function run() {
 function explain() {
   rendezvousStore.requestExplanation(householdStore.householdId)
 }
+
+useVoiceCommands(() => {
+  const targets = [buttonTarget({
+    id: 'run-rendezvous',
+    label: result.value ? 'Run again' : 'Run simulation',
+    aliases: ['run the simulation'],
+    disabled: rendezvousStore.status === 'loading',
+    press: run,
+  })]
+  if (isReady.value && !rendezvousStore.explanation) {
+    targets.push(buttonTarget({
+      id: 'explain-rendezvous',
+      label: 'Explain this result',
+      disabled: rendezvousStore.explanationStatus === 'loading',
+      press: explain,
+    }))
+  }
+  return targets
+})
 </script>
 
 <template>
