@@ -2,8 +2,10 @@
 import { computed } from 'vue'
 import { newId } from '../../api/client'
 import AddressAutocompleteInput from '../common/AddressAutocompleteInput.vue'
+import { useVoiceCommands } from '../../voice/registry.js'
+import { buttonTarget, selectTarget, textTarget } from '../../voice/targets.js'
 
-defineProps({ transports: { type: Array, required: true } })
+const props = defineProps({ transports: { type: Array, required: true } })
 const arrangements = defineModel({ required: true })
 
 const TRANSPORT_LABELS = {
@@ -117,6 +119,70 @@ function selectBackupDestinationAddress(backup, suggestion) {
 function removeBackupArrangement(index) {
   arrangements.value.backup_arrangements.splice(index, 1)
 }
+
+function transportChoices() {
+  return [
+    { label: 'Not set', value: null },
+    ...props.transports.map((transport) => ({
+      label: transportOptionLabel(transport),
+      value: transport.transport_id,
+    })),
+  ]
+}
+
+function backupTargets(backup, index) {
+  const which = `backup ${index + 1}`
+  const targets = [
+    selectTarget({
+      id: `backup-${index}-transport`,
+      label: `Backup transport (${which})`,
+      choices: transportChoices(),
+      current: backup.transport_id,
+      set: (value) => { backup.transport_id = value },
+    }),
+    textTarget({
+      id: `backup-${index}-name`,
+      label: `Backup destination name (${which})`,
+      current: backup.destination?.display_name ?? '',
+      set: (value) => setBackupDestinationField(backup, 'display_name', value),
+    }),
+    buttonTarget({
+      id: `backup-${index}-remove`, label: `Remove ${which}`, confirm: true,
+      press: () => removeBackupArrangement(index),
+    }),
+  ]
+  if (backup.destination) {
+    targets.push(buttonTarget({
+      id: `backup-${index}-clear`, label: `Clear destination (${which})`, confirm: true,
+      press: () => { backup.destination = null },
+    }))
+  }
+  return targets
+}
+
+useVoiceCommands(() => [
+  selectTarget({
+    id: 'primary-transport',
+    label: 'Primary transport',
+    choices: transportChoices(),
+    current: arrangements.value.primary_transport_id,
+    set: (value) => { arrangements.value.primary_transport_id = value },
+  }),
+  textTarget({
+    id: 'primary-destination-name',
+    label: 'Primary destination name',
+    current: primaryName.value,
+    set: (value) => { primaryName.value = value },
+  }),
+  buttonTarget({ id: 'add-backup', label: 'Add backup arrangement', press: addBackupArrangement }),
+  ...(arrangements.value.backup_arrangements ?? []).flatMap(backupTargets),
+  textTarget({
+    id: 'meeting-point',
+    label: 'Meeting point',
+    current: arrangements.value.meeting_point,
+    set: (value) => { arrangements.value.meeting_point = value },
+  }),
+])
 </script>
 
 <template>
@@ -142,7 +208,7 @@ function removeBackupArrangement(index) {
         <label>Primary destination name</label>
         <input v-model="primaryName" type="text" placeholder="e.g. Relative's house" />
       </div>
-      <AddressAutocompleteInput :model-value="primaryAddress" label="Destination address (optional)" placeholder="Start typing a Victorian address" :helper-text="arrangements.primary_destination?.address ? (arrangements.primary_destination.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified') : ''" @update:model-value="setPrimaryDestinationAddress" @select="selectPrimaryDestinationAddress" />
+      <AddressAutocompleteInput :model-value="primaryAddress" voice-label="Primary destination address" label="Destination address (optional)" placeholder="Start typing a Victorian address" :helper-text="arrangements.primary_destination?.address ? (arrangements.primary_destination.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified') : ''" @update:model-value="setPrimaryDestinationAddress" @select="selectPrimaryDestinationAddress" />
     </div>
 
     <hr class="divider" />
@@ -180,7 +246,7 @@ function removeBackupArrangement(index) {
           <label>Backup destination name</label>
           <input :value="backup.destination?.display_name ?? ''" type="text" placeholder="e.g. Community centre" @input="setBackupDestinationField(backup, 'display_name', $event.target.value)" />
         </div>
-        <AddressAutocompleteInput :model-value="backup.destination?.address ?? ''" label="Destination address (optional)" placeholder="Start typing a Victorian address" :helper-text="backup.destination?.address ? (backup.destination.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified') : ''" @update:model-value="setBackupDestinationAddress(backup, $event)" @select="selectBackupDestinationAddress(backup, $event)" />
+        <AddressAutocompleteInput :model-value="backup.destination?.address ?? ''" :voice-label="`Backup destination address (backup ${index + 1})`" label="Destination address (optional)" placeholder="Start typing a Victorian address" :helper-text="backup.destination?.address ? (backup.destination.verification_status === 'verified' ? 'Verified address' : 'Address saved but not verified') : ''" @update:model-value="setBackupDestinationAddress(backup, $event)" @select="selectBackupDestinationAddress(backup, $event)" />
       </div>
       <button v-if="backup.destination" class="btn btn-ghost btn-sm" type="button" @click="backup.destination = null">
         Clear destination

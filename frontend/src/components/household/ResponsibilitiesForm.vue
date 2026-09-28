@@ -1,8 +1,10 @@
 <script setup>
 import { newId } from '../../api/client'
 import EmptyState from '../common/EmptyState.vue'
+import { useVoiceCommands } from '../../voice/registry.js'
+import { buttonTarget, rowName, selectTarget, textTarget } from '../../voice/targets.js'
 
-defineProps({ members: { type: Array, required: true } })
+const props = defineProps({ members: { type: Array, required: true } })
 const responsibilities = defineModel({ required: true })
 
 const TASK_PRESETS = [
@@ -38,6 +40,61 @@ function removeResponsibility(id) {
 function isConflict(r) {
   return !!r.backup_member_id && r.backup_member_id === r.primary_member_id
 }
+
+function personChoices() {
+  return [
+    { label: 'Not set', value: null },
+    ...props.members.map((member) => ({
+      label: member.display_name || 'Unnamed member',
+      value: member.member_id,
+    })),
+  ]
+}
+
+function responsibilityTargets(r, index) {
+  const which = rowName(r.task_name, 'responsibility', index)
+  const key = r.responsibility_id
+  const targets = [
+    selectTarget({
+      id: `${key}-task`,
+      label: `Task (${which})`,
+      choices: [...TASK_PRESETS.map((task) => ({ label: task, value: task })), { label: 'Other', value: 'other' }],
+      current: selectedTask(r.task_name),
+      set: (value) => changeTask(r, value),
+    }),
+    selectTarget({
+      id: `${key}-primary`, label: `Primary person (${which})`, choices: personChoices(),
+      current: r.primary_member_id, set: (value) => { r.primary_member_id = value },
+    }),
+    selectTarget({
+      id: `${key}-backup`, label: `Backup person (${which})`, choices: personChoices(),
+      current: r.backup_member_id, set: (value) => { r.backup_member_id = value },
+    }),
+    buttonTarget({
+      id: `${key}-remove`, label: `Remove responsibility ${which}`, confirm: true,
+      press: () => removeResponsibility(key),
+    }),
+  ]
+  if (selectedTask(r.task_name) === 'other') {
+    targets.push(textTarget({
+      id: `${key}-custom`, label: `Custom task (${which})`, current: r.task_name,
+      set: (value) => { r.task_name = value },
+    }))
+  }
+  return targets
+}
+
+useVoiceCommands(() => [
+  responsibilities.value.length
+    ? buttonTarget({ id: 'add-responsibility', label: 'Add another responsibility', press: addResponsibility })
+    : buttonTarget({
+        id: 'add-responsibility',
+        label: 'Add responsibility',
+        disabled: props.members.length === 0,
+        press: addResponsibility,
+      }),
+  ...responsibilities.value.flatMap(responsibilityTargets),
+])
 </script>
 
 <template>

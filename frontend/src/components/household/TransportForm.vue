@@ -1,10 +1,22 @@
 <script setup>
 import { newId } from '../../api/client'
 import EmptyState from '../common/EmptyState.vue'
+import { useVoiceCommands } from '../../voice/registry.js'
+import { buttonTarget, checkboxTarget, rowName, selectTarget, textTarget } from '../../voice/targets.js'
 
 const props = defineProps({ members: { type: Array, required: true } })
 const transports = defineModel('transports', { required: true })
 const hasPrivateTransport = defineModel('hasPrivateTransport', { required: true })
+
+// One list for the dropdown and for voice, so the options can never drift apart.
+const TRANSPORT_TYPES = [
+  ['car', 'Car / SUV'],
+  ['ute', 'Ute / Pickup'],
+  ['van', 'Van'],
+  ['motorbike', 'Motorbike'],
+  ['truck', 'Truck'],
+  ['other', 'Other'],
+]
 
 function addPrivateTransport() {
   hasPrivateTransport.value = true
@@ -48,6 +60,68 @@ function toggleDriver(transport, memberId) {
 function memberName(id) {
   return props.members.find((m) => m.member_id === id)?.display_name || 'Unnamed member'
 }
+
+function transportTargets(transport, index) {
+  const vehicle = rowName(transport.display_name, 'transport', index)
+  const key = transport.transport_id
+  const targets = [
+    selectTarget({
+      id: `${key}-type`,
+      label: `Type (${vehicle})`,
+      choices: TRANSPORT_TYPES.map(([value, label]) => ({ label, value })),
+      current: transport.transport_type,
+      set: (value) => {
+        transport.transport_type = value
+        markPrivateTransport(transport)
+      },
+    }),
+    textTarget({
+      id: `${key}-name`, label: `Vehicle name (${vehicle})`, current: transport.display_name,
+      set: (value) => { transport.display_name = value },
+    }),
+    ...props.members.map((member) => checkboxTarget({
+      id: `${key}-driver-${member.member_id}`,
+      label: `${memberName(member.member_id)} can drive (${vehicle})`,
+      current: transport.driver_member_ids.includes(member.member_id),
+      set: (value) => {
+        if (value !== transport.driver_member_ids.includes(member.member_id)) {
+          toggleDriver(transport, member.member_id)
+        }
+      },
+    })),
+    buttonTarget({
+      id: `${key}-remove`, label: `Remove transport ${vehicle}`, confirm: true,
+      press: () => removeTransport(key),
+    }),
+  ]
+  if (transport.transport_type === 'other') {
+    targets.push(textTarget({
+      id: `${key}-type-other`, label: `Other transport type (${vehicle})`,
+      current: transport.transport_type_other,
+      set: (value) => { transport.transport_type_other = value },
+    }))
+  }
+  return targets
+}
+
+useVoiceCommands(() => {
+  if (transports.value.length === 0) {
+    return [
+      buttonTarget({ id: 'add-private-transport', label: 'Add private transport', press: addPrivateTransport }),
+      hasPrivateTransport.value !== false
+        ? buttonTarget({ id: 'no-private-transport', label: 'We have no private transport', press: recordNoPrivateTransport })
+        : buttonTarget({ id: 'add-other-arrangement', label: 'Add another transport arrangement', press: addOtherArrangement }),
+    ]
+  }
+  return [
+    ...transports.value.flatMap(transportTargets),
+    buttonTarget({
+      id: 'add-transport-option',
+      label: 'Add another transport option',
+      press: () => (hasPrivateTransport.value === false ? addOtherArrangement() : addPrivateTransport()),
+    }),
+  ]
+})
 </script>
 
 <template>
@@ -78,12 +152,7 @@ function memberName(id) {
           <div class="field">
             <label>Type</label>
             <select v-model="transport.transport_type" @change="markPrivateTransport(transport)">
-              <option value="car">Car / SUV</option>
-              <option value="ute">Ute / Pickup</option>
-              <option value="van">Van</option>
-              <option value="motorbike">Motorbike</option>
-              <option value="truck">Truck</option>
-              <option value="other">Other</option>
+              <option v-for="[value, label] in TRANSPORT_TYPES" :key="value" :value="value">{{ label }}</option>
             </select>
           </div>
           <div v-if="transport.transport_type === 'other'" class="field">
