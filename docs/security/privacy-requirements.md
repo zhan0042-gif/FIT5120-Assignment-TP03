@@ -41,6 +41,7 @@ The app handles household preparedness data. Combined, these fields can reveal a
 - Database passwords or API keys (see secret-handling).
 - Any data that, combined, identifies a real household.
 - Generated AI passages that failed their safety gates — rejected text is discarded, not logged (it can quote household data).
+- Voice transcripts and spoken values, except in the local voice turn log with `VOICE_LOG_CONTENT=true`. The application logger and error messages never carry them. `logs/` is gitignored.
 
 ## 5. External data boundaries
 
@@ -52,12 +53,20 @@ The app handles household preparedness data. Combined, these fields can reveal a
 | BOM weather feed | Weather context | Low |
 | BPA / Fire District open data (DS layer) | Spatial lookup | Low |
 | NVIDIA hosted model API (`integrate.api.nvidia.com`) | A summary derived from the household's plan — see the note below | High in combination |
+| Browser speech recognition (Chrome / Edge Web Speech API) | The audio of what the user says while voice control is on | High — may include names and addresses; sent by the browser to Google, not by our backend |
+| Voice judge (`/voice/judge`; mock locally, JEV once connected) | The transcript, the current page's field labels and current values (member names, typed addresses) | High in combination |
 
 **Note on the NVIDIA boundary.** Data sent: each member's display_name, origin kind (home / work / school / other), travel and waiting minutes, and the plan's own warning strings. **No address text and no coordinates are sent.** A member's name together with a support-needs warning identifies an individual's vulnerability, so this boundary carries High-sensitivity data in combination; it is tracked as T13 in the threat model, and anonymising the name before sending remains an open decision.
 
 Rule: external live data is never merged with or stored alongside household PII without a clear purpose.
 
 **Deliberate exception:** the rendezvous explanation sends the summary above to NVIDIA for the sole purpose of producing the user-requested explanation text. There is no other purpose, no data is retained on our side, and the response is discarded if it fails the gates. Any new field added to that payload must be justified here first.
+
+**Note on voice control.** Voice control is off until the user presses the
+microphone button, and a session ends on "stop", on the button, or after 30
+seconds of silence. The mock judge runs inside our backend; nothing leaves the
+machine except the browser's own audio stream to its speech service. Before JEV
+is connected, the payload it receives must be reviewed here, as for NVIDIA.
 
 ## 6. Requirements for the team
 

@@ -36,6 +36,8 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `POST /households/{household_id}/rendezvous-explanation` | Explain a rendezvous result in 2-3 sentences. Takes the result the browser is displaying. Returns `explanation: null` when the model is unavailable or the passage fails validation. |
 | `POST /households/{household_id}/tests` | Run one deterministic scenario and persist its result. |
 | `GET /households/{household_id}/tests/{test_run_id}` | Retrieve that stored result. |
+| `POST /voice/judge` | Answer a batch of typed questions (`pick_one`, `yes_no`) about one spoken command. Every answer is one of the options offered, with a probability; anything else is refused as `503`. `422` for an oversized batch (transcript over 500 characters, over 100 questions, over 100 options). `503` when voice judging is off. Stateless. |
+| `POST /voice/log` | Append one voice turn to the local JSONL turn log. Always `202 {"accepted": true}`, even when the write fails. Transcript, spoken values and value answers are removed unless `VOICE_LOG_CONTENT=true`. |
 
 Unknown resources return `404`; schema/business validation returns `422`; unavailable persistence/providers use controlled availability errors. Fire Danger has an explicit in-response unavailable state rather than a fabricated rating.
 
@@ -140,3 +142,20 @@ users.
 
 Live mode uses `AI_API_KEY`. Without it the feature is disabled and always
 returns `explanation: null`; the rest of the application is unaffected.
+
+### Voice control
+
+The browser, not the server, knows what the current page offers. Pages register
+targets (a label and the function the mouse would call); on each finished
+utterance the browser sends the judge a `state` (page, step, transcript, target
+labels and current values) and a batch of questions, and acts only on a target
+that is still registered when the answer returns.
+
+The judge never writes text. `APP_DATA_MODE=mock` uses a deterministic
+word-overlap judge. In live data mode `APP_VOICE_MODE` is `off` (default) or
+`mock`; the JEV judge is not connected yet.
+
+Voice edits go through the same code as typed edits: they change the unsaved
+draft, and the plan is stored only through Save plan, which voice always
+confirms first. Replacing text that is already in a field, whether spoken in
+the command or dictated afterwards, also waits for a spoken yes.
