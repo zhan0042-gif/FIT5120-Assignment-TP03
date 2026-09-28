@@ -87,45 +87,66 @@ through `defineModel` and mutate reactive objects directly
 (`member.display_name`, `member.relationship`), so a handler is one line:
 
 ```js
-useVoiceCommands(() => members.value.map((member, index) => ({
+useVoiceCommands(() => members.value.map((member, index) => textTarget({
   id: `member-${member.member_id}-name`,
-  kind: 'text',
-  label: `Member ${index + 1} name`,
+  label: `Name (${member.display_name.trim() || `member ${index + 1}`})`,
   current: member.display_name,
   set: (value) => { member.display_name = value },
 })))
 ```
 
-The executor never touches the DOM to fill a field. It calls `set`. This keeps
-voice edits on exactly the same path as typed edits — the detached draft, the
-dirty comparison against the saved plan, validation and saving are all
-untouched — and it makes the executor testable without a DOM.
+The executor never touches the DOM to fill a field. It calls the target's
+`run`. This keeps voice edits on exactly the same path as typed edits — the
+detached draft, the dirty comparison against the saved plan, validation and
+saving are all untouched — and it makes the executor testable without a DOM.
+
+The registry is **read on demand, not kept reactive**. Components register a
+getter; when a transcript is final, the store calls every getter once and gets a
+fresh snapshot. Nothing re-renders because a label changed.
 
 ### Target kinds
 
-| Kind | Declared with | Examples |
+| Kind | Command phrase offered to JEV | Examples |
 |---|---|---|
-| `page` | route name, label | Overview, My Plan, Fire Map, Test My Plan |
-| `step` | step id, label | Plan builder sections |
-| `button` | label, `press()`, optional `confirm: true` | Add another member, Retry, Remove, Save |
-| `select` | label, `options` (from the same constant the template renders), `set()` | Relationship to household, Primary transport |
-| `text` | label, `current`, `set()` | Name, Vehicle name, Where are they during the day? |
-| `checkbox` | label, `current`, `set(bool)` | Is a dependant, Needs mobility support |
-| `address` | label, `setText()`, `suggestions()`, `choose(index)` | Primary and backup destination |
+| `page` | `go to <label>` | Home, My Plan, Overview, Fire Map, Test My Plan |
+| `command` | `<label>` verbatim | go back, scroll down, scroll to the top, People section |
+| `button` | `press <label>`, plus any aliases | Add another member, Continue (next step), Remove member Minh, Save plan |
+| `select` | `set <label>` | Relationship to household (Minh), Primary transport |
+| `text` | `fill in <label>` | Name (member 2), Vehicle name (transport 1) |
+| `checkbox` | `tick or untick <label>` | Has limited mobility (Minh), Lan can drive (transport 1) |
+| `address` | `enter the address for <label>` | Primary destination address |
 
-Global targets are always present: every `page`, plus `back`, `scroll`
-(up, down, top, bottom) and `stop`.
+Every target has `id`, `kind`, `label` and `run`. Buttons may carry
+`confirm: true` and `disabled`. Selects carry `options`; text, select and
+checkbox targets carry `current`; address targets add `suggestions()` and
+`choose(index)`. Shared helpers in `voice/targets.js` build each kind, so a
+select's option labels map back to their stored values in one place.
+
+Labels name the row by the member's name when there is one ("Remove member
+Minh"), falling back to position ("member 2"), because that is how people talk.
+Duplicate phrases are disambiguated by appending a number.
+
+`AppLayout` registers the global targets, present on every page: the five pages,
+`go back`, and four scroll commands. The app scrolls inside `main.content`, not
+the window — the layout fixes the page height and hides window overflow — so the
+scroll commands hold a reference to that element.
 
 Dropdown options come from the same constants the templates render, so the
 options JEV chooses among can never drift from the options on screen.
+`TransportForm` currently writes its type options inline; they move into a
+constant for this reason.
 
 ### Only what the user can see is registered
 
 `PlanBuilderView` renders all five sections at once and hides four with
 `v-show`. A naive registry would let "name is Minh" fill a field on a hidden
-section. `useVoiceCommands` therefore takes an `active` condition, and each form
-registers only while its section is the current step. Leaving a page
-unregisters its targets on unmount.
+section. A `VoiceScope` component wraps each section and provides whether it is
+active; `useVoiceCommands` injects that and returns no targets while inactive.
+Scopes nest, so a component inside an inactive scope is inactive however deep it
+sits. Leaving a page unregisters its targets on unmount.
+
+Page context travels the same way: `AppLayout` provides the route name and
+`PlanBuilderView` the current step, through `useVoiceContext`.
 
 ### Frontend units
 
@@ -134,31 +155,37 @@ unregisters its targets on unmount.
 | `components/voice/VoiceButton.vue` | Floating button and the small panel: interim words, what was done, confirmation prompts, numbered address suggestions. Mounted once in `AppLayout`. |
 | `stores/voice.js` | Session state machine: `idle → listening → judging → (confirming \| dictating \| choosing) → executing → listening` |
 | `voice/stt.js` | Adapter: `start`, `stop`, `onInterim`, `onFinal`, `onError`. A Web Speech implementation and a fake for tests. |
-| `voice/registry.js` | Register and unregister targets; `useVoiceCommands(defs, { active })`; global targets. |
-| `voice/questions.js` | Pure. Registry snapshot + transcript + mode → `state` and question batch. |
-| `voice/policy.js` | Pure. Answers → one decision: `execute`, `confirm`, `dictate`, `choose` or `reject`. |
-| `voice/executor.js` | Runs a decision: router calls, `window.scrollBy`, and target handlers. Re-checks the target is still registered first. |
+| `voice/registry.js` | Register getters and read snapshots; `useVoiceCommands(getTargets)`, `useVoiceContext(getContext)`. |
+| `voice/targets.js` | Pure. Builders for each target kind. |
+| `components/voice/VoiceScope.vue` | Provides whether its section is active. |
+| `voice/questions.js` | Pure. Registry snapshot + transcript + mode → catalogue of command phrases, `state` and question batch. |
+| `voice/policy.js` | Pure. Answers → one decision. |
+| `voice/executor.js` | Runs an action through the target's `run`, after re-checking the target is still registered and enabled. |
 | `api/client.js` | `judgeVoiceCommand()` and `logVoiceTurn()`, through the existing `ApiError` normalisation. |
 
-Pages that register targets: `WelcomeView`, `PlanBuilderView` and the four forms
-in `components/household/`, `OverviewView`, `MapView`, `ScenarioTesterView`,
-`AddressAutocompleteInput`. Each is independent work.
+Components that register targets: `AppLayout`, `WelcomeView`, `PlanBuilderView`
+and the four forms in `components/household/`, `AddressAutocompleteInput`,
+`OverviewView`, `MapView`, `ScenarioTesterView`, `ScenarioList`,
+`RendezvousPanel`, `TestResultPanel`. Each is independent work.
 
 ### Backend units
 
 | File | Responsibility |
 |---|---|
 | `providers/interfaces.py` | `JudgementClient` Protocol: `judge(state, questions) -> list[Answer]` |
-| `providers/jev_judgement.py` | Live client over `httpx`, request shape pending JEV's documentation. Also `DisabledJudgementClient`, used when no JEV key is configured: it raises `ExternalDataUnavailable`, and the app still starts. Same layout as `nvidia_explanation.py`. |
-| `providers/mock.py` | `MockJudgementClient`: deterministic word-overlap matching, so `APP_DATA_MODE=mock` and tests stay keyless and offline |
+| `providers/jev_judgement.py` | `DisabledJudgementClient`: raises `ExternalDataUnavailable`, and the app still starts. The live JEV client joins it once JEV's documentation arrives, in a follow-up plan. Same layout as `nvidia_explanation.py`. |
+| `providers/mock.py` | `MockJudgementClient`: deterministic word-overlap matching, so the whole feature runs keyless and offline |
 | `schemas/voice.py` | Request, answer and log-record models, with size limits |
 | `services/voice.py` | Call the judgement client; validate the answers against the questions asked |
 | `services/voice_log.py` | Append one JSONL record per turn; redact per configuration |
 | `api/routes/voice.py` | `POST /api/v1/voice/judge`, `POST /api/v1/voice/log` |
 
-Wiring follows the explanation client: a `_judgement_client(api_key)` helper in
+Selection follows the explanation client: a `_judgement_client()` helper in
 `core/config.py`, a field on `ExternalProviders`, and `get_judgement_client` in
-`core/dependencies.py`.
+`core/dependencies.py`. `APP_DATA_MODE=mock` always uses the mock. In live data
+mode a separate `APP_VOICE_MODE` chooses: `mock` or `off` (the default). This is
+what lets the experiment run against live TomTom addresses with a mock judge
+before JEV is connected; `jev` becomes a third value in the follow-up.
 
 No new dependencies, frontend or backend.
 
@@ -186,42 +213,64 @@ For *"primary transport is a van"* on the arrangements section:
 ```js
 state: {
   page: 'plan-builder',
-  step: 'arrangements',
+  step: 'destinations',
+  mode: 'normal',
   transcript: 'primary transport is a van',
   targets: [/* id, kind, label, current value — no handlers */],
 }
 
 questions: [
-  { id: 'intent',   type: 'pick_one', options: ['navigate', 'back', 'scroll', 'step', 'press', 'set_option', 'set_text', 'set_checkbox', 'none'] },
-  { id: 'target',   type: 'pick_one', options: [/* every registered target label */] },
-  { id: 'option:primary-transport', type: 'pick_one', options: ['Not set', 'Car / SUV', 'Van', /* … */] },
-  { id: 'option:backup-transport',  type: 'pick_one', options: [/* … */] },
-  { id: 'span',     type: 'pick_one', options: ['primary', 'primary transport', 'a van', 'van', /* … */, '(none)'] },
-  { id: 'checked',  type: 'yes_no' },
-  { id: 'stop',     type: 'yes_no' },
+  { id: 'command', type: 'pick_one', options: ['go to Overview', 'go back', 'scroll down', 'set Primary transport', 'fill in Primary destination name', /* … */, 'none of these'] },
+  { id: 'option:primary-transport', type: 'pick_one', options: ['Not set', 'Family car: Car / SUV', 'Van'] },
+  { id: 'option:backup-1-transport', type: 'pick_one', options: [/* … */] },
+  { id: 'span',    type: 'pick_one', options: ['primary', 'primary transport', 'a van', 'van', /* … */, '(none)'] },
+  { id: 'checked', type: 'yes_no' },
+  { id: 'stop',    type: 'yes_no' },
 ]
 ```
 
+**One question picks the command.** Each registered target becomes one command
+phrase (see [Target kinds](#target-kinds)), and `command` asks which phrase the
+user meant, with `none of these` as the way out. Choosing the phrase chooses both
+the kind of action and its target at once.
+
 **Every dependent question is asked up front.** An `option:` question is asked
-for every select on the step, although only the one `target` names will be used.
+for every select on the step, although only the one `command` names will be used.
 Output is free and the batch is one request, so asking speculatively costs almost
 nothing — and it means **every command costs exactly one JEV call**, never two.
 This is what keeps a turn under two seconds.
 
 v1 uses `pick_one` and `yes_no` only. `score` has no use yet.
 
+The batch depends on the mode:
+
+| Mode | Questions |
+|---|---|
+| `normal` | `command`, one `option:<target id>` per select, `span`, `checked`, `stop` |
+| `confirming` | `confirm` (yes/no), `stop` |
+| `choosing` | `suggestion` (pick one of the numbered suggestions or `none`), `stop` |
+
+Dictation sends nothing: the next utterance is the value.
+
 ### Decisions
 
 A decision's confidence is the **lowest** probability among the answers it
-depends on: `intent`, and `target`, and the value answer where there is one.
+depends on: `command`, and the value answer (`option:`, `span` or `checked`)
+where there is one.
 
 | Decision | When | What happens |
 |---|---|---|
-| `execute` | confidence ≥ 0.85, target not marked `confirm` | Perform it. Panel shows "✓ Primary transport → Van". |
-| `confirm` | 0.5 ≤ confidence < 0.85, **or** target marked `confirm` (Remove, Save) at any confidence | Hold the action. Panel asks "Set Primary transport to Van? Say yes or no." Next turn sends one `yes_no`. Yes performs it; no drops it; unclear asks once more, then drops it. |
-| `dictate` | `set_text` whose `span` answer is `(none)` or below 0.85; **always** for `address` | Panel asks "What's the name?". The next transcript is written verbatim through `set`. No JEV call. |
+| `execute` | confidence ≥ 0.85, target not marked `confirm` | Perform it. Panel shows "✓ Set Primary transport to Van". |
+| `confirm` | 0.5 ≤ confidence < 0.85, **or** target marked `confirm` (Remove, Save) at confidence ≥ 0.5, **or** a `text` value that would replace something already typed | Hold the action. Panel asks "Set Primary transport to Van? Say yes or no." The next turn is `confirming`. Yes at ≥ 0.85 performs it; no at ≥ 0.5 drops it; anything else asks once more, then drops it. |
+| `dictate` | a `text` command whose `span` is `(none)` or below 0.85, with `command` ≥ 0.5; **always** for `address` | Panel asks "What should I enter for Name (member 2)?". The next transcript is written verbatim through `run`. No JEV call. |
 | `choose` | after an address has been dictated | See [Addresses](#addresses) |
-| `reject` | confidence < 0.5, or `intent` is `none` | "I didn't catch that." Nothing changes. |
+| `reject` | confidence < 0.5, or `command` is `none of these` | "I didn't catch that." Nothing changes. |
+| `stop` | `stop` answered yes at ≥ 0.5 | The session ends. |
+
+The overwrite rule exists because rows look alike. With members "Minh" and an
+unnamed second member, "name is Lan" matches `fill in Name (Minh)` at least as
+well as `fill in Name (member 2)`. Filling an empty field on a wrong guess costs a
+retype; silently renaming Minh costs the plan.
 
 The thresholds are starting values. The log exists to replace them with measured
 ones.
@@ -240,13 +289,15 @@ Addresses are always dictated, never extracted: they are long, and one misheard
 word sends the user to a different street.
 
 1. "Primary destination" → `dictate`.
-2. The user says the address. `setText` puts it in the field exactly as heard,
+2. The user says the address. `run` puts it in the field exactly as heard,
    which triggers the component's existing suggestion lookup.
 3. The store waits up to 3 seconds for suggestions. The panel lists them,
-   numbered, and asks "Say a number, or none".
-4. The next turn asks one `pick_one` over the suggestions plus `none`.
-   The chosen index goes to `choose`, which calls the component's own `select`,
-   so coordinates and verification follow the normal path.
+   numbered, and asks "Say a number, or none". Each option reads like
+   `1 first: 12 Smith St, Ballarat VIC 3350`, so "the first one" and "number
+   one" both have words to match.
+4. The next turn is `choosing`. A `suggestion` answer at ≥ 0.85 goes to
+   `choose`, which calls the component's own `select`, so coordinates and
+   verification follow the normal path. Anything less asks once more.
 
 JEV decides only **which number the user said**. It never judges which address is
 right. "None", or no suggestions within 3 seconds, leaves the text as entered and
@@ -281,8 +332,8 @@ performed in part.
 | | Microphone blocked | "Microphone blocked — allow it in your browser settings"; session ends |
 | STT | `no-speech` | Restart silently within the session |
 | | `network` | Message; session ends |
-| Backend | No JEV key | `DisabledJudgementClient` → 503 → "Voice commands are unavailable right now" |
-| | JEV timeout (2 s) or HTTP error | `ExternalDataUnavailable` → 503 |
+| Backend | Voice judging switched off (`APP_VOICE_MODE=off`) | `DisabledJudgementClient` → 503 → "Voice commands are unavailable right now" |
+| | JEV timeout (2 s) or HTTP error (follow-up plan) | `ExternalDataUnavailable` → 503 |
 | | Malformed answers: missing ids, unknown options, probability outside 0–1 | 503. Nothing executes. |
 | | Transcript over 500 characters, over 100 questions, over 100 options in one question | 422 |
 | Session | Two failed turns in a row | Session ends |
@@ -297,12 +348,17 @@ naming an option that was not offered is treated as malformed, not trusted.
 One record per turn, appended to a JSONL file on the backend:
 
 ```json
-{"ts": "2026-09-28T10:14:03Z", "turn_id": "vt_…", "page": "plan-builder", "step": "arrangements",
+{"ts": "2026-09-28T10:14:03Z", "turn_id": "vt_…", "page": "plan-builder", "step": "destinations",
  "mode": "normal", "transcript": "primary transport is a van",
- "answers": [{"id": "intent", "answer": "set_option", "p": 0.94}, {"id": "target", "answer": "Primary transport", "p": 0.91}],
- "decision": "execute", "action": {"kind": "select", "target": "Primary transport", "value": "Van"},
+ "answers": [{"id": "command", "answer": "primary-transport", "probability": 0.94},
+             {"id": "option:primary-transport", "answer": "Van", "probability": 0.97}],
+ "decision": "execute", "action": {"kind": "select", "target": "primary-transport", "value": "Van"},
  "outcome": "ok", "latency_ms": {"judge": 240, "turn": 310}}
 ```
+
+The browser writes the `command` answer and `action.target` as the **target
+id**, not the spoken phrase, because phrases can contain member names ("Remove
+member Minh") while ids cannot.
 
 Transcripts contain member names and home addresses. This repository treats that
 as data it does not write down: the explanation feature never logs its passages,
@@ -313,7 +369,7 @@ accuracy, so both apply:
 | Setting | Default | Effect |
 |---|---|---|
 | `VOICE_LOG_PATH` | `logs/voice-turns.jsonl` (gitignored) | Where records go |
-| `VOICE_LOG_CONTENT` | `false` | When false, `transcript`, span answers, and `action.value` are removed before writing |
+| `VOICE_LOG_CONTENT` | `false` | When false, `transcript` and `action.value` are removed, and every answer other than `command`, `checked`, `confirm` and `stop` keeps its probability but loses its text |
 
 Redaction happens **on the backend**, so a browser cannot opt itself out of it.
 For local experimenting, set `VOICE_LOG_CONTENT=true` in `.env`. The standard
@@ -331,8 +387,11 @@ body:     { state, questions }
 
 POST /api/v1/voice/log
 body:     one turn record
-204:      always, including when the write fails
+202:      { accepted: true }, including when the write fails
 ```
+
+The log endpoint answers `202` with a small JSON body rather than `204`, because
+the frontend's single HTTP boundary parses every successful response as JSON.
 
 Neither endpoint is household-scoped, reads the plan, or stores anything besides
 the log line. The plan changes only through the page's own save.
@@ -346,23 +405,27 @@ tooling.
 
 | File | Covers |
 |---|---|
-| `voiceQuestions.test.js` | An `option:` question for every registered select; spans up to eight words plus `(none)`; `stop` always present; confirm mode yields a single `yes_no`; handlers never appear in `state` |
+| `voiceRegistry.test.js` | Register and unregister; snapshots call getters fresh; inactive scopes contribute nothing; context merges |
+| `voiceTargets.test.js` | Each builder; select labels map back to values; duplicate option labels are numbered |
+| `voiceQuestions.test.js` | One command phrase per target, duplicates numbered; an `option:` question for every select; spans up to eight words plus `(none)`; `stop` always present; confirming and choosing batches; handlers never appear in `state` |
 | `voicePolicy.test.js` | Exactly 0.85 executes, exactly 0.5 confirms; `confirm` targets confirm at 0.99; low span dictates; addresses always dictate; a missing answer rejects; confidence is the minimum of the answers used |
-| `voiceRegistry.test.js` | Register and unregister; inactive targets are invisible; globals always present |
-| `voiceStore.test.js` | With fake STT and swapped `api` methods: stop pre-empts a pending request; the queue keeps only the newest; yes/no confirmation; dictation writes verbatim; address choose and `none`; two failures end the session; exactly one log per turn |
-| `voiceExecutor.test.js` | Calls the right handler with the right value; refuses a target that is no longer registered |
+| `voiceExecutor.test.js` | Calls the right `run` with the right value; refuses a target that is gone, disabled, or given an option it does not offer |
+| `voiceStt.test.js` | With a fake recognition class: interim and final results; silent restart on `no-speech` and when Chrome ends the session; `not-allowed` reported |
+| `voiceStore.test.js` | With fake STT and swapped `api` methods: stop pre-empts; the queue keeps only the newest; yes/no confirmation; dictation writes verbatim; address choose and `none`; two failures end the session; exactly one log per turn |
 
-Handlers are plain functions, so none of this needs a DOM. The Web Speech adapter
-and the real page wiring are checked by hand.
+Handlers are plain functions, so none of this needs a DOM. The components'
+registrations and the real browser are checked by hand.
 
 **Backend**
 
 | File | Covers |
 |---|---|
-| `test_voice_endpoint.py` | Mock answers pass through; 422 on each size limit; 503 when disabled; 503 on an answer naming an option not offered |
-| `test_mock_judgement_client.py` | Deterministic; picks the option sharing the most words with the transcript; probabilities within 0–1 |
-| `test_voice_log.py` | Writes one JSONL line; redacts content when `VOICE_LOG_CONTENT=false`; a failed write does not raise |
-| `test_jev_judgement_provider.py` | Once JEV's documentation arrives, with `httpx.MockTransport` like `test_tomtom_routing_provider.py` |
+| `test_voice_judgement.py` | Mock client: deterministic, picks the option sharing the most words, probabilities within 0–1; provider selection by `APP_DATA_MODE` and `APP_VOICE_MODE` |
+| `test_voice_endpoint.py` | Mock answers pass through; 422 on each size limit; 503 when disabled; 503 on an answer naming an option not offered, a missing answer, or an out-of-range probability |
+| `test_voice_log.py` | Writes one JSONL line; redacts content when `VOICE_LOG_CONTENT=false`; a failed write does not raise; the endpoint answers 202 |
+
+The live JEV client's tests arrive with it, using `httpx.MockTransport` like
+`test_tomtom_routing_provider.py`.
 
 **By hand.** A checklist with one line per scenario in US8.1–US8.6, run in Chrome
 on localhost.
@@ -376,7 +439,8 @@ thresholds accordingly.
 - `docs/iteration1-integration-contract.md`: the two voice endpoints.
 - `docs/security/privacy-requirements.md`: audio sent to Google by Web Speech;
   transcripts sent to JEV; the log and its redaction setting.
-- `.env.example`: JEV settings, `VOICE_LOG_PATH`, `VOICE_LOG_CONTENT`.
+- `.env.example`: `APP_VOICE_MODE`, `VOICE_LOG_PATH`, `VOICE_LOG_CONTENT`. JEV's
+  own settings arrive with the live client.
 - `.gitignore`: `logs/`, so turn logs are never committed.
 
 ## Open until JEV's documentation arrives
@@ -399,5 +463,7 @@ These depend on JEV's actual interface and belong only in `jev_judgement.py`:
   voice would be transcribed as a command. Prompts appear in the panel instead.
 - Map gestures on the Fire Map (pan, zoom). The page itself can be opened and
   scrolled.
+- The home-address editor on Overview (`LocalContextCard`). The rest of Overview
+  is covered.
 - STT outside Chrome and Edge, and languages other than English.
 - Deployment. This is a local experiment on `experiment/sandbox`.
