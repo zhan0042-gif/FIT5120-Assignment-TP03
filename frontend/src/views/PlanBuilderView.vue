@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useHouseholdStore } from '../stores/household'
 import LoadingState from '../components/common/LoadingState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
@@ -9,9 +9,13 @@ import TransportForm from '../components/household/TransportForm.vue'
 import ArrangementsForm from '../components/household/ArrangementsForm.vue'
 import ResponsibilitiesForm from '../components/household/ResponsibilitiesForm.vue'
 import PlanChecks from '../components/completion/PlanChecks.vue'
+import VoiceScope from '../components/voice/VoiceScope.vue'
+import { useVoiceCommands, useVoiceContext } from '../voice/registry.js'
+import { buttonTarget, commandTarget } from '../voice/targets.js'
 
 const householdStore = useHouseholdStore()
 const route = useRoute()
+const router = useRouter()
 
 const draft = ref(null)
 
@@ -94,6 +98,39 @@ async function save() {
   await householdStore.savePlan(draft.value)
   if (householdStore.saveStatus === 'success') resetDraft()
 }
+
+useVoiceContext(() => ({ step: currentStep.value.id }))
+
+useVoiceCommands(() => {
+  if (!draft.value) return []
+  const targets = STEPS.map((step, index) =>
+    commandTarget({ id: `step-${step.id}`, label: `${step.label} section`, run: () => goToStep(index) }))
+  targets.push(buttonTarget({
+    id: 'step-back',
+    label: 'Back',
+    aliases: ['previous step'],
+    disabled: stepIndex.value === 0,
+    press: () => goToStep(stepIndex.value - 1),
+  }))
+  if (stepIndex.value < STEPS.length - 1) {
+    targets.push(buttonTarget({
+      id: 'step-continue',
+      label: 'Continue',
+      aliases: ['next step'],
+      press: () => goToStep(stepIndex.value + 1),
+    }))
+  } else {
+    targets.push(buttonTarget({ id: 'test-my-plan', label: 'Test my plan', press: () => router.push('/scenarios') }))
+  }
+  targets.push(buttonTarget({
+    id: 'save-plan',
+    label: 'Save plan',
+    confirm: true,
+    disabled: !hasUnsavedChanges.value || validationErrors.value.length > 0 || householdStore.saveStatus === 'loading',
+    press: save,
+  }))
+  return targets
+})
 </script>
 
 <template>
@@ -125,24 +162,33 @@ async function save() {
       />
 
       <template v-else-if="draft">
-        <div v-show="stepIndex === 0">
-          <HouseholdMembersForm v-model:members="draft.members" v-model:animals="draft.animals" />
-        </div>
-        <div v-show="stepIndex === 1">
-          <TransportForm
-            id="plan-transport"
-            tabindex="-1"
-            v-model:transports="draft.transports"
-            v-model:has-private-transport="draft.has_private_transport"
-            :members="draft.members"
-          />
-        </div>
-        <div v-show="stepIndex === 2">
-          <ArrangementsForm id="plan-destinations" v-model="draft.arrangements" :transports="draft.transports" tabindex="-1" />
-        </div>
-        <div v-show="stepIndex === 3">
-          <ResponsibilitiesForm id="plan-responsibilities" v-model="draft.responsibilities" :members="draft.members" tabindex="-1" />
-        </div>
+        <!-- All five steps stay mounted; each scope offers voice commands only while visible. -->
+        <VoiceScope :active="stepIndex === 0">
+          <div v-show="stepIndex === 0">
+            <HouseholdMembersForm v-model:members="draft.members" v-model:animals="draft.animals" />
+          </div>
+        </VoiceScope>
+        <VoiceScope :active="stepIndex === 1">
+          <div v-show="stepIndex === 1">
+            <TransportForm
+              id="plan-transport"
+              tabindex="-1"
+              v-model:transports="draft.transports"
+              v-model:has-private-transport="draft.has_private_transport"
+              :members="draft.members"
+            />
+          </div>
+        </VoiceScope>
+        <VoiceScope :active="stepIndex === 2">
+          <div v-show="stepIndex === 2">
+            <ArrangementsForm id="plan-destinations" v-model="draft.arrangements" :transports="draft.transports" tabindex="-1" />
+          </div>
+        </VoiceScope>
+        <VoiceScope :active="stepIndex === 3">
+          <div v-show="stepIndex === 3">
+            <ResponsibilitiesForm id="plan-responsibilities" v-model="draft.responsibilities" :members="draft.members" tabindex="-1" />
+          </div>
+        </VoiceScope>
         <div v-show="stepIndex === 4">
           <PlanChecks :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
         </div>

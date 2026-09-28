@@ -2,6 +2,15 @@
 import { newId } from '../../api/client'
 import AddressAutocompleteInput from '../common/AddressAutocompleteInput.vue'
 import EmptyState from '../common/EmptyState.vue'
+import { useVoiceCommands } from '../../voice/registry.js'
+import {
+  buttonTarget,
+  checkboxTarget,
+  rowName,
+  selectTarget,
+  spokenWholeNumber,
+  textTarget,
+} from '../../voice/targets.js'
 
 const members = defineModel('members', { required: true })
 const animals = defineModel('animals', { required: true })
@@ -102,6 +111,123 @@ function changeAnimalCategory(animal) {
   animal.animal_type_other = null
   if (animal.category === 'pet' && !animal.quantity) animal.quantity = 1
 }
+
+function memberTargets(member, index) {
+  const who = rowName(member.display_name, 'member', index)
+  const key = member.member_id
+  const targets = [
+    textTarget({
+      id: `${key}-name`, label: `Name (${who})`, current: member.display_name,
+      set: (value) => { member.display_name = value },
+    }),
+    selectTarget({
+      id: `${key}-relationship`,
+      label: `Relationship to household (${who})`,
+      choices: [
+        { label: 'Prefer not to specify', value: null },
+        ...RELATIONSHIPS.map(([value, label]) => ({ label, value })),
+      ],
+      current: member.relationship,
+      set: (value) => { member.relationship = value },
+    }),
+    selectTarget({
+      id: `${key}-usual-kind`,
+      label: `Where they are during the day (${who})`,
+      choices: [
+        { label: 'Not recorded', value: '' },
+        ...USUAL_LOCATION_KINDS.map(([value, label]) => ({ label, value })),
+      ],
+      current: member.usual_location?.kind ?? '',
+      set: (value) => setUsualKind(member, value),
+    }),
+    textTarget({
+      id: `${key}-support`, label: `Other support needs (${who})`, current: member.support_notes,
+      set: (value) => { member.support_notes = value },
+    }),
+    checkboxTarget({
+      id: `${key}-dependant`, label: `Needs help from another household member (${who})`,
+      current: member.is_dependant, set: (value) => { member.is_dependant = value },
+    }),
+    checkboxTarget({
+      id: `${key}-mobility`, label: `Has limited mobility (${who})`,
+      current: member.mobility_support_required,
+      set: (value) => { member.mobility_support_required = value },
+    }),
+    buttonTarget({
+      id: `${key}-remove`, label: `Remove member ${who}`, confirm: true,
+      press: () => removeMember(key),
+    }),
+  ]
+  if (member.relationship === 'other') {
+    targets.push(textTarget({
+      id: `${key}-relationship-other`, label: `Relationship details (${who})`,
+      current: member.relationship_other, set: (value) => { member.relationship_other = value },
+    }))
+  }
+  return targets
+}
+
+function animalTargets(animal, index) {
+  const which = rowName(animal.display_name, 'animal', index)
+  const key = animal.animal_id
+  const targets = [
+    selectTarget({
+      id: `${key}-category`,
+      label: `Category (${which})`,
+      choices: [{ label: 'Pet', value: 'pet' }, { label: 'Livestock', value: 'livestock' }],
+      current: animal.category,
+      set: (value) => {
+        animal.category = value
+        changeAnimalCategory(animal)
+      },
+    }),
+    selectTarget({
+      id: `${key}-type`,
+      label: `Animal type (${which})`,
+      choices: ANIMAL_TYPES[animal.category].map(([value, label]) => ({ label, value })),
+      current: animal.animal_type,
+      set: (value) => { animal.animal_type = value },
+    }),
+    textTarget({
+      id: `${key}-quantity`, label: `Quantity (${which})`, current: String(animal.quantity ?? ''),
+      set: (value) => { animal.quantity = spokenWholeNumber(value) },
+    }),
+    textTarget({
+      id: `${key}-name`, label: `Name (${which})`, current: animal.display_name,
+      set: (value) => { animal.display_name = value },
+    }),
+    textTarget({
+      id: `${key}-notes`, label: `Special transport or care notes (${which})`, current: animal.support_notes,
+      set: (value) => { animal.support_notes = value },
+    }),
+    buttonTarget({
+      id: `${key}-remove`, label: `Remove animal ${which}`, confirm: true,
+      press: () => removeAnimal(key),
+    }),
+  ]
+  if (animal.animal_type === 'other') {
+    targets.push(textTarget({
+      id: `${key}-type-other`, label: `Other animal type (${which})`, current: animal.animal_type_other,
+      set: (value) => { animal.animal_type_other = value },
+    }))
+  }
+  return targets
+}
+
+useVoiceCommands(() => [
+  buttonTarget({
+    id: 'add-member',
+    label: members.value.length ? 'Add another member' : 'Add member',
+    press: addMember,
+  }),
+  ...members.value.flatMap(memberTargets),
+  buttonTarget({
+    id: 'add-animal',
+    label: animals.value.length ? 'Add another animal' : 'Add animal',
+    press: addAnimal,
+  }),
+  ...animals.value.flatMap(animalTargets),
+])
 </script>
 
 <template>
@@ -124,7 +250,7 @@ function changeAnimalCategory(animal) {
     </EmptyState>
 
     <template v-else>
-      <div v-for="member in members" :key="member.member_id" class="member-row">
+      <div v-for="(member, index) in members" :key="member.member_id" class="member-row">
         <div class="member-row-header">
           <span class="member-row-title">{{ member.display_name.trim() || 'Household member' }}</span>
           <button class="btn btn-danger btn-sm" type="button" @click="removeMember(member.member_id)">Remove</button>
@@ -162,6 +288,7 @@ function changeAnimalCategory(animal) {
           <div v-if="member.usual_location && member.usual_location.kind !== 'home'" class="field member-usual-address">
             <AddressAutocompleteInput
               label="Address"
+              :voice-label="`Daytime address (${rowName(member.display_name, 'member', index)})`"
               :model-value="member.usual_location.address"
               :helper-text="usualLocationHelperText(member)"
               @update:model-value="setUsualAddress(member, $event)"

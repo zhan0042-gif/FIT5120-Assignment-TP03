@@ -1,6 +1,8 @@
 <script setup>
 import { onBeforeUnmount, ref, useId, watch } from 'vue'
 import { api } from '../../api/client'
+import { useVoiceCommands } from '../../voice/registry.js'
+import { addressTarget } from '../../voice/targets.js'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -8,6 +10,8 @@ const props = defineProps({
   placeholder: { type: String, default: 'Start typing a Victorian street address' },
   helperText: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
+  // The spoken name for this field. Without it the field is not voice-controlled.
+  voiceLabel: { type: String, default: '' },
 })
 const emit = defineEmits(['update:modelValue', 'select'])
 const componentId = useId()
@@ -118,6 +122,23 @@ function keydown(event) {
     activeIndex.value = -1
   }
 }
+
+function describeSuggestion(suggestion) {
+  return `${suggestion.address}, ${suggestion.suburb_or_locality} ${suggestion.state} ${suggestion.postcode}`
+}
+
+// Suggestions are offered only once a lookup has finished for the current text,
+// so a list left over from earlier typing is never read out as the new result.
+useVoiceCommands(() => (props.voiceLabel && !props.disabled
+  ? [addressTarget({
+      id: `address-${componentId}`,
+      label: props.voiceLabel,
+      current: props.modelValue,
+      setText: update,
+      suggestions: () => (status.value === 'success' ? suggestions.value.map(describeSuggestion) : []),
+      choose: (index) => select(suggestions.value[index]),
+    })]
+  : []))
 </script>
 
 <template>
