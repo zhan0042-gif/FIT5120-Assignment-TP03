@@ -59,7 +59,7 @@ h1 { font-size: clamp(2.6rem, 5.4vw, 4.4rem); font-weight: 700; letter-spacing: 
 .preview-row.is-lead { background: var(--color-accent-soft); border: 1px solid var(--color-accent); }
 .preview-name { font-size: 1.0625rem; font-weight: 500; }
 .preview-row.is-lead .preview-name { font-weight: 700; }
-.preview-rank { align-items: center; background: rgba(245, 239, 231, 0.12); border-radius: var(--radius-pill); color: var(--color-text-muted); display: inline-flex; font-size: 0.875rem; font-weight: 700; height: 1.65rem; justify-content: center; width: 1.65rem; }
+.preview-rank { align-items: center; background: var(--color-rank-bg); border-radius: var(--radius-pill); color: var(--color-text-muted); display: inline-flex; font-size: 0.875rem; font-weight: 700; height: 1.65rem; justify-content: center; width: 1.65rem; }
 .preview-row.is-lead .preview-rank { background: var(--color-accent); color: var(--color-text-inverse); }
 .beats { border-top: 1px solid var(--color-border); display: grid; gap: 1.75rem; grid-template-columns: repeat(3, minmax(0, 1fr)); padding-top: 2rem; }
 .beat { display: flex; flex-direction: column; gap: 0.4rem; }

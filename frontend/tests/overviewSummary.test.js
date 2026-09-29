@@ -19,6 +19,7 @@ const { useHouseholdStore } = await import('../src/stores/household.js')
 const originalApi = { ...api }
 const originalFetch = globalThis.fetch
 const overviewSource = await readFile(new URL('../src/views/OverviewView.vue', import.meta.url), 'utf8')
+const styleSource = await readFile(new URL('../src/style.css', import.meta.url), 'utf8')
 const localContextSource = await readFile(
   new URL('../src/components/localContext/LocalContextCard.vue', import.meta.url),
   'utf8',
@@ -97,8 +98,15 @@ test('overview contains only the concise saved-plan summary', () => {
   assert.doesNotMatch(overviewSource, /Current conditions/)
   assert.doesNotMatch(overviewSource, /Fire Danger Rating/)
   assert.doesNotMatch(overviewSource, /Historical fire activity/)
-  for (const colour of ['#F6F1E8', '#EDE4D8', '#241F1B', '#5F554D', '#D8CCBE']) {
-    assert.match(overviewSource, new RegExp(colour))
+  for (const [token, colour] of [
+    ['row', '#f6f1e8'],
+    ['heading', '#ede4d8'],
+    ['text', '#241f1b'],
+    ['muted', '#5f554d'],
+    ['border', '#d8ccbe'],
+  ]) {
+    assert.match(overviewSource, new RegExp(`var\\(--color-summary-${token}\\)`))
+    assert.match(styleSource, new RegExp(`--color-summary-${token}: ${colour};`))
   }
 })
 
