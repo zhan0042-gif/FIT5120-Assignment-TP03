@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useHouseholdStore } from '../stores/household'
 import LoadingState from '../components/common/LoadingState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
@@ -9,9 +9,11 @@ import TransportForm from '../components/household/TransportForm.vue'
 import ArrangementsForm from '../components/household/ArrangementsForm.vue'
 import ResponsibilitiesForm from '../components/household/ResponsibilitiesForm.vue'
 import PlanChecks from '../components/completion/PlanChecks.vue'
+import { saveAndReview } from '../utils/planReviewNavigation'
 
 const householdStore = useHouseholdStore()
 const route = useRoute()
+const router = useRouter()
 
 const draft = ref(null)
 
@@ -87,12 +89,29 @@ const validationErrors = computed(() => {
   return errors
 })
 
+const saveDisabled = computed(() =>
+  !hasUnsavedChanges.value || validationErrors.value.length > 0 || householdStore.saveStatus === 'loading',
+)
+const saveLabel = computed(() =>
+  householdStore.saveStatus === 'loading' ? 'Saving…' : hasUnsavedChanges.value ? 'Save plan' : 'Saved',
+)
+
 async function save() {
   // The backend accepts one structurally valid aggregate even when completion
   // sections are unfinished; completion and checks evaluate saved state later.
-  if (!draft.value || validationErrors.value.length > 0) return
+  if (!draft.value || validationErrors.value.length > 0 || householdStore.saveStatus === 'loading') return false
   await householdStore.savePlan(draft.value)
-  if (householdStore.saveStatus === 'success') resetDraft()
+  if (householdStore.saveStatus !== 'success') return false
+  resetDraft()
+  return true
+}
+
+async function reviewPlan() {
+  await saveAndReview({
+    needsSave: hasUnsavedChanges.value || !householdStore.planExists,
+    save,
+    navigate: (path) => router.push(path),
+  })
 }
 </script>
 
@@ -114,8 +133,21 @@ async function save() {
         <span class="step-progress">Step {{ stepIndex + 1 }} of {{ STEPS.length }}</span>
       </nav>
 
-      <h1 class="headline">{{ currentStep.heading }}</h1>
-      <p class="subhead">{{ currentStep.subhead }}</p>
+      <div class="step-header">
+        <div class="step-heading">
+          <h1 class="headline">{{ currentStep.heading }}</h1>
+          <p class="subhead">{{ currentStep.subhead }}</p>
+        </div>
+        <div v-if="draft && stepIndex < STEPS.length - 1" class="top-save">
+          <button class="btn" :class="hasUnsavedChanges ? 'btn-accent' : 'btn-ghost saved-button'" type="button" :disabled="saveDisabled" @click="save">
+            {{ saveLabel }}
+          </button>
+          <span v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</span>
+          <span v-else-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</span>
+          <span v-else-if="hasUnsavedChanges" class="save-message">Unsaved changes</span>
+          <span v-else class="save-message status-text status-success">✓ All changes saved.</span>
+        </div>
+      </div>
 
       <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your household plan…" />
       <ErrorState
@@ -150,7 +182,7 @@ async function save() {
         <div class="step-nav">
           <button type="button" class="btn btn-ghost" :disabled="stepIndex === 0" @click="goToStep(stepIndex - 1)">Back</button>
           <button v-if="stepIndex < STEPS.length - 1" type="button" class="btn btn-accent" @click="goToStep(stepIndex + 1)">Continue</button>
-          <router-link v-else class="btn btn-accent" to="/scenarios">Test my plan</router-link>
+          <button v-else type="button" class="btn btn-accent" :disabled="validationErrors.length > 0 || householdStore.saveStatus === 'loading'" @click="reviewPlan">Save &amp; Review Plan</button>
         </div>
       </template>
     </div>
@@ -166,10 +198,10 @@ async function save() {
         class="btn"
         :class="hasUnsavedChanges ? 'btn-accent' : 'btn-ghost saved-button'"
         type="button"
-        :disabled="!hasUnsavedChanges || validationErrors.length > 0 || householdStore.saveStatus === 'loading'"
+        :disabled="saveDisabled"
         @click="save"
       >
-        {{ householdStore.saveStatus === 'loading' ? 'Saving…' : hasUnsavedChanges ? 'Save plan' : 'Saved' }}
+        {{ saveLabel }}
       </button>
     </div>
   </div>
@@ -279,6 +311,16 @@ async function save() {
   min-width: 0;
 }
 
+.step-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 1.5rem;
+  justify-content: space-between;
+  margin-bottom: 1.75rem;
+}
+
+.step-heading { min-width: 0; }
+
 .headline {
   font-size: clamp(2rem, 4vw, 2.25rem);
   margin: 0.4rem 0 0.5rem;
@@ -286,7 +328,23 @@ async function save() {
 
 .subhead {
   color: var(--color-text-muted);
-  margin-bottom: 1.75rem;
+}
+
+.top-save {
+  align-items: flex-end;
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 15rem;
+  text-align: right;
+}
+
+.top-save .btn { flex: 0 0 auto; }
+
+@media (max-width: 700px) {
+  .step-header { flex-direction: column; gap: 0.75rem; }
+  .top-save { align-items: flex-start; max-width: 100%; text-align: left; }
 }
 
 .save-bar {
