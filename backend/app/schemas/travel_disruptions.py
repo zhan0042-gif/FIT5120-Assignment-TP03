@@ -15,6 +15,7 @@ class RoadDisruption(BaseModel):
     road_name: str | None = None
     description: str | None = None
     impact: str | None = None
+    direction: str | None = None
     status: str | None = None
 
     latitude: float | None = None
@@ -31,6 +32,9 @@ class DestinationDisruptions(BaseModel):
 
     destination_id: str | None = None
     destination_name: str
+    destination_address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     search_radius_km: float
     active_disruption_count: int
     disruptions: list[RoadDisruption] = []

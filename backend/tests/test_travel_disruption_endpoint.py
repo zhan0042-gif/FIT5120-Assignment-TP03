@@ -78,6 +78,10 @@ def test_travel_disruption_endpoint_returns_available_result():
         body["primary_destination"]["active_disruption_count"]
         == 1
     )
+    assert body["primary_destination"]["destination_address"] == "Example address"
+    assert body["primary_destination"]["latitude"] == -37.8136
+    assert body["primary_destination"]["longitude"] == 144.9631
+    assert body["primary_destination"]["disruptions"][0]["latitude"] is not None
 
 
 def test_travel_disruption_endpoint_accepts_radius():

@@ -62,7 +62,7 @@ def test_active_nearby_disruption_is_returned():
                             "eventSubType": "Road Damage",
                             "closedRoadName": "Example Road",
                             "description": "Road damaged",
-                            "impact": "Traffic affected",
+                            "impact": {"direction": "Both directions", "impactType": "Traffic affected"},
                             "lastUpdated": "2026-09-14T00:30:00Z",
                         },
                     }
@@ -86,7 +86,31 @@ def test_active_nearby_disruption_is_returned():
     assert disruption.event_subtype == "Road Damage"
     assert disruption.road_name == "Example Road"
     assert disruption.status == "Active"
+    assert disruption.direction == "Both directions"
+    assert disruption.impact == "direction: Both directions; impactType: Traffic affected"
     assert disruption.distance_km == pytest.approx(0.0, abs=0.01)
+
+
+def test_line_disruption_marker_uses_nearest_reported_coordinate():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json=api_response([{
+                "geometry": {
+                    "type": "LineString",
+                    "coordinates": [[145.5, -37.0], [144.9631, -37.8136]],
+                },
+                "properties": {"impactId": "line-1", "status": "Active"},
+            }]),
+        )
+
+    result = make_client(handler).nearby_disruptions(
+        -37.8136, 144.9631, radius_km=10
+    )
+
+    assert len(result) == 1
+    assert result[0].latitude == -37.8136
+    assert result[0].longitude == 144.9631
 
 
 def test_inactive_disruption_is_ignored():

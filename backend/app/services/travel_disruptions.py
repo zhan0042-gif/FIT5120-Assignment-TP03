@@ -117,6 +117,9 @@ class TravelDisruptionService:
                 or destination.address
                 or "Saved destination"
             ),
+            destination_address=destination.canonical_address or destination.address,
+            latitude=destination.latitude,
+            longitude=destination.longitude,
             search_radius_km=radius_km,
             active_disruption_count=len(disruptions),
             disruptions=disruptions,

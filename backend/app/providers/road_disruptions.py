@@ -492,17 +492,15 @@ class VictorianRoadDisruptionClient:
             coordinates
         )
 
-        point_latitude = (
-            points[0][0]
-            if points
-            else None
-        )
+        nearest_point = min(
+            points,
+            key=lambda point: _haversine_km(
+                latitude, longitude, point[0], point[1]
+            ),
+        ) if points else None
 
-        point_longitude = (
-            points[0][1]
-            if points
-            else None
-        )
+        point_latitude = nearest_point[0] if nearest_point else None
+        point_longitude = nearest_point[1] if nearest_point else None
 
         road_name = (
             properties.get(
@@ -515,6 +513,11 @@ class VictorianRoadDisruptionClient:
                 "roadName"
             )
         )
+
+        impact = properties.get("impact")
+        direction = properties.get("direction")
+        if direction is None and isinstance(impact, dict):
+            direction = impact.get("direction")
 
         return RoadDisruption(
             disruption_id=str(
@@ -538,11 +541,8 @@ class VictorianRoadDisruptionClient:
                     "description"
                 )
             ),
-            impact=_normalise_text(
-                properties.get(
-                    "impact"
-                )
-            ),
+            impact=_normalise_text(impact),
+            direction=_normalise_text(direction),
             status=status or None,
             latitude=point_latitude,
             longitude=point_longitude,

@@ -58,8 +58,13 @@ def test_primary_destination_disruptions_are_returned():
     assert result.primary_destination is not None
     assert result.primary_destination.destination_id == "destination_primary"
     assert result.primary_destination.destination_name == "Primary destination"
+    assert result.primary_destination.destination_address == "Primary destination address"
+    assert result.primary_destination.latitude == -37.8136
+    assert result.primary_destination.longitude == 144.9631
+    assert result.primary_destination.search_radius_km == 10
     assert result.primary_destination.active_disruption_count == 1
     assert len(result.primary_destination.disruptions) == 1
+    assert result.primary_destination.disruptions[0].latitude is not None
 
 
 def test_backup_destinations_are_returned():
@@ -94,6 +99,8 @@ def test_backup_destinations_are_returned():
         result.backup_destinations[0].destination_id
         == "destination_backup"
     )
+    assert result.backup_destinations[0].latitude == -37.82
+    assert result.backup_destinations[0].longitude == 144.97
 
 
 def test_primary_and_backup_destinations_are_both_checked():

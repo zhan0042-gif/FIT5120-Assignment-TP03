@@ -5,11 +5,18 @@ import { useTravelDisruptionsStore } from '../../stores/travelDisruptions'
 import LoadingState from '../common/LoadingState.vue'
 import ErrorState from '../common/ErrorState.vue'
 import EmptyState from '../common/EmptyState.vue'
+import {
+  coreDisruptionDescription,
+  destinationAddress,
+  disruptionStatus,
+  uncheckedDestinations,
+} from '../../utils/travelReadinessPresentation'
 
 const householdStore = useHouseholdStore()
 const disruptionStore = useTravelDisruptionsStore()
 
 const result = computed(() => disruptionStore.result)
+const unchecked = computed(() => uncheckedDestinations(householdStore.plan))
 
 const destinationGroups = computed(() => {
   if (!result.value || result.value.status !== 'available') {
@@ -56,20 +63,13 @@ function formatDateTime(value) {
     timeStyle: 'short',
   }).format(date)
 }
+
 </script>
 
 <template>
   <section class="card disruption-panel">
     <div class="panel-heading">
-      <div>
-        <p class="eyebrow">Travel readiness</p>
-        <h2>Travel disruption awareness</h2>
-
-        <p class="intro">
-          Check current reported road disruptions near your saved evacuation
-          destinations.
-        </p>
-      </div>
+      <h2>Reported disruptions</h2>
 
       <button
         class="btn btn-accent btn-sm"
@@ -152,6 +152,7 @@ function formatDateTime(value) {
             <h3>
               {{ destination.destination_name }}
             </h3>
+            <p v-if="destinationAddress(destination)" class="destination-address notranslate" translate="no">{{ destinationAddress(destination) }}</p>
           </div>
 
           <span
@@ -169,7 +170,7 @@ function formatDateTime(value) {
           </span>
         </div>
 
-        <p class="radius-note">
+        <p v-if="destination.active_disruption_count > 0" class="radius-note">
           Reported within {{ destination.search_radius_km }} km
         </p>
 
@@ -177,8 +178,7 @@ function formatDateTime(value) {
           v-if="destination.active_disruption_count === 0"
           class="no-disruptions"
         >
-          No active reported road disruptions were found within this search
-          radius.
+          No nearby disruptions reported within {{ destination.search_radius_km }} km.
         </p>
 
         <div
@@ -211,16 +211,9 @@ function formatDateTime(value) {
               {{ disruption.road_name }}
             </p>
 
-            <p v-if="disruption.description">
-              {{ disruption.description }}
-            </p>
+            <p v-if="disruptionStatus(disruption)" class="impact-status">{{ disruptionStatus(disruption) }}</p>
 
-            <p
-              v-if="disruption.impact"
-              class="impact"
-            >
-              Impact: {{ disruption.impact }}
-            </p>
+            <p v-if="disruption.description" class="description">{{ coreDisruptionDescription(disruption.description) }}</p>
 
             <p
               v-if="disruption.last_updated"
@@ -236,37 +229,38 @@ function formatDateTime(value) {
         {{ result.disclaimer }}
       </p>
     </div>
+
+    <div v-if="unchecked.length && householdStore.planStatus === 'success'" class="unchecked-results">
+      <div
+        v-for="destination in unchecked"
+        :key="`${destination.type}-${destination.destination_id}`"
+        class="destination-block"
+      >
+        <span class="destination-type">{{ destination.type }}</span>
+        <h3>{{ destination.destination_name }}</h3>
+        <p v-if="destinationAddress(destination)" class="destination-address notranslate" translate="no">{{ destinationAddress(destination) }}</p>
+        <p class="unchecked-message">Road disruption information cannot be checked because this destination does not have verified coordinates.</p>
+      </div>
+    </div>
   </section>
 </template>
 
 <style scoped>
 .disruption-panel {
-  margin-top: 1.5rem;
+  min-width: 0;
 }
 
 .panel-heading {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
-  align-items: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .panel-heading h2 {
-  margin: 0.2rem 0 0;
-}
-
-.eyebrow {
   margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.intro {
-  color: var(--color-text-muted);
-  margin: 0.6rem 0 0;
-  max-width: 48rem;
+  font-size: 1.25rem;
 }
 
 .results {
@@ -275,6 +269,8 @@ function formatDateTime(value) {
   gap: 1rem;
   margin-top: 1.25rem;
 }
+
+.unchecked-results { display: flex; flex-direction: column; gap: 1rem; margin-top: 1.25rem; }
 
 .destination-block {
   border: 1px solid var(--color-border);
@@ -292,6 +288,8 @@ function formatDateTime(value) {
 .destination-heading h3 {
   margin: 0.2rem 0 0;
 }
+
+.destination-heading > div { min-width: 0; }
 
 .destination-type {
   color: var(--color-text-muted);
@@ -312,11 +310,15 @@ function formatDateTime(value) {
 }
 
 .radius-note,
+.destination-address,
 .updated,
-.impact {
+.description {
   color: var(--color-text-muted);
   font-size: 0.85rem;
 }
+
+.impact-status { font-weight: 600; }
+.unchecked-message { margin-bottom: 0; }
 
 .no-disruptions {
   margin-bottom: 0;
@@ -334,6 +336,7 @@ function formatDateTime(value) {
   border-radius: 10px;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
+  overflow-wrap: anywhere;
 }
 
 .disruption-item p {
@@ -344,6 +347,7 @@ function formatDateTime(value) {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+  flex-wrap: wrap;
 }
 
 .disruption-topline span {

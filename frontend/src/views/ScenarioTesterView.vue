@@ -8,7 +8,6 @@ import EmptyState from '../components/common/EmptyState.vue'
 import ScenarioList from '../components/scenario/ScenarioList.vue'
 import TestResultPanel from '../components/scenario/TestResultPanel.vue'
 import RendezvousPanel from '../components/scenario/RendezvousPanel.vue'
-import TravelDisruptionPanel from '../components/scenario/TravelDisruptionPanel.vue'
 const householdStore = useHouseholdStore()
 const scenarioStore = useScenarioStore()
 const readyToTest = computed(() => householdStore.plan !== null)
@@ -52,9 +51,6 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
       v-if="!noSavedPlan && readyToTest"
     />
 
-    <TravelDisruptionPanel
-      v-if="!noSavedPlan && readyToTest"
-    />
   </div>
 </template>
 <style scoped>
