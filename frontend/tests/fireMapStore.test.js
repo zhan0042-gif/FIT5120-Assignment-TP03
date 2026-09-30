@@ -148,6 +148,21 @@ test('the map page uses distinct icons, a radius-aware viewport and concise insi
   assert.doesNotMatch(viewSource, /Showing \{\{/)
 })
 
+test('historical data outages leave bushfire context visible without invented fire insights', async () => {
+  const viewSource = await readFile(new URL('../src/views/MapView.vue', import.meta.url), 'utf8')
+  const historicalInsights = viewSource.match(
+    /<template v-if="store.status === 'success'">([\s\S]*?)<\/template>/,
+  )?.[1] ?? ''
+
+  assert.match(viewSource, /v-else class="map-layout"/)
+  assert.match(viewSource, /class="map-placeholder"/)
+  assert.match(viewSource, /store.status === 'unavailable'[\s\S]*?temporarily unavailable/)
+  assert.match(historicalInsights, /Nearest historical fire/)
+  assert.match(historicalInsights, /Most recent historical fire/)
+  assert.doesNotMatch(historicalInsights, /Bushfire context/)
+  assert.match(viewSource, /<\/template>[\s\S]*?<h2>Bushfire context<\/h2>/)
+})
+
 test('approximate fire location is lazy and cached by coordinate', async () => {
   const fireMapStore = createStore()
   let reverseCalls = 0

@@ -197,19 +197,19 @@ onMounted(async () => {
 .plan-summary h3 { font-size: 1rem; margin: 1.35rem 0 0.65rem; }
 .table-wrap { max-width: 100%; overflow-x: auto; }
 .summary-table { border-collapse: collapse; font-size: 0.9rem; table-layout: fixed; width: 100%; }
-.summary-table th, .summary-table td { border: 1px solid #D8CCBE; color: #241F1B; overflow-wrap: anywhere; padding: 0.7rem 0.75rem; text-align: left; vertical-align: top; }
-.summary-table th { background: #EDE4D8; font-size: 0.8rem; letter-spacing: 0.02em; }
-.summary-table td { background: #F6F1E8; }
+.summary-table th, .summary-table td { border: 1px solid var(--color-summary-border); color: var(--color-summary-text); overflow-wrap: anywhere; padding: 0.7rem 0.75rem; text-align: left; vertical-align: top; }
+.summary-table th { background: var(--color-summary-heading); font-size: 0.8rem; letter-spacing: 0.02em; }
+.summary-table td { background: var(--color-summary-row); }
 .member-table th:nth-child(1) { width: 22%; }
 .member-table th:nth-child(2) { width: 25%; }
 .member-table th:nth-child(3) { width: 53%; }
 .responsibility-table th:nth-child(1) { width: 50%; }
 .responsibility-table th:nth-child(2), .responsibility-table th:nth-child(3) { width: 25%; }
-.summary-list { background: #F6F1E8; border: 1px solid #D8CCBE; margin: 0; }
+.summary-list { background: var(--color-summary-row); border: 1px solid var(--color-summary-border); margin: 0; }
 .summary-list div { display: grid; grid-template-columns: minmax(8rem, 0.35fr) minmax(0, 1fr); gap: 1rem; padding: 0.65rem 0.75rem; }
-.summary-list div + div { border-top: 1px solid #D8CCBE; }
-.summary-list dt { color: #5F554D; }
-.summary-list dd { color: #241F1B; margin: 0; overflow-wrap: anywhere; }
+.summary-list div + div { border-top: 1px solid var(--color-summary-border); }
+.summary-list dt { color: var(--color-summary-muted); }
+.summary-list dd { color: var(--color-summary-text); margin: 0; overflow-wrap: anywhere; }
 .export-error { margin: 1rem 0; }
 .empty-summary { text-align: center; }
 .empty-summary .btn { margin-top: 1rem; }

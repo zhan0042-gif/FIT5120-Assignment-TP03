@@ -14,6 +14,7 @@ from app.providers.interfaces import (
     RoutingClient,
     SpatialProvider,
     WeatherClient,
+    RoadDisruptionClient,
 )
 from app.providers.mock import MockSpatialProvider
 from app.repositories.households import HouseholdRepository, InMemoryHouseholdRepository
@@ -46,6 +47,9 @@ def get_explanation_client() -> ExplanationClient:
 def get_routing_client() -> RoutingClient:
     return _external_providers.routing
 
+def get_road_disruption_client() -> RoadDisruptionClient:
+    return _external_providers.road_disruptions
+
 
 def get_spatial_provider() -> SpatialProvider:
     return _spatial_provider
@@ -57,3 +61,5 @@ def get_fire_danger_client() -> FireDangerClient:
 
 def get_weather_client() -> WeatherClient:
     return _external_providers.weather
+
+

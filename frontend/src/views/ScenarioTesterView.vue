@@ -47,7 +47,10 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
         <TestResultPanel v-else-if="scenarioStore.result" :result="scenarioStore.result" />
       </section>
     </div>
-    <RendezvousPanel v-if="!noSavedPlan && readyToTest" />
+    <RendezvousPanel
+      v-if="!noSavedPlan && readyToTest"
+    />
+
   </div>
 </template>
 <style scoped>

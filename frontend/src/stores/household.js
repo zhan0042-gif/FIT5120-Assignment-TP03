@@ -26,6 +26,7 @@ export const useHouseholdStore = defineStore('household', () => {
   // is always loaded from and saved to the backend.
   const householdId = ref(loadStoredHouseholdId())
   const plan = ref(null)
+  const planExists = ref(false)
   const planStatus = ref('idle')
   const planError = ref(null)
 
@@ -67,6 +68,7 @@ export const useHouseholdStore = defineStore('household', () => {
   function setNewPlanState() {
     // A missing plan is a valid first-use state, not a failed household load.
     plan.value = createEmptyHouseholdPlan()
+    planExists.value = false
     completion.value = null
     completionStatus.value = 'idle'
     planStatus.value = 'success'
@@ -79,6 +81,7 @@ export const useHouseholdStore = defineStore('household', () => {
       let id = await ensureHousehold()
       try {
         plan.value = await api.getHouseholdPlan(id)
+        planExists.value = true
       } catch (error) {
         if (isMissingHousehold(error)) {
           id = await replaceMissingHousehold()
@@ -135,6 +138,7 @@ export const useHouseholdStore = defineStore('household', () => {
         id = await replaceMissingHousehold()
         plan.value = await api.saveHouseholdPlan(id, next)
       }
+      planExists.value = true
       planRevision.value += 1
       saveStatus.value = 'success'
       await loadCompletion()
@@ -147,6 +151,7 @@ export const useHouseholdStore = defineStore('household', () => {
   return {
     householdId,
     plan,
+    planExists,
     planStatus,
     planError,
     completion,

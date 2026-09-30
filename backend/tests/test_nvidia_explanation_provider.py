@@ -114,6 +114,7 @@ def test_malformed_payload_becomes_external_data_unavailable() -> None:
 def test_a_missing_key_disables_explanation_without_stopping_the_app(monkeypatch) -> None:
     """Address lookup and routing are essential; explanation is not."""
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
     monkeypatch.delenv("AI_API_KEY", raising=False)
 
     providers = build_external_providers("live")
@@ -124,6 +125,7 @@ def test_a_missing_key_disables_explanation_without_stopping_the_app(monkeypatch
 
 def test_a_present_key_selects_the_real_client(monkeypatch) -> None:
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
     monkeypatch.setenv("AI_API_KEY", "ai-key")
 
     assert isinstance(

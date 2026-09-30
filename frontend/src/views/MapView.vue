@@ -127,32 +127,33 @@ onMounted(async () => {
     </section>
 
     <section class="historical-section">
-      <LoadingState v-if="store.status === 'loading'" message="Loading historical fire map..." />
-
-      <p v-else-if="store.status === 'unverified'" class="state-message">
+      <p v-if="store.status === 'unverified'" class="state-message">
         Add and verify your household address on Overview to see nearby historical fire records.
       </p>
 
-      <div v-else-if="store.status === 'unavailable'" class="state-message">
-        Historical fire map data is temporarily unavailable. Please try again later.
-      </div>
-
-      <ErrorState
-        v-else-if="store.status === 'error'"
-        :message="store.error || 'Could not load the historical fire map.'"
-        @retry="loadMap"
-      />
-
-      <div v-else-if="store.status === 'success'" class="map-layout">
+      <div v-else class="map-layout">
         <HistoricalFireMap
+          v-if="store.status === 'success'"
           ref="historicalMap"
           :household-location="store.householdLocation"
           :points="store.points"
           :search-radius-km="store.searchRadiusKm"
           :resolve-location="store.resolveApproximateLocation"
         />
+        <div v-else class="map-placeholder">
+          <LoadingState v-if="store.status === 'loading'" message="Loading historical fire map..." />
+          <p v-else-if="store.status === 'unavailable'" class="state-message" role="status">
+            Historical fire map data is temporarily unavailable. Please try again later.
+          </p>
+          <ErrorState
+            v-else-if="store.status === 'error'"
+            :message="store.error || 'Could not load the historical fire map.'"
+            @retry="loadMap"
+          />
+        </div>
 
         <aside class="insight-panel" aria-label="Historical fire insights">
+        <template v-if="store.status === 'success'">
         <button
           v-if="store.nearestFire"
           class="card insight-card"
@@ -186,6 +187,7 @@ onMounted(async () => {
           <h2>Most recent historical fire</h2>
           <p class="insight-empty">No record found within {{ store.searchRadiusKm }} km.</p>
         </section>
+        </template>
 
         <section class="card insight-card bushfire-context">
           <h2>Bushfire context</h2>
@@ -196,7 +198,7 @@ onMounted(async () => {
           <p class="context-note">Used to match official fire danger information for your area.</p>
         </section>
 
-        <p v-if="recordCountText" class="record-count">{{ recordCountText }}</p>
+        <p v-if="store.status === 'success' && recordCountText" class="record-count">{{ recordCountText }}</p>
         </aside>
       </div>
     </section>
@@ -281,6 +283,18 @@ onMounted(async () => {
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   align-items: start;
   gap: clamp(2rem, 5vw, 4rem);
+}
+
+.map-placeholder {
+  align-items: center;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  display: flex;
+  justify-content: center;
+  min-height: 20rem;
+  padding: 1.5rem;
+  text-align: center;
 }
 
 .insight-panel {

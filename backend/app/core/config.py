@@ -11,6 +11,7 @@ from app.providers.interfaces import (
     AddressClient,
     ExplanationClient,
     FireDangerClient,
+    RoadDisruptionClient,
     RoutingClient,
     WeatherClient,
 )
@@ -18,14 +19,19 @@ from app.providers.mock import (
     MockAddressClient,
     MockExplanationClient,
     MockFireDangerClient,
+    MockRoadDisruptionClient,
     MockRoutingClient,
     MockWeatherClient,
 )
-from app.providers.tomtom import TomTomAddressClient
 from app.providers.nvidia_explanation import (
     DisabledExplanationClient,
     NvidiaExplanationClient,
 )
+from app.providers.road_disruptions import (
+    DisabledRoadDisruptionClient,
+    VictorianRoadDisruptionClient,
+)
+from app.providers.tomtom import TomTomAddressClient
 from app.providers.tomtom_routing import TomTomRoutingClient
 
 
@@ -33,6 +39,7 @@ from app.providers.tomtom_routing import TomTomRoutingClient
 class ExternalProviders:
     address: AddressClient
     routing: RoutingClient
+    road_disruptions: RoadDisruptionClient
     explanation: ExplanationClient
     fire_danger: FireDangerClient
     weather: WeatherClient
@@ -40,63 +47,136 @@ class ExternalProviders:
 
 def data_mode() -> str:
     mode = os.getenv("APP_DATA_MODE", "live").strip().lower()
+
     if mode not in {"mock", "live"}:
-        raise RuntimeError("APP_DATA_MODE must be either 'mock' or 'live'.")
+        raise RuntimeError(
+            "APP_DATA_MODE must be either 'mock' or 'live'."
+        )
+
     return mode
 
 
 def repository_mode() -> str:
-    mode = os.getenv("APP_REPOSITORY_MODE", "mysql").strip().lower()
+    mode = os.getenv(
+        "APP_REPOSITORY_MODE",
+        "mysql",
+    ).strip().lower()
+
     if mode not in {"memory", "mysql"}:
-        raise RuntimeError("APP_REPOSITORY_MODE must be either 'memory' or 'mysql'.")
+        raise RuntimeError(
+            "APP_REPOSITORY_MODE must be either 'memory' or 'mysql'."
+        )
+
     return mode
 
 
 def spatial_mode() -> str:
-    mode = os.getenv("APP_SPATIAL_MODE", "data").strip().lower()
+    mode = os.getenv(
+        "APP_SPATIAL_MODE",
+        "data",
+    ).strip().lower()
+
     if mode not in {"mock", "data"}:
-        raise RuntimeError("APP_SPATIAL_MODE must be either 'mock' or 'data'.")
+        raise RuntimeError(
+            "APP_SPATIAL_MODE must be either 'mock' or 'data'."
+        )
+
     return mode
 
 
 def spatial_cache_max_age() -> timedelta:
-    raw_hours = os.getenv("APP_SPATIAL_CACHE_MAX_AGE_HOURS", "24")
+    raw_hours = os.getenv(
+        "APP_SPATIAL_CACHE_MAX_AGE_HOURS",
+        "24",
+    )
+
     try:
         hours = float(raw_hours)
+
     except ValueError as exc:
         raise RuntimeError(
             "APP_SPATIAL_CACHE_MAX_AGE_HOURS must be a positive finite number."
         ) from exc
+
     if not math.isfinite(hours) or hours <= 0:
         raise RuntimeError(
             "APP_SPATIAL_CACHE_MAX_AGE_HOURS must be a positive finite number."
         )
-    return timedelta(hours=hours)
+
+    return timedelta(
+        hours=hours
+    )
 
 
-def _explanation_client(api_key: str | None) -> ExplanationClient:
+def _explanation_client(
+    api_key: str | None,
+) -> ExplanationClient:
     """Explanation is optional; a missing key disables it rather than the app."""
+
     if api_key and api_key.strip():
-        return NvidiaExplanationClient(api_key=api_key)
+        return NvidiaExplanationClient(
+            api_key=api_key
+        )
+
     return DisabledExplanationClient()
 
 
-def build_external_providers(mode: str | None = None) -> ExternalProviders:
-    selected = (mode or data_mode()).strip().lower()
+def _road_disruption_client(
+    api_key: str | None,
+) -> RoadDisruptionClient:
+    """Road disruptions are optional and must not prevent application startup."""
+
+    if api_key and api_key.strip():
+        return VictorianRoadDisruptionClient(
+            api_key=api_key
+        )
+
+    return DisabledRoadDisruptionClient()
+
+
+def build_external_providers(
+    mode: str | None = None,
+) -> ExternalProviders:
+    selected = (
+        mode or data_mode()
+    ).strip().lower()
+
     if selected == "mock":
         return ExternalProviders(
             address=MockAddressClient(),
             routing=MockRoutingClient(),
+            road_disruptions=MockRoadDisruptionClient(),
             explanation=MockExplanationClient(),
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
         )
+
     if selected == "live":
         return ExternalProviders(
-            address=TomTomAddressClient(api_key=os.getenv("TOMTOM_API_KEY")),
-            routing=TomTomRoutingClient(api_key=os.getenv("TOMTOM_API_KEY")),
-            explanation=_explanation_client(os.getenv("AI_API_KEY")),
+            address=TomTomAddressClient(
+                api_key=os.getenv(
+                    "TOMTOM_API_KEY"
+                )
+            ),
+            routing=TomTomRoutingClient(
+                api_key=os.getenv(
+                    "TOMTOM_API_KEY"
+                )
+            ),
+            road_disruptions=_road_disruption_client(
+                os.getenv(
+                    "VIC_ROAD_DISRUPTIONS_API_KEY"
+                )
+            ),
+            explanation=_explanation_client(
+                os.getenv(
+                    "AI_API_KEY"
+                )
+            ),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
         )
-    raise RuntimeError("Provider mode must be either 'mock' or 'live'.")
+
+    raise RuntimeError(
+        "Provider mode must be either 'mock' or 'live'."
+    )

@@ -28,6 +28,10 @@ from app.providers.cfa import (
     parse_cfa_fire_danger,
 )
 from app.providers.mock import MockAddressClient, MockFireDangerClient, MockWeatherClient
+from app.providers.road_disruptions import (
+    DisabledRoadDisruptionClient,
+    VictorianRoadDisruptionClient,
+)
 from app.providers.tomtom import TomTomAddressClient
 
 
@@ -308,6 +312,7 @@ def test_bom_fire_danger_transport_failure_is_translated() -> None:
 
 def test_explicit_provider_modes_do_not_fallback(monkeypatch) -> None:
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
     assert isinstance(build_external_providers("mock").address, MockAddressClient)
     assert isinstance(build_external_providers("live").address, TomTomAddressClient)
     assert isinstance(
@@ -318,6 +323,7 @@ def test_explicit_provider_modes_do_not_fallback(monkeypatch) -> None:
 
 
 def test_live_provider_mode_requires_tomtom_key(monkeypatch) -> None:
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
     monkeypatch.delenv("TOMTOM_API_KEY", raising=False)
 
     with pytest.raises(RuntimeError, match="TOMTOM_API_KEY"):
@@ -327,6 +333,7 @@ def test_live_provider_mode_requires_tomtom_key(monkeypatch) -> None:
 def test_absent_data_mode_selects_all_live_official_providers(monkeypatch) -> None:
     monkeypatch.delenv("APP_DATA_MODE", raising=False)
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
 
     providers = build_external_providers()
 
@@ -341,12 +348,36 @@ def test_explicit_live_data_mode_selects_all_live_official_providers(
 ) -> None:
     monkeypatch.setenv("APP_DATA_MODE", "live")
     monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
 
     providers = build_external_providers()
 
     assert isinstance(providers.address, TomTomAddressClient)
+    assert isinstance(providers.road_disruptions, VictorianRoadDisruptionClient)
     assert isinstance(providers.fire_danger, BOMFireDangerClient)
     assert isinstance(providers.weather, BOMWeatherClient)
+
+
+def test_live_mode_without_road_key_keeps_other_providers_available(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("APP_DATA_MODE", "live")
+    monkeypatch.setenv("TOMTOM_API_KEY", "test-key")
+    monkeypatch.delenv("VIC_ROAD_DISRUPTIONS_API_KEY", raising=False)
+
+    providers = build_external_providers()
+
+    assert isinstance(providers.address, TomTomAddressClient)
+    assert isinstance(providers.road_disruptions, DisabledRoadDisruptionClient)
+    assert isinstance(providers.fire_danger, BOMFireDangerClient)
+    assert isinstance(providers.weather, BOMWeatherClient)
+
+    with pytest.raises(ExternalDataUnavailable, match="not configured"):
+        providers.road_disruptions.nearby_disruptions(
+            -37.8136,
+            144.9631,
+            radius_km=10,
+        )
 
 
 def test_explicit_mock_data_mode_remains_deterministic(monkeypatch) -> None:
