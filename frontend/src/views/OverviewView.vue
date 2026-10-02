@@ -4,7 +4,6 @@ import { api } from '../api/client'
 import CompletionOverview from '../components/completion/CompletionOverview.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingState from '../components/common/LoadingState.vue'
-import LocalContextCard from '../components/localContext/LocalContextCard.vue'
 import PreparationSupportBanner from '../components/localContext/PreparationSupportBanner.vue'
 import { useHouseholdStore } from '../stores/household'
 import { useLocalContextStore } from '../stores/localContext'
@@ -111,22 +110,15 @@ onMounted(async () => {
         <h1>Overview</h1>
         <p>Review your household's preparedness and saved plan.</p>
       </div>
-      <div class="page-actions">
-        <button class="btn btn-accent" type="button" :disabled="noSavedPlan || exportStatus === 'loading'" @click="exportPdf">
-          {{ exportStatus === 'loading' ? 'Generating PDF...' : 'Export preparedness plan' }}
-        </button>
-      </div>
     </header>
 
     <div class="top-grid">
       <CompletionOverview :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
       <div class="right-stack">
         <PreparationSupportBanner />
-        <LocalContextCard />
       </div>
     </div>
 
-    <p v-if="exportError" class="field-error export-error">{{ exportError }}</p>
     <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your saved plan..." />
     <ErrorState v-else-if="householdStore.planStatus === 'error'" :message="householdStore.planError || 'Could not load your saved plan.'" @retry="householdStore.loadPlan" />
     <section v-else-if="noSavedPlan" class="card empty-summary">
@@ -179,6 +171,13 @@ onMounted(async () => {
         </table>
       </div>
     </section>
+
+    <div class="page-actions">
+      <button class="btn btn-accent" type="button" :disabled="noSavedPlan || exportStatus === 'loading'" @click="exportPdf">
+        {{ exportStatus === 'loading' ? 'Generating PDF...' : 'Export preparedness plan' }}
+      </button>
+    </div>
+    <p v-if="exportError" class="field-error export-error">{{ exportError }}</p>
   </div>
 </template>
 
@@ -187,7 +186,7 @@ onMounted(async () => {
 .page-header { align-items: flex-start; display: flex; gap: 1.5rem; justify-content: space-between; margin-bottom: 1.75rem; }
 .page-header h1 { font-size: clamp(2rem, 4vw, 2.25rem); line-height: 1.2; }
 .page-header p, .empty-summary p { color: var(--color-text-muted); margin-top: 0.5rem; }
-.page-actions { display: flex; flex: 0 0 auto; gap: 0.75rem; }
+.page-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; }
 .page-actions .btn, .empty-summary .btn { align-items: center; display: inline-flex; justify-content: center; text-decoration: none; }
 .top-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; align-items: start; }
 .right-stack { display: grid; gap: 1.25rem; }

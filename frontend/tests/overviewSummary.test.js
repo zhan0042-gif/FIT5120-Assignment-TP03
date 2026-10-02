@@ -72,13 +72,20 @@ test('overview loads the latest saved plan through the existing store', async ()
 test('overview contains only the concise saved-plan summary', () => {
   assert.match(
     overviewSource,
-    /<CompletionOverview[\s\S]*?<div class="right-stack">[\s\S]*?<PreparationSupportBanner \/>[\s\S]*?<LocalContextCard \/>/,
+    /<CompletionOverview[\s\S]*?<div class="right-stack">[\s\S]*?<PreparationSupportBanner \/>/,
   )
+  assert.doesNotMatch(overviewSource, /LocalContextCard/)
+  assert.equal((mapSource.match(/<LocalContextCard \/>/g) ?? []).length, 1)
   assert.match(localContextSource, /Household address/)
   assert.match(localContextSource, /Edit address/)
   assert.match(localContextSource, /AddressAutocompleteInput/)
   assert.match(completionSource, /Edit my plan/)
   assert.match(overviewSource, /Export preparedness plan/)
+  const overviewTemplate = overviewSource.slice(overviewSource.indexOf('<template>'), overviewSource.lastIndexOf('</template>'))
+  assert.ok(overviewTemplate.indexOf('class="page-actions"') > overviewTemplate.indexOf('<h3>Responsibilities</h3>'))
+  assert.match(overviewSource, /:disabled="noSavedPlan \|\| exportStatus === 'loading'" @click="exportPdf"/)
+  assert.match(overviewSource, /\.page-actions \{[^}]*justify-content: flex-end/)
+
   assert.match(overviewSource, /Household Plan Summary/)
   assert.match(overviewSource, /<th>Name<\/th><th>Daytime location<\/th><th>Daytime address<\/th>/)
   assert.match(overviewSource, /usual_location\.kind === 'home'/)
@@ -142,10 +149,10 @@ test('navigation consolidates summary into Overview and labels the map Fire Map'
   assert.match(routerSource, /path: '\/summary',[\s\S]*?redirect: '\/overview'/)
 })
 
-test('fire map has one top title followed by four compact metrics and the unchanged map layout', () => {
+test('fire map aligns address and 2 by 2 metrics with the historical map columns', () => {
   assert.doesNotMatch(localContextSource, /Historical fire activity/)
   assert.doesNotMatch(localContextSource, /fireHistoryRows/)
-  assert.doesNotMatch(mapSource, /LocalContextCard/)
+  assert.match(mapSource, /class="conditions-layout"[\s\S]*?<LocalContextCard \/>[\s\S]*?class="conditions-grid"/)
   assert.doesNotMatch(mapSource, /<h2 class="card-title">Household address<\/h2>/)
   assert.equal((mapSource.match(/<h1>Historical Fire Map<\/h1>/g) ?? []).length, 1)
   assert.doesNotMatch(mapSource, /<h2>Historical Fire Map<\/h2>/)
@@ -157,9 +164,15 @@ test('fire map has one top title followed by four compact metrics and the unchan
     mapSource,
     /class="conditions-grid"[\s\S]*?<h2>Temperature<\/h2>[\s\S]*?<h2>Humidity<\/h2>[\s\S]*?<h2>Wind<\/h2>[\s\S]*?<h2>Fire Danger<\/h2>[\s\S]*?<section class="historical-section">/,
   )
-  assert.match(mapSource, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/)
+  assert.match(mapSource, /\.conditions-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/)
+  assert.match(mapSource, /@media \(max-width: 900px\)[\s\S]*?\.conditions-layout,[\s\S]*?grid-template-columns: 1fr/)
   assert.match(mapSource, /grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/)
   assert.match(mapSource, /grid-template-columns: minmax\(0, 3fr\) minmax\(0, 2fr\)/)
+  const columns = (selector) => mapSource.match(new RegExp(`${selector} \{([^}]+)\}`))?.[1]
+  for (const rule of ['grid-template-columns: minmax(0, 3fr) minmax(0, 2fr)', 'gap: clamp(2rem, 5vw, 4rem)']) {
+    assert.ok(columns('\\.conditions-layout').includes(rule))
+    assert.ok(columns('\\.map-layout').includes(rule))
+  }
   assert.match(
     mapSource,
     /Nearest historical fire[\s\S]*?Most recent historical fire[\s\S]*?<h2>Bushfire context<\/h2>[\s\S]*?recordCountText/,

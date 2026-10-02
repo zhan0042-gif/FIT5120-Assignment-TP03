@@ -178,31 +178,32 @@ async function reviewPlan() {
         <div v-show="stepIndex === 4">
           <PlanChecks :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
         </div>
-
-        <div class="step-nav">
-          <button type="button" class="btn btn-ghost" :disabled="stepIndex === 0" @click="goToStep(stepIndex - 1)">Back</button>
-          <button v-if="stepIndex < STEPS.length - 1" type="button" class="btn btn-accent" @click="goToStep(stepIndex + 1)">Continue</button>
-          <button v-else type="button" class="btn btn-accent" :disabled="validationErrors.length > 0 || householdStore.saveStatus === 'loading'" @click="reviewPlan">Save &amp; Review Plan</button>
-        </div>
       </template>
     </div>
 
     <div v-if="draft" class="save-bar">
-      <div>
-        <p v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</p>
-        <p v-else-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</p>
-        <p v-else-if="hasUnsavedChanges" class="save-message">Unsaved changes</p>
-        <p v-else class="save-message status-text status-success">✓ All changes saved.</p>
+      <button v-show="householdStore.planStatus !== 'loading' && householdStore.planStatus !== 'error'" type="button" class="btn btn-ghost" :disabled="stepIndex === 0" @click="goToStep(stepIndex - 1)">Back</button>
+      <div class="plan-actions">
+        <div class="save-controls">
+          <div>
+            <p v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</p>
+            <p v-else-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</p>
+            <p v-else-if="hasUnsavedChanges" class="save-message">Unsaved changes</p>
+            <p v-else class="save-message status-text status-success">✓ All changes saved.</p>
+          </div>
+          <button
+            class="btn"
+            :class="hasUnsavedChanges ? 'btn-accent' : 'btn-ghost saved-button'"
+            type="button"
+            :disabled="saveDisabled"
+            @click="save"
+          >
+            {{ saveLabel }}
+          </button>
+        </div>
+        <button v-if="stepIndex < STEPS.length - 1" v-show="householdStore.planStatus !== 'loading' && householdStore.planStatus !== 'error'" type="button" class="btn btn-accent next-action" @click="goToStep(stepIndex + 1)">Continue</button>
+        <button v-else v-show="householdStore.planStatus !== 'loading' && householdStore.planStatus !== 'error'" type="button" class="btn btn-accent next-action" :disabled="validationErrors.length > 0 || householdStore.saveStatus === 'loading'" @click="reviewPlan">Save &amp; Review Plan</button>
       </div>
-      <button
-        class="btn"
-        :class="hasUnsavedChanges ? 'btn-accent' : 'btn-ghost saved-button'"
-        type="button"
-        :disabled="saveDisabled"
-        @click="save"
-      >
-        {{ saveLabel }}
-      </button>
     </div>
   </div>
 </template>
@@ -287,19 +288,6 @@ async function reviewPlan() {
   margin-left: auto;
 }
 
-.step-nav {
-  display: flex;
-  gap: 0.75rem;
-  justify-content: space-between;
-  margin-top: 2rem;
-}
-
-.step-nav .btn {
-  align-items: center;
-  display: inline-flex;
-  text-decoration: none;
-}
-
 @media (max-width: 700px) {
   .step-progress {
     margin-left: 0;
@@ -349,17 +337,24 @@ async function reviewPlan() {
 
 .save-bar {
   /* Save belongs to the end of the plan in normal flow; it does not overlay forms. */
-  margin-top: 1rem;
+  margin-top: 2rem;
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   padding: 0.75rem 1rem;
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
   box-shadow: var(--shadow-card);
 }
+
+.save-bar > .btn { justify-self: start; }
+.plan-actions { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; min-width: 0; }
+.plan-actions > .next-action { flex: 0 0 auto; }
+.save-controls { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+.save-controls > div { min-width: 0; overflow-wrap: anywhere; }
+.save-controls > .btn { flex: 0 0 auto; }
 
 .hint {
   font-size: 0.875rem;
@@ -378,14 +373,9 @@ async function reviewPlan() {
   opacity: 1;
 }
 
-@media (max-width: 520px) {
-  .save-bar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .save-bar .btn {
-    width: 100%;
-  }
+@media (max-width: 700px) {
+  .save-bar { display: flex; flex-wrap: wrap; }
+  .plan-actions { flex: 1 1 22rem; flex-wrap: wrap; gap: 0.75rem; }
+  .save-controls { flex: 1 1 14rem; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem 1rem; }
 }
 </style>
