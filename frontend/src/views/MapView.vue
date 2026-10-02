@@ -4,6 +4,7 @@ import { useFireMapStore } from '../stores/fireMap'
 import { useLocalContextStore } from '../stores/localContext'
 import LoadingState from '../components/common/LoadingState.vue'
 import ErrorState from '../components/common/ErrorState.vue'
+import LocalContextCard from '../components/localContext/LocalContextCard.vue'
 import HistoricalFireMap from '../components/fireMap/HistoricalFireMap.vue'
 import { formatAustralianDate } from '../utils/dateTime'
 
@@ -119,16 +120,19 @@ onMounted(async () => {
       This map displays historical bushfire records for contextual and informational purposes only. It does not constitute a forecast or prediction of future bushfire risk.
     </p>
 
-    <section class="conditions-grid" aria-label="Current conditions">
-      <article class="card condition-metric"><h2>Temperature</h2><p>{{ temperature }}</p></article>
-      <article class="card condition-metric"><h2>Humidity</h2><p>{{ humidity }}</p></article>
-      <article class="card condition-metric"><h2>Wind</h2><p>{{ wind }}</p></article>
-      <article class="card condition-metric"><h2>Fire Danger</h2><p>{{ fireDanger }}</p></article>
-    </section>
+    <div class="conditions-layout">
+      <LocalContextCard />
+      <section class="conditions-grid" aria-label="Current conditions">
+        <article class="card condition-metric"><h2>Temperature</h2><p>{{ temperature }}</p></article>
+        <article class="card condition-metric"><h2>Humidity</h2><p>{{ humidity }}</p></article>
+        <article class="card condition-metric"><h2>Wind</h2><p>{{ wind }}</p></article>
+        <article class="card condition-metric"><h2>Fire Danger</h2><p>{{ fireDanger }}</p></article>
+      </section>
+    </div>
 
     <section class="historical-section">
       <p v-if="store.status === 'unverified'" class="state-message">
-        Add and verify your household address on Overview to see nearby historical fire records.
+        Add and verify your household address above to see nearby historical fire records.
       </p>
 
       <div v-else class="map-layout">
@@ -239,9 +243,24 @@ onMounted(async () => {
   padding: 0.75rem 1rem;
 }
 
+.conditions-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: stretch;
+}
+
+.conditions-layout > :deep(.address-card) {
+  margin-top: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.conditions-layout :deep(.card-header) { flex-wrap: wrap; }
+
 .conditions-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -383,6 +402,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
+  .conditions-layout,
   .map-layout {
     grid-template-columns: 1fr;
   }
@@ -398,13 +418,13 @@ onMounted(async () => {
   }
 }
 
-@media (max-width: 700px) {
-  .conditions-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 560px) {
+  .conditions-layout :deep(.location-option) { flex-wrap: wrap; }
+
+  .conditions-grid {
+    grid-template-columns: 1fr;
+  }
+
   .insight-panel {
     grid-template-columns: 1fr;
   }

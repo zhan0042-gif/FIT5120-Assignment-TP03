@@ -322,12 +322,18 @@ def test_explicit_provider_modes_do_not_fallback(monkeypatch) -> None:
         build_external_providers("automatic")
 
 
-def test_live_provider_mode_requires_tomtom_key(monkeypatch) -> None:
+def test_live_provider_mode_without_tomtom_key_is_unavailable_not_fatal(monkeypatch) -> None:
     monkeypatch.setenv("VIC_ROAD_DISRUPTIONS_API_KEY", "test-road-key")
     monkeypatch.delenv("TOMTOM_API_KEY", raising=False)
 
-    with pytest.raises(RuntimeError, match="TOMTOM_API_KEY"):
-        build_external_providers("live")
+    providers = build_external_providers("live")
+    with pytest.raises(ExternalDataUnavailable, match="not configured"):
+        providers.travel_routes.road_route((-37.8, 145.0), (-37.9, 145.1))
+    with pytest.raises(ExternalDataUnavailable, match="not configured"):
+        providers.routing.travel_times([(-37.8, 145.0)], (-37.9, 145.1))
+    with pytest.raises(ExternalDataUnavailable, match="not configured"):
+        providers.address.resolve("1 Example Road")
+    assert isinstance(providers.road_disruptions, VictorianRoadDisruptionClient)
 
 
 def test_absent_data_mode_selects_all_live_official_providers(monkeypatch) -> None:

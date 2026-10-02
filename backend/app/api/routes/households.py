@@ -12,6 +12,7 @@ from app.core.dependencies import (
     get_household_repository,
     get_road_disruption_client,
     get_routing_client,
+    get_travel_route_client,
     get_spatial_provider,
     get_weather_client,
 )
@@ -22,6 +23,7 @@ from app.providers.interfaces import (
     FireDangerClient,
     RoadDisruptionClient,
     RoutingClient,
+    RoadRouteClient,
     SpatialProvider,
     WeatherClient,
 )
@@ -43,6 +45,7 @@ from app.schemas.households import (
 from app.schemas.rendezvous import RendezvousResult
 from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
 from app.schemas.travel_disruptions import TravelDisruptionResult
+from app.schemas.travel_routes import TravelRouteResult
 from app.services.context import (
     HistoricalFireMapService,
     LocalContextService,
@@ -55,6 +58,7 @@ from app.services.preparedness_pdf import PreparednessPdfService
 from app.services.rendezvous import RendezvousSimulationService
 from app.services.scenarios import BasicScenarioService
 from app.services.travel_disruptions import TravelDisruptionService
+from app.services.travel_routes import TravelRouteService
 
 
 router = APIRouter(prefix="/households", tags=["households"])
@@ -66,6 +70,7 @@ RepositoryDependency = Annotated[
 
 RoutingDependency = Annotated[
     RoutingClient,
+    RoadRouteClient,
     Depends(get_routing_client),
 ]
 
@@ -506,3 +511,12 @@ def get_travel_disruptions(
         household_id,
         radius_km=radius_km,
     )
+
+@router.get("/{household_id}/travel-routes", response_model=TravelRouteResult)
+def get_travel_routes(
+    household_id: str,
+    repository: RepositoryDependency,
+    route_client: Annotated[RoadRouteClient, Depends(get_travel_route_client)],
+) -> TravelRouteResult:
+    """One road route from home to each verified saved evacuation destination."""
+    return TravelRouteService(repository, route_client).get(household_id)

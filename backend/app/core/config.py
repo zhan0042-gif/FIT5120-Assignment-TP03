@@ -13,6 +13,7 @@ from app.providers.interfaces import (
     FireDangerClient,
     RoadDisruptionClient,
     RoutingClient,
+    RoadRouteClient,
     WeatherClient,
 )
 from app.providers.mock import (
@@ -33,12 +34,14 @@ from app.providers.road_disruptions import (
 )
 from app.providers.tomtom import TomTomAddressClient
 from app.providers.tomtom_routing import TomTomRoutingClient
+from app.providers.disabled_tomtom import DisabledTomTomAddressClient, DisabledTomTomRoutingClient
 
 
 @dataclass(frozen=True)
 class ExternalProviders:
     address: AddressClient
     routing: RoutingClient
+    travel_routes: RoadRouteClient
     road_disruptions: RoadDisruptionClient
     explanation: ExplanationClient
     fire_danger: FireDangerClient
@@ -145,6 +148,7 @@ def build_external_providers(
         return ExternalProviders(
             address=MockAddressClient(),
             routing=MockRoutingClient(),
+            travel_routes=DisabledTomTomRoutingClient(),
             road_disruptions=MockRoadDisruptionClient(),
             explanation=MockExplanationClient(),
             fire_danger=MockFireDangerClient(),
@@ -152,17 +156,13 @@ def build_external_providers(
         )
 
     if selected == "live":
+        api_key = os.getenv("TOMTOM_API_KEY")
+        configured = bool(api_key and api_key.strip())
+        routing = TomTomRoutingClient(api_key=api_key) if configured else DisabledTomTomRoutingClient()
         return ExternalProviders(
-            address=TomTomAddressClient(
-                api_key=os.getenv(
-                    "TOMTOM_API_KEY"
-                )
-            ),
-            routing=TomTomRoutingClient(
-                api_key=os.getenv(
-                    "TOMTOM_API_KEY"
-                )
-            ),
+            address=TomTomAddressClient(api_key=api_key) if configured else DisabledTomTomAddressClient(),
+            routing=routing,
+            travel_routes=routing,
             road_disruptions=_road_disruption_client(
                 os.getenv(
                     "VIC_ROAD_DISRUPTIONS_API_KEY"

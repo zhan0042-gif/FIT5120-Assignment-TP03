@@ -13,7 +13,7 @@ const householdStore = useHouseholdStore()
         <div class="actions">
           <template v-if="householdStore.householdId">
             <router-link class="btn btn-accent btn-large" to="/plan">Continue my plan</router-link>
-            <router-link class="btn btn-ghost btn-large" to="/overview">See where I am</router-link>
+            <router-link class="btn btn-ghost btn-large" to="/map">See where I am</router-link>
           </template>
           <router-link v-else class="btn btn-accent btn-large" to="/plan">Start my plan</router-link>
         </div>

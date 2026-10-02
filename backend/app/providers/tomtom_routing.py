@@ -12,6 +12,9 @@ import httpx
 
 from app.core.exceptions import ExternalDataUnavailable
 from app.providers.interfaces import RouteLeg
+from app.schemas.travel_routes import RoadRoute, RoutePoint
+
+TOMTOM_ROUTE_URL = "https://api.tomtom.com/routing/1/calculateRoute"
 
 TOMTOM_MATRIX_URL = "https://api.tomtom.com/routing/matrix/2"
 
@@ -33,6 +36,27 @@ class TomTomRoutingClient:
         self.http_client = http_client or httpx.Client(
             timeout=timeout_seconds, follow_redirects=True
         )
+
+    def road_route(self, origin: tuple[float, float], destination: tuple[float, float]) -> RoadRoute:
+        """Request no alternatives and use only TomTom's first ordered route."""
+        locations = f"{origin[0]},{origin[1]}:{destination[0]},{destination[1]}"
+        try:
+            response = self.http_client.get(
+                f"{TOMTOM_ROUTE_URL}/{locations}/json",
+                params={"key": self._api_key, "routeType": "fastest", "travelMode": "car",
+                        "maxAlternatives": 0, "routeRepresentation": "polyline"},
+                timeout=self.timeout_seconds,
+            )
+            response.raise_for_status()
+            route = response.json()["routes"][0]
+            points = [RoutePoint.model_validate(point) for leg in route["legs"] for point in leg["points"]]
+            if len({(point.latitude, point.longitude) for point in points}) < 2:
+                raise ValueError("Incomplete geometry")
+            summary = route.get("summary", {})
+            return RoadRoute(geometry=points, distance_m=summary.get("lengthInMeters"),
+                             travel_time_seconds=summary.get("travelTimeInSeconds"))
+        except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError, AttributeError) as exc:
+            raise ExternalDataUnavailable("Road routes are temporarily unavailable.") from exc
 
     def travel_times(
         self,

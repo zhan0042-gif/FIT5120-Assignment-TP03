@@ -6,9 +6,11 @@ import LoadingState from '../common/LoadingState.vue'
 import ErrorState from '../common/ErrorState.vue'
 import EmptyState from '../common/EmptyState.vue'
 import {
-  coreDisruptionDescription,
+  disruptionDetails,
+  travelPlaceText,
   destinationAddress,
   disruptionStatus,
+  travelDestinationGroups,
   uncheckedDestinations,
 } from '../../utils/travelReadinessPresentation'
 
@@ -18,29 +20,7 @@ const disruptionStore = useTravelDisruptionsStore()
 const result = computed(() => disruptionStore.result)
 const unchecked = computed(() => uncheckedDestinations(householdStore.plan))
 
-const destinationGroups = computed(() => {
-  if (!result.value || result.value.status !== 'available') {
-    return []
-  }
-
-  const groups = []
-
-  if (result.value.primary_destination) {
-    groups.push({
-      type: 'Primary destination',
-      ...result.value.primary_destination,
-    })
-  }
-
-  for (const destination of result.value.backup_destinations ?? []) {
-    groups.push({
-      type: 'Backup destination',
-      ...destination,
-    })
-  }
-
-  return groups
-})
+const destinationGroups = computed(() => travelDestinationGroups(result.value))
 
 function loadDisruptions() {
   return disruptionStore.load(
@@ -170,15 +150,11 @@ function formatDateTime(value) {
           </span>
         </div>
 
-        <p v-if="destination.active_disruption_count > 0" class="radius-note">
-          Reported within {{ destination.search_radius_km }} km
-        </p>
-
         <p
           v-if="destination.active_disruption_count === 0"
           class="no-disruptions"
         >
-          No nearby disruptions reported within {{ destination.search_radius_km }} km.
+          No nearby disruptions reported.
         </p>
 
         <div
@@ -193,13 +169,13 @@ function formatDateTime(value) {
             <div class="disruption-topline">
               <strong>
                 {{
-                  disruption.event_subtype ||
+                  travelPlaceText(disruption.event_subtype ||
                   disruption.event_type ||
-                  'Road disruption'
+                  'Road disruption')
                 }}
               </strong>
 
-              <span v-if="disruption.distance_km !== null">
+              <span v-if="Number.isFinite(disruption.distance_km)">
                 {{ disruption.distance_km.toFixed(1) }} km away
               </span>
             </div>
@@ -208,12 +184,12 @@ function formatDateTime(value) {
               v-if="disruption.road_name"
               class="road-name"
             >
-              {{ disruption.road_name }}
+              {{ travelPlaceText(disruption.road_name) }}
             </p>
 
             <p v-if="disruptionStatus(disruption)" class="impact-status">{{ disruptionStatus(disruption) }}</p>
 
-            <p v-if="disruption.description" class="description">{{ coreDisruptionDescription(disruption.description) }}</p>
+            <p v-if="disruptionDetails(disruption)" class="description">{{ disruptionDetails(disruption) }}</p>
 
             <p
               v-if="disruption.last_updated"
@@ -309,7 +285,6 @@ function formatDateTime(value) {
   font-weight: 700;
 }
 
-.radius-note,
 .destination-address,
 .updated,
 .description {
