@@ -12,6 +12,7 @@ from app.schemas.households import (
 )
 from app.schemas.rendezvous import RendezvousResult
 from app.schemas.travel_disruptions import RoadDisruption
+from app.schemas.travel_routes import RoadRoute
 
 
 class SpatialResult(Protocol):
@@ -118,6 +119,12 @@ class RoutingClient(Protocol):
         origins: list[tuple[float, float]],
         destination: tuple[float, float],
     ) -> list[RouteLeg]: ...
+
+
+class RoadRouteClient(Protocol):
+    """Return one actual driving route, without route-safety analysis."""
+
+    def road_route(self, origin: tuple[float, float], destination: tuple[float, float]) -> RoadRoute: ...
 
 
 class RoadDisruptionClient(Protocol):

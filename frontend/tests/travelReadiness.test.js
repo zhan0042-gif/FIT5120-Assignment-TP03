@@ -164,7 +164,7 @@ test('provider unavailable remains explicit, and map/list rendering stays indepe
   const panel = await source('../src/components/scenario/TravelDisruptionPanel.vue')
   assert.match(panel, /result\.status === 'unavailable'[\s\S]*?Road-disruption information unavailable/)
   assert.match(page, /<TravelDisruptionMap[\s\S]*?<\/section>[\s\S]*?<TravelDisruptionPanel/)
-  assert.match(page, /v-if="mapData\.destinations\.length"/)
+  assert.match(page, /v-if="mapData\.destinations\.length \|\| householdLocation"/)
   assert.match(panel, /result\.status === 'available'/)
   assert.match(page, /void householdStore\.loadPlan\(\)/)
 })

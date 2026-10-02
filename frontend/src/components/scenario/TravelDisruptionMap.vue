@@ -5,21 +5,27 @@ import 'leaflet/dist/leaflet.css'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import '@maplibre/maplibre-gl-leaflet'
 import { travelLocationPopup, travelDisruptionPopup } from '../../utils/travelReadinessPresentation'
+import { drawTravelRoutes } from '../../utils/travelRouteMap'
 import { hasMapCoordinates } from '../../utils/travelMapData'
 import { openFreeMapStyle } from '../fireMap/openFreeMapStyle'
 
 const props = defineProps({
   householdLocation: { type: Object, default: null },
+  routes: { type: Array, default: () => [] },
   destinations: { type: Array, required: true },
   disruptions: { type: Array, required: true },
 })
 
 const container = ref(null)
 const mapError = ref(false)
+const hiddenRouteCount = ref(0)
 let map
 let layoutFrame
 let homeMarker
 let destinationBounds
+let baseLayers
+let routeLayers
+let routeGeometries = []
 const fitOptions = { padding: [24, 24], maxZoom: 12 }
 
 const homeIcon = L.divIcon({
@@ -38,12 +44,18 @@ const disruptionIcon = L.divIcon({
 })
 
 function fitMap() {
-  if (!map || !destinationBounds?.isValid()) return
-  const bounds = L.latLngBounds(destinationBounds.getSouthWest(), destinationBounds.getNorthEast())
+  if (!map) return
+  const bounds = L.latLngBounds([])
+  if (destinationBounds?.isValid()) {
+    bounds.extend(destinationBounds)
+  }
+  for (const geometry of routeGeometries) {
+    for (const point of geometry) bounds.extend(point)
+  }
   if (hasMapCoordinates(props.householdLocation)) {
     bounds.extend([props.householdLocation.latitude, props.householdLocation.longitude])
   }
-  map.fitBounds(bounds, fitOptions)
+  if (bounds.isValid()) map.fitBounds(bounds, fitOptions)
 }
 
 function updateHomeMarker() {
@@ -60,52 +72,73 @@ function updateHomeMarker() {
 
 watch(() => props.householdLocation, updateHomeMarker)
 
+function updateBaseLayers() {
+  if (!map || !baseLayers) return
+  baseLayers.clearLayers()
+  const bounds = L.latLngBounds([])
+
+  for (const destination of props.destinations) {
+    try {
+      const position = [destination.latitude, destination.longitude]
+      const primary = destination.type === 'Primary destination'
+      const color = primary ? '#2563eb' : '#00857a'
+      L.circle(position, {
+        radius: destination.search_radius_km * 1000,
+        color,
+        weight: 2,
+        fillOpacity: 0.06,
+      }).addTo(baseLayers)
+      bounds.extend(L.latLng(position).toBounds(destination.search_radius_km * 2000))
+      L.circleMarker(position, {
+        radius: 12,
+        color: '#fff',
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 1,
+      }).addTo(baseLayers).bindPopup(travelLocationPopup(
+        destination.type, destination.destination_name, destination.destination_address,
+      ))
+    } catch {
+      // A malformed destination must not prevent other markers or the list.
+    }
+  }
+
+  for (const disruption of props.disruptions) {
+    try {
+      const position = [disruption.latitude, disruption.longitude]
+      bounds.extend(position)
+      L.marker(position, { icon: disruptionIcon, title: 'Reported road disruption', zIndexOffset: 500 })
+        .addTo(baseLayers).bindPopup(travelDisruptionPopup(disruption))
+    } catch {
+      // A malformed marker must not prevent other markers or the list.
+    }
+  }
+
+  destinationBounds = bounds
+  fitMap()
+}
+
+function updateRouteLayers() {
+  if (!map || !routeLayers) return
+  routeLayers.clearLayers()
+  routeGeometries = drawTravelRoutes(L, routeLayers, props.routes)
+  hiddenRouteCount.value = props.routes.filter((route) => route?.status === 'available').length - routeGeometries.length
+  fitMap()
+}
+
+watch(() => [props.destinations, props.disruptions], updateBaseLayers, { deep: true })
+watch(() => props.routes, updateRouteLayers, { deep: true })
+
 onMounted(() => {
   try {
     map = L.map(container.value)
     L.maplibreGL({ style: openFreeMapStyle, interactive: false }).addTo(map)
-    const bounds = L.latLngBounds([])
-
-    for (const destination of props.destinations) {
-      try {
-        const position = [destination.latitude, destination.longitude]
-        const primary = destination.type === 'Primary destination'
-        const color = primary ? '#2563eb' : '#00857a'
-        L.circle(position, {
-          radius: destination.search_radius_km * 1000,
-          color,
-          weight: 2,
-          fillOpacity: 0.06,
-        }).addTo(map)
-        bounds.extend(L.latLng(position).toBounds(destination.search_radius_km * 2000))
-        L.circleMarker(position, {
-          radius: 12,
-          color: '#fff',
-          weight: 2,
-          fillColor: color,
-          fillOpacity: 1,
-        }).addTo(map).bindPopup(travelLocationPopup(
-          destination.type, destination.destination_name, destination.destination_address,
-        ))
-      } catch {
-        // A malformed destination must not prevent other markers or the list.
-      }
-    }
-
-    for (const disruption of props.disruptions) {
-      try {
-        const position = [disruption.latitude, disruption.longitude]
-        bounds.extend(position)
-        L.marker(position, { icon: disruptionIcon, title: 'Reported road disruption', zIndexOffset: 500 })
-          .addTo(map).bindPopup(travelDisruptionPopup(disruption))
-      } catch {
-        // A malformed marker must not prevent other markers or the list.
-      }
-    }
-
-    if (!bounds.isValid()) throw new Error('No mappable destination')
-    destinationBounds = bounds
+    // Separate layers allow routes to load/fail independently of map content.
+    baseLayers = L.layerGroup().addTo(map)
+    routeLayers = L.layerGroup().addTo(map)
+    updateBaseLayers()
     updateHomeMarker()
+    updateRouteLayers()
     layoutFrame = requestAnimationFrame(() => {
       map.invalidateSize()
       fitMap()
@@ -126,18 +159,22 @@ onBeforeUnmount(() => {
 <template>
   <div class="map-shell">
     <p v-if="mapError" class="map-fallback" role="status">Map visualization is unavailable. Reported disruption details remain below.</p>
-    <div v-show="!mapError" ref="container" class="travel-map" role="img" aria-label="Map of your home, saved evacuation destinations, ten kilometre search areas, and reported road disruptions"></div>
+    <p v-if="hiddenRouteCount && !mapError" class="route-render-note" role="status">Some road routes could not be displayed. Destination and disruption information remains available.</p>
+    <div v-show="!mapError" ref="container" class="travel-map" role="img" aria-label="Map of your home, saved evacuation destinations, road routes, ten kilometre search areas, and reported road disruptions"></div>
     <div v-if="!mapError" class="map-legend" aria-label="Map legend">
       <span><i class="marker primary"></i>Primary destination</span>
       <span><i class="marker backup"></i>Backup destination</span>
       <span v-if="householdLocation"><i class="marker home">&#8962;</i>Your home</span>
       <span><i class="marker disruption">!</i>Reported disruption</span>
+      <span><i class="route-line primary-route"></i>Primary route</span>
+      <span><i class="route-line backup-route"></i>Backup route</span>
       <span><i class="radius"></i>10 km search area</span>
     </div>
   </div>
 </template>
 
 <style scoped>
+.route-render-note { color: var(--color-text-muted); font-size: 0.85rem; }
 .map-shell { min-width: 0; }
 .travel-map { width: 100%; height: clamp(20rem, 48vw, 31rem); border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-bg-card-muted); }
 .map-fallback { padding: 2rem; border: 1px solid var(--color-border); border-radius: var(--radius); color: var(--color-text-muted); }
@@ -154,5 +191,8 @@ onBeforeUnmount(() => {
 :deep(.travel-popup-address) { margin-top: 0.3rem; }
 :deep(.travel-popup-field) { margin-top: 0.65rem; }
 :deep(.travel-popup-field > strong) { display: block; margin-bottom: 0.15rem; }
+.route-line { width: 1.5rem; height: 0; border-top: 4px solid; border-radius: 2px; }
+.primary-route { border-color: #2563eb; }
+.backup-route { border-color: #00857a; }
 .radius { border: 2px solid #2563eb; }
 </style>

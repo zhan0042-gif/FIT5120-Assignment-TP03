@@ -12,6 +12,7 @@ from app.providers.interfaces import (
     ExplanationClient,
     FireDangerClient,
     RoutingClient,
+    RoadRouteClient,
     SpatialProvider,
     WeatherClient,
     RoadDisruptionClient,
@@ -63,3 +64,7 @@ def get_weather_client() -> WeatherClient:
     return _external_providers.weather
 
 
+
+
+def get_travel_route_client() -> RoadRouteClient:
+    return _external_providers.travel_routes
