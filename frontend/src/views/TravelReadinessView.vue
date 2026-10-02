@@ -1,25 +1,32 @@
 <script setup>
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useHouseholdStore } from '../stores/household'
 import { useTravelDisruptionsStore } from '../stores/travelDisruptions'
 import TravelDisruptionMap from '../components/scenario/TravelDisruptionMap.vue'
 import TravelDisruptionPanel from '../components/scenario/TravelDisruptionPanel.vue'
-import { buildTravelMapData } from '../utils/travelMapData'
+import { api } from '../api/client.js'
+import { buildTravelMapData, hasMapCoordinates } from '../utils/travelMapData'
 
 const householdStore = useHouseholdStore()
 const disruptionStore = useTravelDisruptionsStore()
+const householdLocation = ref(null)
 const mapData = computed(() => buildTravelMapData(disruptionStore.result))
 
 onMounted(async () => {
   if (householdStore.planStatus === 'idle') {
     void householdStore.loadPlan()
   }
-  if (disruptionStore.status !== 'idle') return
   try {
     const householdId = await householdStore.ensureHousehold()
-    await disruptionStore.load(householdId, 10)
+    // Home provides spatial context only; its absence must not hide results.
+    void api.getLocation(householdId).then((location) => {
+      householdLocation.value = hasMapCoordinates(location)
+        ? { ...location, address: location.canonical_address || location.address }
+        : null
+    }).catch(() => { householdLocation.value = null })
+    if (disruptionStore.status === 'idle') await disruptionStore.load(householdId, 10)
   } catch {
-    await disruptionStore.load(null)
+    if (disruptionStore.status === 'idle') await disruptionStore.load(null)
   }
 })
 </script>
@@ -39,6 +46,7 @@ onMounted(async () => {
           :key="disruptionStore.result.checked_at"
           :destinations="mapData.destinations"
           :disruptions="mapData.disruptions"
+          :household-location="householdLocation"
         />
         <p v-else-if="disruptionStore.result?.status === 'available'" class="map-empty">
           No verified destination coordinates are available for the map. Reported disruption details remain available.

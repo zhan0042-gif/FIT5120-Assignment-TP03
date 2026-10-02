@@ -1,3 +1,5 @@
+import { travelDestinationGroups } from './travelReadinessPresentation.js'
+
 export function hasMapCoordinates(item) {
   return Number.isFinite(item?.latitude) && Number.isFinite(item?.longitude)
     && Math.abs(item.latitude) <= 90 && Math.abs(item.longitude) <= 180
@@ -6,13 +8,7 @@ export function hasMapCoordinates(item) {
 export function buildTravelMapData(result) {
   if (result?.status !== 'available') return { destinations: [], disruptions: [] }
 
-  const groups = [
-    result.primary_destination && { ...result.primary_destination, type: 'Primary destination' },
-    ...(result.backup_destinations ?? []).map((destination) => ({
-      ...destination,
-      type: 'Backup destination',
-    })),
-  ].filter(Boolean)
+  const groups = travelDestinationGroups(result)
 
   const destinations = groups.filter((destination) =>
     hasMapCoordinates(destination) && Number.isFinite(destination.search_radius_km)
