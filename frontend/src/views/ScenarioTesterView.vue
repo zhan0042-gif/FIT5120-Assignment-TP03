@@ -40,7 +40,13 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
         <button v-if="scenarioStore.selectedScenarioId" class="btn btn-accent run-btn" type="button" :disabled="scenarioStore.testStatus === 'loading' || !selectedScenario?.enabled" @click="scenarioStore.runTest">{{ scenarioStore.testStatus === 'loading' ? 'Running test...' : 'Run test' }}</button>
       </div>
       <section class="card result-column">
-        <EmptyState v-if="!scenarioStore.selectedScenarioId" title="Choose a scenario to test" message="Select a scenario to see what the test will check." />
+        <EmptyState v-if="!scenarioStore.selectedScenarioId" title="How to test your plan">
+          <ol class="test-steps">
+            <li><span class="step-number">1</span><span><strong>Pick a scenario</strong> from the list, such as your car being unavailable.</span></li>
+            <li><span class="step-number">2</span><span><strong>Click "Run test"</strong>, the button that appears under the list.</span></li>
+            <li><span class="step-number">3</span><span><strong>Read the result here.</strong> It shows whether your saved plan still has a backup that works.</span></li>
+          </ol>
+        </EmptyState>
         <LoadingState v-else-if="scenarioStore.testStatus === 'loading'" message="Testing your current plan..." />
         <ErrorState v-else-if="scenarioStore.testStatus === 'error'" message="The scenario test could not be completed. Check that your plan has been saved, then try again." @retry="scenarioStore.runTest" />
         <EmptyState v-else-if="scenarioStore.testStatus === 'idle'" title="Ready to test" :message="selectedDescription" />
@@ -56,6 +62,10 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
 <style scoped>
 .scenario-tester { width: 100%; min-width: 0; }.scenario-tester > h1 { font-size: clamp(2rem, 4vw, 2.25rem); line-height: 1.2; }.subhead { color: var(--color-text-muted); margin: 0.5rem 0 1.75rem; }
 .tester-grid { display: grid; grid-template-columns: minmax(250px, 340px) 1fr; gap: 1.5rem; align-items: start; }.scenario-column { display: flex; flex-direction: column; gap: 1rem; }.run-btn { width: 100%; }.state-actions { display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
+.test-steps { display: inline-grid; gap: 0.85rem; list-style: none; margin: 0.5rem 0 0; padding: 0; text-align: left; max-width: 30rem; }
+.test-steps li { align-items: flex-start; display: flex; gap: 0.75rem; line-height: 1.5; }
+.test-steps strong { color: var(--color-text); }
+.step-number { align-items: center; background: var(--color-accent-soft); border-radius: 50%; color: var(--color-accent); display: inline-flex; flex: none; font-size: 0.85rem; font-weight: 700; height: 1.6rem; justify-content: center; width: 1.6rem; }
 .scenario-caveat { color: var(--color-text-muted); font-size: 0.8125rem; line-height: 1.5; margin: 0; }
 @media (max-width: 760px) { .tester-grid { grid-template-columns: 1fr; } }
 </style>

@@ -2,6 +2,7 @@
 import { newId } from '../../api/client'
 import AddressAutocompleteInput from '../common/AddressAutocompleteInput.vue'
 import EmptyState from '../common/EmptyState.vue'
+import InfoTip from '../common/InfoTip.vue'
 
 const members = defineModel('members', { required: true })
 const animals = defineModel('animals', { required: true })
@@ -169,9 +170,11 @@ function changeAnimalCategory(animal) {
             />
           </div>
           <div class="field member-support">
-            <label>Other support needs (optional)</label>
+            <label>
+              Other support needs (optional)
+              <InfoTip text="Record only practical information needed for emergency planning." />
+            </label>
             <input v-model="member.support_notes" type="text" placeholder="e.g. Needs medication prepared or help communicating" />
-            <span class="field-help">Record only practical information needed for emergency planning.</span>
           </div>
         </div>
         <div class="checkbox-group">
@@ -180,14 +183,14 @@ function changeAnimalCategory(animal) {
               <input v-model="member.is_dependant" type="checkbox" />
               Needs help from another household member during an emergency?
             </label>
-            <span class="field-help checkbox-help">For example, a young child or someone who cannot prepare to leave independently.</span>
+            <InfoTip text="For example, a young child or someone who cannot prepare to leave independently." />
           </div>
           <div class="checkbox-question">
             <label class="checkbox-row">
               <input v-model="member.mobility_support_required" type="checkbox" />
               Has limited mobility or needs help moving?
             </label>
-            <span class="field-help checkbox-help">This means moving or transport support, such as a wheelchair, walking frame, accessible vehicle or help getting into a vehicle.</span>
+            <InfoTip text="This means moving or transport support, such as a wheelchair, walking frame, accessible vehicle or help getting into a vehicle." />
           </div>
         </div>
       </div>
@@ -227,11 +230,11 @@ function changeAnimalCategory(animal) {
             <input v-model="animal.animal_type_other" type="text" maxlength="100" placeholder="e.g. Ferret" />
           </div>
           <div class="field">
-            <label>Quantity</label>
+            <label>
+              Quantity
+              <InfoTip :text="animal.category === 'livestock' ? 'Use one record for a group, such as 20 sheep.' : 'Usually 1 for a named pet.'" />
+            </label>
             <input v-model.number="animal.quantity" type="number" min="1" step="1" required />
-            <span class="field-help">
-              {{ animal.category === 'livestock' ? 'Use one record for a group, such as 20 sheep.' : 'Usually 1 for a named pet.' }}
-            </span>
           </div>
           <div class="field">
             <label>{{ animal.category === 'pet' ? 'Name (optional)' : 'Group name (optional)' }}</label>
@@ -264,8 +267,9 @@ function changeAnimalCategory(animal) {
 }
 
 .checkbox-question {
-  display: grid;
-  gap: 0.3rem;
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
 }
 
 .checkbox-question .checkbox-row {
@@ -276,10 +280,6 @@ function changeAnimalCategory(animal) {
 .field-help {
   color: var(--color-text-muted);
   font-size: 0.8rem;
-}
-
-.checkbox-help {
-  margin-left: 1.6rem;
 }
 
 .member-row > .btn-danger {
