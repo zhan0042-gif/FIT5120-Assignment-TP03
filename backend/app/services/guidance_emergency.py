@@ -12,19 +12,25 @@ import re
 
 EMERGENCY_PATTERNS = [
     r"\bon fire\b",
-    r"\bfire (?:is|['’]s|has) (?:here|coming|near|close|outside|reached|arrived)\b",
-    r"\bflames? (?:are|is|have|has) (?:at|near|outside|coming|reached)\b",
+    r"\bfire(?: is| has|['’]s) (?:here|coming|near|close|outside|reached|arrived|approaching|at)\b",
+    r"\bfire approaching\b",
+    r"\bflames? (?:(?:are|is|have|has) )?(?:at|near|outside|coming|reached)\b",
+    r"\bsurrounded by (?:fire|flames|smoke)\b",
+    # A possessive or "the" before the noun keeps "when is burning off allowed" out.
+    r"\b(?:my|our|the) \w+ (?:is|are) burning\b",
     r"\btrapped\b",
-    r"\bcan['’]?t breathe\b",
-    r"\bcannot breathe\b",
+    r"\bcan['’]?t breath(?:e)?\b",
+    r"\bcannot breath(?:e)?\b",
     r"\btriple[ -]?zero\b",
     r"\b000\b",
     r"\bhelp me\b",
-    r"\b(?:evacuate|leave|go) now\b",
+    r"\b(?:evacuate|leave|go|get out) now\b",
 ]
 
 _COMPILED = [re.compile(pattern, re.IGNORECASE) for pattern in EMERGENCY_PATTERNS]
 
 
 def is_emergency(question: str) -> bool:
-    return any(pattern.search(question) for pattern in _COMPILED)
+    # Tabs, newlines and repeated spaces must not hide a phrase from the patterns.
+    normalised = " ".join(question.split())
+    return any(pattern.search(normalised) for pattern in _COMPILED)

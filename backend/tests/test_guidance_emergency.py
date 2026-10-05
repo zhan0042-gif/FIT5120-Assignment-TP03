@@ -15,6 +15,18 @@ EMERGENCIES = [
     "help me",
     "We have to evacuate now",
     "MY HOUSE IS ON FIRE",
+    "the fire's here",
+    "fire’s coming",
+    "on  fire",
+    "on\tfire",
+    "my house is burning",
+    "Our shed is burning",
+    "fire is at the door",
+    "fire is approaching",
+    "surrounded by fire",
+    "flames at the back fence",
+    "get out now",
+    "I can't breath",
 ]
 
 PLANNING_QUESTIONS = [
@@ -26,6 +38,10 @@ PLANNING_QUESTIONS = [
     "Is staying a good option?",
     "What should I do around my house on a catastrophic fire day?",
     "How much did my house cost in 2000?",
+    "When is burning off allowed before fire season?",
+    "What does a fire danger rating at extreme mean?",
+    "We need help planning for my mother",
+    "Is it safe to leave early on a catastrophic day?",
 ]
 
 
