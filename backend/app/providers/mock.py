@@ -1,5 +1,7 @@
 """Stable mock providers for local development and automated tests."""
 
+import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from math import asin, cos, radians, sin, sqrt
@@ -7,6 +9,7 @@ from math import asin, cos, radians, sin, sqrt
 from app.providers.interfaces import RouteLeg
 from app.schemas.travel_disruptions import RoadDisruption
 from app.schemas.rendezvous import RendezvousResult
+from app.schemas.safety_guidance import GuidanceCatalogueItem
 from app.schemas.households import (
     AddressSuggestion,
     FireDanger,
@@ -234,3 +237,39 @@ class MockExplanationClient:
             f"{result.destination_name}, so the household is not together until "
             "that journey finishes. Consider whether anyone could start closer."
         )
+
+
+_STOP_WORDS = frozenset(
+    "the and for you are can how what should when why who does did not with that this "
+    "have has get our your my its any all out into from about which there their would "
+    "could was were will".split()
+)
+
+
+def _content_words(text: str) -> set[str]:
+    return {
+        word
+        for word in re.findall(r"[a-z0-9']+", text.lower())
+        if len(word) >= 3 and word not in _STOP_WORDS
+    }
+
+
+class MockGuidanceRouter:
+    """Deterministic word-overlap matching for tests and APP_DATA_MODE=mock.
+
+    A question matches an entry when it shares at least two content words with the
+    entry's question and phrasings. It exists so tests exercise our code rather
+    than a hosted model, and is not meant to be good at the job.
+    """
+
+    def route(self, question: str, catalogue: Sequence[GuidanceCatalogueItem]) -> list[str]:
+        words = _content_words(question)
+        scored: list[tuple[int, str]] = []
+        for item in catalogue:
+            text = " ".join([item.question, *item.asked_as])
+            score = len(words & _content_words(text))
+            if score >= 2:
+                scored.append((score, item.id))
+        scored.sort(key=lambda pair: -pair[0])  # stable: catalogue order breaks ties
+        return [entry_id for _, entry_id in scored[:2]]
+

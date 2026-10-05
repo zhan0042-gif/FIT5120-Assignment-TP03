@@ -11,6 +11,7 @@ from app.providers.interfaces import (
     AddressClient,
     ExplanationClient,
     FireDangerClient,
+    GuidanceRouter,
     RoutingClient,
     RoadRouteClient,
     SpatialProvider,
@@ -74,3 +75,7 @@ def get_travel_route_client() -> RoadRouteClient:
 
 def get_safety_guidance_entries() -> list[GuidanceEntryDefinition]:
     return DEFAULT_ENTRIES
+
+
+def get_guidance_router() -> GuidanceRouter:
+    return _external_providers.guidance_router
