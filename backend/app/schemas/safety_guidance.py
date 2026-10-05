@@ -73,3 +73,35 @@ class SafetyGuidance(BaseModel):
     # False when the bushfire-prone-area fact could not be resolved, so questions
     # that depend on it were not suggested rather than guessed.
     location_conditions_applied: bool
+
+
+class GuidanceCatalogueItem(BaseModel):
+    """What the router is told about one reviewed entry. Never the answer text."""
+
+    id: str
+    question: str
+    asked_as: list[str] = Field(default_factory=list)
+
+
+MAX_QUESTION_LENGTH = 300
+
+
+class GuidanceQuestion(BaseModel):
+    """A typed question. Kept short because it is sent to a hosted model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_QUESTION_LENGTH),
+    ]
+
+
+GuidanceAnswerStatus = Literal["matched", "no_match", "emergency", "unavailable"]
+
+
+class GuidanceAnswer(BaseModel):
+    """Which reviewed entries answer a typed question. Ids only, never text."""
+
+    status: GuidanceAnswerStatus
+    entry_ids: list[str] = Field(default_factory=list)

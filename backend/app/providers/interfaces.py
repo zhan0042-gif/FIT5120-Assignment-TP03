@@ -1,5 +1,6 @@
 """Provider boundaries keep official-data integrations out of business services."""
 
+from collections.abc import Sequence
 from typing import Any, Protocol
 
 from pydantic import BaseModel
@@ -11,6 +12,7 @@ from app.schemas.households import (
     Weather,
 )
 from app.schemas.rendezvous import RendezvousResult
+from app.schemas.safety_guidance import GuidanceCatalogueItem
 from app.schemas.travel_disruptions import RoadDisruption
 from app.schemas.travel_routes import RoadRoute
 
@@ -150,3 +152,18 @@ class ExplanationClient(Protocol):
         self,
         result: RendezvousResult,
     ) -> str: ...
+
+
+class GuidanceRouter(Protocol):
+    """Choose which reviewed safety entries answer a typed question.
+
+    The implementation returns entry ids only. Nothing it says is shown to a user:
+    the service checks every id against the catalogue and the browser displays the
+    reviewed text. It must raise ExternalDataUnavailable when it cannot be reached.
+    """
+
+    def route(
+        self,
+        question: str,
+        catalogue: Sequence[GuidanceCatalogueItem],
+    ) -> list[str]: ...
