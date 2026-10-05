@@ -14,3 +14,7 @@ export const NO_MATCH_MESSAGE =
 export const EMERGENCY_MESSAGE = 'If you are in danger, call 000 now. This tool cannot help in an emergency.'
 export const UNAVAILABLE_MESSAGE =
   'Typing a question is not available right now. Please choose one of the suggested questions.'
+
+// Shown beside the typed question box: the text leaves the site, so say so.
+export const PRIVACY_NOTE =
+  'Typed questions are sent to an AI service to find a matching reviewed answer. Please do not include names or addresses.'

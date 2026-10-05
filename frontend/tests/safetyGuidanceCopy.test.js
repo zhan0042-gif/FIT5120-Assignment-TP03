@@ -5,6 +5,7 @@ import {
   EMPTY_MESSAGE,
   MAX_QUESTION_LENGTH,
   NO_MATCH_MESSAGE,
+  PRIVACY_NOTE,
   SAFETY_NOTICE,
   UNAVAILABLE_MESSAGE,
 } from '../src/utils/safetyGuidanceCopy.js'
@@ -34,4 +35,9 @@ test('the unavailable message points to the suggested questions', () => {
 
 test('the length limit matches the backend', () => {
   assert.equal(MAX_QUESTION_LENGTH, 300)
+})
+
+test('the privacy note says the question goes to an AI service and asks for no names or addresses', () => {
+  assert.match(PRIVACY_NOTE, /AI service/i)
+  assert.match(PRIVACY_NOTE, /names or addresses/i)
 })

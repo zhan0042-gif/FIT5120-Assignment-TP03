@@ -233,3 +233,35 @@ test('an unavailable reply points to the suggested questions', async (context) =
   assert.match(html, /not available right now/)
   assert.match(html, /suggested questions/)
 })
+
+test('the privacy note is shown with the typed question box', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  assert.match(html, /sent to an AI service/)
+})
+
+test('the privacy note is not shown when the typed question box is hidden', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = []
+    store.suggestedIds = []
+  })
+
+  assert.doesNotMatch(html, /sent to an AI service/)
+})
+
+test('the question box stays enabled while a question is in flight, so keyboard focus is not lost', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.asking = true
+  })
+
+  assert.doesNotMatch(html, /id="safety-question"[^>]*disabled/)
+  assert.doesNotMatch(html, /disabled[^>]*id="safety-question"/)
+})

@@ -9,6 +9,7 @@ import {
   EMPTY_MESSAGE,
   MAX_QUESTION_LENGTH,
   NO_MATCH_MESSAGE,
+  PRIVACY_NOTE,
   SAFETY_NOTICE,
   UNAVAILABLE_MESSAGE,
 } from '../../utils/safetyGuidanceCopy'
@@ -166,12 +167,12 @@ onMounted(load)
             :maxlength="MAX_QUESTION_LENGTH"
             autocomplete="off"
             placeholder="Or type your own question"
-            :disabled="store.asking"
           />
           <button class="ask-button" type="submit" :disabled="store.asking || !draft.trim()">
             {{ store.asking ? 'Asking…' : 'Ask' }}
           </button>
         </form>
+        <p class="privacy">{{ PRIVACY_NOTE }}</p>
 
         <p v-if="note === 'verify'" class="note">
           Add and verify your household location to see guidance for bushfire-prone areas.
@@ -208,6 +209,7 @@ onMounted(load)
 .ask-form { display: flex; gap: 0.5rem; margin-top: 1rem; }
 .ask-input { background: var(--color-surface, transparent); border: 1px solid var(--color-summary-border); border-radius: 999px; color: inherit; flex: 1; font: inherit; font-size: 0.9rem; min-width: 0; padding: 0.45rem 0.9rem; }
 .ask-button { background: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 999px; color: var(--color-text-inverse); cursor: pointer; font: inherit; font-size: 0.9rem; padding: 0.45rem 1.1rem; }
+.privacy { color: var(--color-text-muted); font-size: 0.8rem; margin-top: 0.4rem; }
 .ask-button:disabled { cursor: not-allowed; opacity: 0.6; }
 .bubble.emergency { border-color: var(--color-accent); font-weight: 700; }
 </style>
