@@ -306,6 +306,9 @@ export const api = {
   getTravelRoutes: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/travel-routes`),
 
+  getSafetyGuidance: (householdId) =>
+    request(`/households/${encodeURIComponent(householdId)}/safety-guidance`),
+
   getTravelDisruptions: (
     householdId,
     radiusKm = 10,
