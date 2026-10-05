@@ -1823,8 +1823,12 @@ Create `backend/scripts/guidance_router_eval.py`:
 """Compare hosted models on the safety Q&A question set. Run by hand; not part of CI.
 
     cd backend
-    set -a; source ../.env; set +a        # provides AI_API_KEY
     .venv/bin/python scripts/guidance_router_eval.py --model <model-id>
+
+The key is read from the AI_API_KEY environment variable, or failing that from the
+AI_API_KEY line of the repository's .env file. Only that line is read; the file is
+never run as a shell script, because it is not valid shell and a failed parse can
+print its contents.
 
 The questions are fixed test sentences and carry no household data. A pause between
 calls keeps the run under the hosted model's per-minute quota.
@@ -1848,14 +1852,30 @@ from app.services.safety_guidance import DEFAULT_ENTRIES  # noqa: E402
 DEFAULT_CASES = Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "guidance_router_eval.json"
 
 
+DEFAULT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
+
+
+def read_key(env_file: Path) -> str:
+    """AI_API_KEY from the environment, else from that one line of the env file."""
+
+    key = os.getenv("AI_API_KEY", "").strip()
+    if key or not env_file.exists():
+        return key
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        if line.startswith("AI_API_KEY="):
+            return line.split("=", 1)[1].strip().strip("\"'")
+    return ""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", default=DEFAULT_ROUTER_MODEL)
     parser.add_argument("--cases", type=Path, default=DEFAULT_CASES)
+    parser.add_argument("--env-file", type=Path, default=DEFAULT_ENV_FILE)
     parser.add_argument("--pause", type=float, default=1.6, help="seconds between calls")
     args = parser.parse_args()
 
-    api_key = os.getenv("AI_API_KEY", "").strip()
+    api_key = read_key(args.env_file)
     if not api_key:
         print("AI_API_KEY is not set.", file=sys.stderr)
         return 2
@@ -2408,9 +2428,10 @@ This task is run by hand. It needs `AI_API_KEY` and a decision from the team abo
 Run (from `backend/`):
 
 ```bash
-set -a; source ../.env; set +a
 .venv/bin/python scripts/guidance_router_eval.py --model nvidia/nemotron-3-super-120b-a12b | tee /tmp/eval-default.txt
 ```
+
+Do not `source` the `.env` file: it is not valid shell, and the errors it raises print the values of its secret lines. The script reads only the `AI_API_KEY` line itself.
 
 Expected: a report with the first-choice rate, the decline rate, wrong ids, unavailable count and median latency, ending in a line that says whether it meets the 90% bar. About 42 calls with a 1.6 second pause takes roughly a minute and a half. If every call is "unavailable", check the key and the quota before reading the numbers.
 
