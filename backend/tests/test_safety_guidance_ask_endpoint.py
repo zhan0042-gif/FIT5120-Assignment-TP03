@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.dependencies import (
+    get_guidance_rate_limit,
     get_guidance_router,
     get_household_repository,
     get_safety_guidance_entries,
@@ -10,6 +11,7 @@ from app.core.exceptions import ExternalDataUnavailable
 from app.main import app
 from app.repositories.households import InMemoryHouseholdRepository
 from app.schemas.safety_guidance import GuidanceEntryDefinition
+from app.services.rate_limit import AskRateLimit
 
 
 def _entry(entry_id: str, reviewed_by: str | None = "Reviewer"):
@@ -46,6 +48,10 @@ def api():
     app.dependency_overrides[get_household_repository] = lambda: repository
     app.dependency_overrides[get_guidance_router] = lambda: router
     app.dependency_overrides[get_safety_guidance_entries] = lambda: [_entry("a"), _entry("b")]
+    # Tests share one process, so give each its own generous limit.
+    app.dependency_overrides[get_guidance_rate_limit] = lambda: AskRateLimit(
+        per_household=1000, overall=1000
+    )
     with TestClient(app) as client:
         household_id = client.post("/api/v1/households").json()["household_id"]
         yield client, repository, router, household_id
@@ -166,6 +172,9 @@ def test_asking_does_not_change_the_plan(api) -> None:
 def test_mock_mode_answers_a_shipped_question_end_to_end() -> None:
     repository = InMemoryHouseholdRepository()
     app.dependency_overrides[get_household_repository] = lambda: repository
+    app.dependency_overrides[get_guidance_rate_limit] = lambda: AskRateLimit(
+        per_household=1000, overall=1000
+    )
     try:
         with TestClient(app) as client:
             household_id = client.post("/api/v1/households").json()["household_id"]
@@ -175,3 +184,29 @@ def test_mock_mode_answers_a_shipped_question_end_to_end() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "matched", "entry_ids": ["pet-kit"]}
+
+
+def test_a_household_that_asks_too_often_is_told_it_is_unavailable(api) -> None:
+    client, _, router, household_id = api
+    limit = AskRateLimit(per_household=1, overall=1000)
+    app.dependency_overrides[get_guidance_rate_limit] = lambda: limit
+
+    first = _ask(client, household_id, "Is this ok?")
+    second = _ask(client, household_id, "Is this ok?")
+
+    assert first.json()["status"] == "matched"
+    assert second.status_code == 200
+    assert second.json() == {"status": "unavailable", "entry_ids": []}
+    assert router.calls == ["Is this ok?"]
+
+
+def test_an_emergency_is_still_answered_when_the_limit_is_used_up(api) -> None:
+    client, _, router, household_id = api
+    limit = AskRateLimit(per_household=1, overall=1)
+    app.dependency_overrides[get_guidance_rate_limit] = lambda: limit
+    assert _ask(client, household_id, "Is this ok?").json()["status"] == "matched"
+    assert _ask(client, household_id, "Is this ok?").json()["status"] == "unavailable"
+
+    response = _ask(client, household_id, "My house is on fire")
+
+    assert response.json() == {"status": "emergency", "entry_ids": []}

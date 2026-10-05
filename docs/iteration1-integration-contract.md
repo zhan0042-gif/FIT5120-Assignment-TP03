@@ -118,9 +118,11 @@ Safety guidance is a set of short question-and-answer entries written and review
 | `matched` | One or two reviewed entries answer the question | 1 or 2 ids, best first |
 | `no_match` | Nothing reviewed fits, or the question asks for a prediction or a decision | empty |
 | `emergency` | The wording suggests someone is in danger; the model was not called | empty |
-| `unavailable` | The model could not be reached, or no `AI_API_KEY` is configured | empty |
+| `unavailable` | The model could not be reached, no `AI_API_KEY` is configured, or the household or the service has asked too often (see below) | empty |
 
 A model chooses the ids and nothing else: it receives the question and the catalogue of reviewed questions, never household data, and any text it returns beyond the ids is discarded. Ids that are not in the catalogue are dropped, repeats are removed and at most two are kept. The question is never logged. The emergency check is deterministic, English only, and never complete; the interface also shows a fixed "call 000" notice at all times. The suggested question buttons do not use this endpoint.
+
+Typed questions are rate limited, because each one spends a hosted quota shared with the rendezvous explanation and the endpoint needs no login: at most 6 per household and 30 in total in any 60 seconds. A refused question is answered with `unavailable`, exactly as if the model were down, and uses up nothing. Emergency wording is answered before the limit is checked and never counts against it. The counters live in the server process, so with several workers the limits apply per worker.
 
 ## Frontend contract
 

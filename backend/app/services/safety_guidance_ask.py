@@ -15,6 +15,7 @@ from app.schemas.safety_guidance import (
     GuidanceEntryDefinition,
 )
 from app.services.guidance_emergency import is_emergency
+from app.services.rate_limit import AskRateLimit
 from app.services.safety_guidance import DEFAULT_ENTRIES
 
 MAX_MATCHES = 2
@@ -25,13 +26,20 @@ class GuidanceAskService:
         self,
         router: GuidanceRouter,
         entries: Sequence[GuidanceEntryDefinition] | None = None,
+        rate_limit: AskRateLimit | None = None,
     ) -> None:
         self.router = router
         self.entries = DEFAULT_ENTRIES if entries is None else list(entries)
+        self.rate_limit = rate_limit
 
-    def ask(self, question: str) -> GuidanceAnswer:
+    def ask(self, question: str, household_id: str = "") -> GuidanceAnswer:
+        # An emergency is answered first and never counts against the limit.
         if is_emergency(question):
             return GuidanceAnswer(status="emergency")
+
+        # Over the limit looks the same as the model being down: the buttons still work.
+        if self.rate_limit is not None and not self.rate_limit.allow(household_id):
+            return GuidanceAnswer(status="unavailable")
 
         # Only reviewed entries are offered, so the router cannot name a draft.
         catalogue = [

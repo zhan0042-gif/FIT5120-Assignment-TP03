@@ -12,6 +12,7 @@ from app.core.dependencies import (
     get_household_repository,
     get_road_disruption_client,
     get_routing_client,
+    get_guidance_rate_limit,
     get_guidance_router,
     get_safety_guidance_entries,
     get_travel_route_client,
@@ -66,6 +67,7 @@ from app.services.plans import HouseholdPlanService, PlanCompletionService
 from app.services.preparedness_pdf import PreparednessPdfService
 from app.services.rendezvous import RendezvousSimulationService
 from app.services.safety_guidance import SafetyGuidanceService
+from app.services.rate_limit import AskRateLimit
 from app.services.safety_guidance_ask import GuidanceAskService
 from app.services.scenarios import BasicScenarioService
 from app.services.travel_disruptions import TravelDisruptionService
@@ -457,6 +459,7 @@ def ask_safety_guidance(
         list[GuidanceEntryDefinition],
         Depends(get_safety_guidance_entries),
     ],
+    rate_limit: Annotated[AskRateLimit, Depends(get_guidance_rate_limit)],
 ) -> GuidanceAnswer:
     """Say which reviewed entries answer a typed question.
 
@@ -467,7 +470,9 @@ def ask_safety_guidance(
     if not repository.household_exists(household_id):
         raise HouseholdNotFound(f"Household '{household_id}' was not found.")
 
-    return GuidanceAskService(guidance_router, entries).ask(body.question)
+    return GuidanceAskService(guidance_router, entries, rate_limit).ask(
+        body.question, household_id
+    )
 
 
 @router.post(

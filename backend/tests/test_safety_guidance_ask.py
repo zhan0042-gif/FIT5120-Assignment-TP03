@@ -41,6 +41,16 @@ class DownRouter:
         raise ExternalDataUnavailable("model is down")
 
 
+class Limit:
+    def __init__(self, allowed: bool) -> None:
+        self.allowed = allowed
+        self.calls: list[str] = []
+
+    def allow(self, household_id: str) -> bool:
+        self.calls.append(household_id)
+        return self.allowed
+
+
 ENTRIES = [entry("a"), entry("b"), entry("c")]
 
 
@@ -153,3 +163,34 @@ def test_the_question_text_is_never_logged(caplog: pytest.LogCaptureFixture) -> 
 
     assert "zebra-unique-question-text" not in caplog.text
     assert "Example Street" not in caplog.text
+
+
+def test_a_refused_request_is_unavailable_and_the_router_is_not_called() -> None:
+    router = FixedRouter(["a"])
+
+    result = GuidanceAskService(router, ENTRIES, Limit(False)).ask("Is this ok?", "hh_1")
+
+    assert result.status == "unavailable"
+    assert result.entry_ids == []
+    assert router.calls == []
+
+
+def test_an_allowed_request_goes_through_and_names_the_household() -> None:
+    router = FixedRouter(["a"])
+    limit = Limit(True)
+
+    result = GuidanceAskService(router, ENTRIES, limit).ask("Is this ok?", "hh_1")
+
+    assert result.status == "matched"
+    assert limit.calls == ["hh_1"]
+
+
+def test_emergency_wording_is_answered_even_when_the_limit_is_used_up() -> None:
+    router = FixedRouter(["a"])
+    limit = Limit(False)
+
+    result = GuidanceAskService(router, ENTRIES, limit).ask("My house is on fire", "hh_1")
+
+    assert result.status == "emergency"
+    assert router.calls == []
+    assert limit.calls == []

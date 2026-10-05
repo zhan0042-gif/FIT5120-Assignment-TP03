@@ -22,6 +22,7 @@ from app.providers.mock import MockSpatialProvider
 from app.repositories.households import HouseholdRepository, InMemoryHouseholdRepository
 from app.repositories.mysql import MySQLHouseholdRepository
 from app.schemas.safety_guidance import GuidanceEntryDefinition
+from app.services.rate_limit import AskRateLimit
 from app.services.safety_guidance import DEFAULT_ENTRIES
 
 
@@ -79,3 +80,10 @@ def get_safety_guidance_entries() -> list[GuidanceEntryDefinition]:
 
 def get_guidance_router() -> GuidanceRouter:
     return _external_providers.guidance_router
+
+
+_guidance_rate_limit = AskRateLimit()
+
+
+def get_guidance_rate_limit() -> AskRateLimit:
+    return _guidance_rate_limit
