@@ -265,3 +265,69 @@ test('the question box stays enabled while a question is in flight, so keyboard 
   assert.doesNotMatch(html, /id="safety-question"[^>]*disabled/)
   assert.doesNotMatch(html, /disabled[^>]*id="safety-question"/)
 })
+
+test('the suggested questions and the conversation are separate panels with their own headings', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  const suggestions = html.indexOf('class="suggestions-panel"')
+  const suggestionsTitle = html.indexOf('Suggested questions')
+  const chip = html.indexOf('class="chip"')
+  const chat = html.indexOf('class="chat-window"')
+  const chatTitle = html.indexOf('Your conversation')
+  const log = html.indexOf('role="log"')
+  for (const found of [suggestions, suggestionsTitle, chip, chat, chatTitle, log]) assert.ok(found !== -1)
+  assert.ok(suggestions < suggestionsTitle && suggestionsTitle < chip, 'the buttons are inside the suggestions panel')
+  assert.ok(chip < chat, 'the conversation panel comes after the buttons')
+  assert.ok(chat < chatTitle && chatTitle < log, 'the conversation has its own heading')
+})
+
+test('the typed question box sits inside the conversation panel, below the messages', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  const chat = html.indexOf('class="chat-window"')
+  const log = html.indexOf('role="log"')
+  const box = html.indexOf('id="safety-question"')
+  assert.ok(chat !== -1 && log !== -1 && box !== -1)
+  assert.ok(chat < log && log < box)
+})
+
+test('an empty conversation says where answers will appear, and stops saying it once there is one', async (context) => {
+  const empty = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+  const used = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'Question a?' },
+      { id: 2, role: 'assistant', entryId: 'a' },
+    ]
+  })
+
+  assert.match(empty, /Your questions and answers appear here/)
+  assert.doesNotMatch(used, /Your questions and answers appear here/)
+})
+
+test('the live region stays empty of the placeholder so it is not announced as an answer', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  const placeholder = html.indexOf('Your questions and answers appear here')
+  const log = html.indexOf('role="log"')
+  assert.ok(placeholder !== -1 && log !== -1)
+  assert.ok(placeholder < log, 'the placeholder is outside the live region')
+})
