@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { EMPTY_MESSAGE, SAFETY_NOTICE } from '../src/utils/safetyGuidanceCopy.js'
+import {
+  EMERGENCY_MESSAGE,
+  EMPTY_MESSAGE,
+  MAX_QUESTION_LENGTH,
+  NO_MATCH_MESSAGE,
+  PRIVACY_NOTE,
+  SAFETY_NOTICE,
+  UNAVAILABLE_MESSAGE,
+} from '../src/utils/safetyGuidanceCopy.js'
 
 test('the fixed notice says this is not for emergencies and gives 000', () => {
   assert.match(SAFETY_NOTICE, /not for emergencies/i)
@@ -9,4 +17,27 @@ test('the fixed notice says this is not for emergencies and gives 000', () => {
 
 test('the empty message does not promise guidance', () => {
   assert.match(EMPTY_MESSAGE, /no guidance/i)
+})
+
+test('the emergency message tells the person to call 000', () => {
+  assert.match(EMERGENCY_MESSAGE, /call 000 now/i)
+})
+
+test('the no-match message says it cannot predict or decide, and points to the suggestions', () => {
+  assert.match(NO_MATCH_MESSAGE, /reviewed answer/i)
+  assert.match(NO_MATCH_MESSAGE, /predict/i)
+  assert.match(NO_MATCH_MESSAGE, /suggested questions/i)
+})
+
+test('the unavailable message points to the suggested questions', () => {
+  assert.match(UNAVAILABLE_MESSAGE, /suggested questions/i)
+})
+
+test('the length limit matches the backend', () => {
+  assert.equal(MAX_QUESTION_LENGTH, 300)
+})
+
+test('the privacy note says the question goes to an AI service and asks for no names or addresses', () => {
+  assert.match(PRIVACY_NOTE, /AI service/i)
+  assert.match(PRIVACY_NOTE, /names or addresses/i)
 })

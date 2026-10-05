@@ -140,3 +140,194 @@ test('there is no More questions button when every question is already suggested
 
   assert.doesNotMatch(html, /More questions/)
 })
+
+test('a typed question box is shown when there are entries', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  assert.match(html, /id="safety-question"/)
+  assert.match(html, /maxlength="300"/)
+  assert.match(html, /<label[^>]*for="safety-question"/)
+})
+
+test('the typed question box is hidden while the guidance is loading', async (context) => {
+  const html = await render(context, (store) => { store.status = 'loading' })
+
+  assert.doesNotMatch(html, /id="safety-question"/)
+})
+
+test('the typed question box is hidden after the guidance fails to load', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'error'
+    store.error = 'Could not be loaded.'
+  })
+
+  assert.doesNotMatch(html, /id="safety-question"/)
+})
+
+test('the typed question box is hidden when there are no entries', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = []
+    store.suggestedIds = []
+  })
+
+  assert.doesNotMatch(html, /id="safety-question"/)
+})
+
+test('the send control is disabled while a question is in flight', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.asking = true
+  })
+
+  assert.match(html, /ask-button[^>]*disabled/)
+})
+
+test('a no-match reply shows the fixed message', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'Should I leave tomorrow?' },
+      { id: 2, role: 'assistant', kind: 'no_match' },
+    ]
+  })
+
+  assert.match(html, /Should I leave tomorrow\?/)
+  assert.match(html, /don&#39;t have a reviewed answer|don't have a reviewed answer/)
+})
+
+test('an emergency reply is an alert that says to call 000 now', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'My house is on fire' },
+      { id: 2, role: 'assistant', kind: 'emergency' },
+    ]
+  })
+
+  assert.match(html, /role="alert"/)
+  assert.match(html, /call 000 now/)
+})
+
+test('an unavailable reply points to the suggested questions', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'Anything?' },
+      { id: 2, role: 'assistant', kind: 'unavailable' },
+    ]
+  })
+
+  assert.match(html, /not available right now/)
+  assert.match(html, /suggested questions/)
+})
+
+test('the privacy note is shown with the typed question box', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  assert.match(html, /sent to an AI service/)
+})
+
+test('the privacy note is not shown when the typed question box is hidden', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = []
+    store.suggestedIds = []
+  })
+
+  assert.doesNotMatch(html, /sent to an AI service/)
+})
+
+test('the question box stays enabled while a question is in flight, so keyboard focus is not lost', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.asking = true
+  })
+
+  assert.doesNotMatch(html, /id="safety-question"[^>]*disabled/)
+  assert.doesNotMatch(html, /disabled[^>]*id="safety-question"/)
+})
+
+test('the suggested questions and the conversation are separate panels with their own headings', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  const suggestions = html.indexOf('class="suggestions-panel"')
+  const suggestionsTitle = html.indexOf('Suggested questions')
+  const chip = html.indexOf('class="chip"')
+  const chat = html.indexOf('class="chat-window"')
+  const chatTitle = html.indexOf('Your conversation')
+  const log = html.indexOf('role="log"')
+  for (const found of [suggestions, suggestionsTitle, chip, chat, chatTitle, log]) assert.ok(found !== -1)
+  assert.ok(suggestions < suggestionsTitle && suggestionsTitle < chip, 'the buttons are inside the suggestions panel')
+  assert.ok(chip < chat, 'the conversation panel comes after the buttons')
+  assert.ok(chat < chatTitle && chatTitle < log, 'the conversation has its own heading')
+})
+
+test('the typed question box sits inside the conversation panel, below the messages', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  const chat = html.indexOf('class="chat-window"')
+  const log = html.indexOf('role="log"')
+  const box = html.indexOf('id="safety-question"')
+  assert.ok(chat !== -1 && log !== -1 && box !== -1)
+  assert.ok(chat < log && log < box)
+})
+
+test('an empty conversation says where answers will appear, and stops saying it once there is one', async (context) => {
+  const empty = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+  const used = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'Question a?' },
+      { id: 2, role: 'assistant', entryId: 'a' },
+    ]
+  })
+
+  assert.match(empty, /Your questions and answers appear here/)
+  assert.doesNotMatch(used, /Your questions and answers appear here/)
+})
+
+test('the live region stays empty of the placeholder so it is not announced as an answer', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  const placeholder = html.indexOf('Your questions and answers appear here')
+  const log = html.indexOf('role="log"')
+  assert.ok(placeholder !== -1 && log !== -1)
+  assert.ok(placeholder < log, 'the placeholder is outside the live region')
+})

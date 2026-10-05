@@ -34,6 +34,10 @@ class GuidanceConditions(BaseModel):
 # A name made of spaces would pass a bare min_length check and ship an unreviewed entry.
 ReviewerName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
+# Other ways a person might ask the same thing. Only the router reads them; they are
+# never shown to a user.
+Phrasing = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+
 
 class GuidanceEntryDefinition(BaseModel):
     """One question and its reviewed answer, as written in the content file."""
@@ -47,6 +51,7 @@ class GuidanceEntryDefinition(BaseModel):
     source_url: str = Field(pattern=r"^https://\S+$")
     retrieved_on: date
     reviewed_by: ReviewerName | None = None
+    asked_as: list[Phrasing] = Field(default_factory=list, max_length=8)
     applies_when: GuidanceConditions = Field(default_factory=GuidanceConditions)
 
 
@@ -68,3 +73,35 @@ class SafetyGuidance(BaseModel):
     # False when the bushfire-prone-area fact could not be resolved, so questions
     # that depend on it were not suggested rather than guessed.
     location_conditions_applied: bool
+
+
+class GuidanceCatalogueItem(BaseModel):
+    """What the router is told about one reviewed entry. Never the answer text."""
+
+    id: str
+    question: str
+    asked_as: list[str] = Field(default_factory=list)
+
+
+MAX_QUESTION_LENGTH = 300
+
+
+class GuidanceQuestion(BaseModel):
+    """A typed question. Kept short because it is sent to a hosted model."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_QUESTION_LENGTH),
+    ]
+
+
+GuidanceAnswerStatus = Literal["matched", "no_match", "emergency", "unavailable"]
+
+
+class GuidanceAnswer(BaseModel):
+    """Which reviewed entries answer a typed question. Ids only, never text."""
+
+    status: GuidanceAnswerStatus
+    entry_ids: list[str] = Field(default_factory=list)

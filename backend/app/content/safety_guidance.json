@@ -7,7 +7,13 @@
     "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
     "retrieved_on": "2026-10-05",
     "reviewed_by": "mingjun6886",
-    "applies_when": {}
+    "applies_when": {},
+    "asked_as": [
+      "When do I need to evacuate?",
+      "What time should we leave on a bad fire day?",
+      "When is it time to go?",
+      "Should we leave early on a catastrophic day?"
+    ]
   },
   {
     "id": "leaving-late-danger",
@@ -17,7 +23,13 @@
     "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
     "retrieved_on": "2026-10-05",
     "reviewed_by": "mingjun6886",
-    "applies_when": {}
+    "applies_when": {},
+    "asked_as": [
+      "Why not wait and see how the fire goes?",
+      "What happens if I leave at the last minute?",
+      "Is it risky to leave late?",
+      "Why should I go early?"
+    ]
   },
   {
     "id": "too-late-to-leave",
@@ -27,7 +39,13 @@
     "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
     "retrieved_on": "2026-10-05",
     "reviewed_by": "mingjun6886",
-    "applies_when": {}
+    "applies_when": {},
+    "asked_as": [
+      "What are the last resort options?",
+      "Where can I shelter if I cannot get away in time?",
+      "What if we miss the chance to leave?",
+      "Is there a safe place if leaving is no longer possible?"
+    ]
   },
   {
     "id": "stay-and-defend",
@@ -37,7 +55,13 @@
     "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
     "retrieved_on": "2026-10-05",
     "reviewed_by": "mingjun6886",
-    "applies_when": {}
+    "applies_when": {},
+    "asked_as": [
+      "Is it safe to stay and fight the fire?",
+      "Can I defend my house instead of leaving?",
+      "Should we stay and protect the property?",
+      "Is staying a good option?"
+    ]
   },
   {
     "id": "emergency-kit",
@@ -47,7 +71,13 @@
     "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/what-to-take-with-you",
     "retrieved_on": "2026-10-05",
     "reviewed_by": "mingjun6886",
-    "applies_when": {}
+    "applies_when": {},
+    "asked_as": [
+      "What should I pack to evacuate?",
+      "What do I bring with me when we leave?",
+      "What goes in a go bag?",
+      "Which items should be in my bushfire kit?"
+    ]
   },
   {
     "id": "children-comfort",
@@ -59,7 +89,13 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "has_dependants": true
-    }
+    },
+    "asked_as": [
+      "What should I bring for my kids?",
+      "How do I look after children during an evacuation?",
+      "What do I pack for a baby or toddler?",
+      "What toys or comfort items should children have?"
+    ]
   },
   {
     "id": "pets-plan",
@@ -71,7 +107,13 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "has_pets": true
-    }
+    },
+    "asked_as": [
+      "What do I do with my dog or cat?",
+      "Can I bring my pets when we leave?",
+      "How do I plan for my animals?",
+      "Where should my pet go during a fire?"
+    ]
   },
   {
     "id": "pet-kit",
@@ -83,7 +125,13 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "has_pets": true
-    }
+    },
+    "asked_as": [
+      "What should I pack for my pet?",
+      "What does a pet emergency kit need?",
+      "What supplies does my dog need if we evacuate?",
+      "What do I bring for my cat?"
+    ]
   },
   {
     "id": "pets-relief-centres",
@@ -95,7 +143,13 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "has_pets": true
-    }
+    },
+    "asked_as": [
+      "Are pets allowed at evacuation centres?",
+      "Can my dog stay at a relief centre?",
+      "Can I take my animals to a Neighbourhood Safer Place?",
+      "Where can my pet stay if we go to a shelter?"
+    ]
   },
   {
     "id": "extra-help-leave-early",
@@ -107,7 +161,13 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "has_mobility_support": true
-    }
+    },
+    "asked_as": [
+      "When should someone with a disability leave?",
+      "We have an elderly relative who needs help. When do we go?",
+      "How early should we leave if someone cannot walk easily?",
+      "When should people who cannot drive leave?"
+    ]
   },
   {
     "id": "extra-support-plan",
@@ -119,7 +179,13 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "has_mobility_support": true
-    }
+    },
+    "asked_as": [
+      "How do we plan for an older person or someone with a disability?",
+      "What should be in an emergency plan for someone who needs extra help?",
+      "Do people with health conditions need a different plan?",
+      "What should we pack for a person who needs medical equipment?"
+    ]
   },
   {
     "id": "property-prep",
@@ -131,7 +197,13 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "in_bushfire_prone_area": true
-    }
+    },
+    "asked_as": [
+      "How do I prepare my house for bushfire season?",
+      "What should I do to my garden before summer?",
+      "How do I clear around my home?",
+      "What jobs should I do before fire season?"
+    ]
   },
   {
     "id": "extreme-day-home",
@@ -143,6 +215,12 @@
     "reviewed_by": "mingjun6886",
     "applies_when": {
       "in_bushfire_prone_area": true
-    }
+    },
+    "asked_as": [
+      "What should I do around my house on a catastrophic fire day?",
+      "What should I move away from my home on a bad fire day?",
+      "What do I check before leaving on an extreme day?",
+      "Do I need to do anything to my yard on a high-risk day?"
+    ]
   }
 ]

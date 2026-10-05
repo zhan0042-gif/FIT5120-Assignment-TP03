@@ -137,3 +137,39 @@ def test_a_reviewer_name_is_trimmed(tmp_path: Path) -> None:
     entries = load_entries(_write(tmp_path, [_entry(reviewed_by="  Ada  ")]))
 
     assert entries[0].reviewed_by == "Ada"
+
+
+def test_asked_as_is_optional(tmp_path: Path) -> None:
+    entries = load_entries(_write(tmp_path, [_entry()]))
+
+    assert entries[0].asked_as == []
+
+
+def test_asked_as_phrasings_are_kept_and_trimmed(tmp_path: Path) -> None:
+    entries = load_entries(
+        _write(tmp_path, [_entry(asked_as=["  How do I start?  ", "Second one?"])])
+    )
+
+    assert entries[0].asked_as == ["How do I start?", "Second one?"]
+
+
+def test_more_than_eight_phrasings_are_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        load_entries(
+            _write(tmp_path, [_entry(asked_as=[f"Phrasing {n}?" for n in range(9)])])
+        )
+
+
+def test_a_blank_phrasing_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        load_entries(_write(tmp_path, [_entry(asked_as=["   "])]))
+
+
+def test_an_over_long_phrasing_is_rejected(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        load_entries(_write(tmp_path, [_entry(asked_as=["a" * 201])]))
+
+
+def test_every_shipped_entry_has_at_least_three_phrasings() -> None:
+    for entry in load_entries(CONTENT_PATH):
+        assert len(entry.asked_as) >= 3, entry.id

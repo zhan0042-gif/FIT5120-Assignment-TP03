@@ -11,6 +11,7 @@ from app.providers.interfaces import (
     AddressClient,
     ExplanationClient,
     FireDangerClient,
+    GuidanceRouter,
     RoadDisruptionClient,
     RoutingClient,
     RoadRouteClient,
@@ -20,6 +21,7 @@ from app.providers.mock import (
     MockAddressClient,
     MockExplanationClient,
     MockFireDangerClient,
+    MockGuidanceRouter,
     MockRoadDisruptionClient,
     MockRoutingClient,
     MockWeatherClient,
@@ -27,6 +29,10 @@ from app.providers.mock import (
 from app.providers.nvidia_explanation import (
     DisabledExplanationClient,
     NvidiaExplanationClient,
+)
+from app.providers.nvidia_guidance_router import (
+    DisabledGuidanceRouter,
+    NvidiaGuidanceRouter,
 )
 from app.providers.road_disruptions import (
     DisabledRoadDisruptionClient,
@@ -46,6 +52,7 @@ class ExternalProviders:
     explanation: ExplanationClient
     fire_danger: FireDangerClient
     weather: WeatherClient
+    guidance_router: GuidanceRouter
 
 
 def data_mode() -> str:
@@ -124,6 +131,19 @@ def _explanation_client(
     return DisabledExplanationClient()
 
 
+def _guidance_router(
+    api_key: str | None,
+) -> GuidanceRouter:
+    """Typed questions are optional; a missing key disables them rather than the app."""
+
+    if api_key and api_key.strip():
+        return NvidiaGuidanceRouter(
+            api_key=api_key
+        )
+
+    return DisabledGuidanceRouter()
+
+
 def _road_disruption_client(
     api_key: str | None,
 ) -> RoadDisruptionClient:
@@ -153,6 +173,7 @@ def build_external_providers(
             explanation=MockExplanationClient(),
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
+            guidance_router=MockGuidanceRouter(),
         )
 
     if selected == "live":
@@ -175,6 +196,11 @@ def build_external_providers(
             ),
             fire_danger=BOMFireDangerClient(),
             weather=BOMWeatherClient(),
+            guidance_router=_guidance_router(
+                os.getenv(
+                    "AI_API_KEY"
+                )
+            ),
         )
 
     raise RuntimeError(

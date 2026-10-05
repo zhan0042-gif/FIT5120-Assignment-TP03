@@ -32,6 +32,7 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `GET /households/{household_id}/historical-fire-points?limit=500` | Return a bounded 20 km Historical Fire point set. Limit must be 1-1000; the response reports total/returned counts and truncation. |
 | `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
 | `GET /households/{household_id}/safety-guidance` | Return the reviewed CFA question-and-answer entries and the questions to offer this household. Read-only, no model call. Always `200` for a known household. |
+| `POST /households/{household_id}/safety-guidance/ask` | Say which reviewed safety entries answer a typed question. Body `{ "question": "..." }`. Returns `{ "status", "entry_ids" }`; the browser shows the reviewed text for each id. Answer statuses are always `200`. |
 | `GET /scenarios/basic?household_id=…` | List fixed I1 scenarios relevant to the saved plan. |
 | `POST /households/{household_id}/rendezvous-simulation` | Estimate when every member reaches the primary destination from their declared usual location. Requires a 100% complete plan. Not stored: figures reflect traffic at call time. |
 | `POST /households/{household_id}/rendezvous-explanation` | Explain a rendezvous result in 2-3 sentences. Takes the result the browser is displaying. Returns `explanation: null` when the model is unavailable or the passage fails validation. |
@@ -107,6 +108,21 @@ Safety guidance is a set of short question-and-answer entries written and review
 - A household with no saved plan is offered the general entries.
 - If the location is missing or unverified, or the spatial lookup fails, entries that depend on `in_bushfire_prone_area` are not suggested and `location_conditions_applied` is `false`. The condition is not guessed. The flag is `false` for any of those three causes; the frontend tells them apart using the household's own location state.
 - Response: `{ "entries": [{ "id", "question", "answer", "source_name", "source_url", "retrieved_on" }], "suggested_ids": ["..."], "location_conditions_applied": boolean }`. `retrieved_on` is an ISO date (`YYYY-MM-DD`) recording when a person checked the entry against its source page; it is never refreshed automatically.
+
+### Typed questions
+
+`POST /households/{household_id}/safety-guidance/ask` takes `{ "question": "..." }`. The question is trimmed; empty or longer than 300 characters is `422`, an unknown household is `404`. Otherwise the response is `200` with:
+
+| `status` | Meaning | `entry_ids` |
+|---|---|---|
+| `matched` | One or two reviewed entries answer the question | 1 or 2 ids, best first |
+| `no_match` | Nothing reviewed fits, or the question asks for a prediction or a decision | empty |
+| `emergency` | The wording suggests someone is in danger; the model was not called | empty |
+| `unavailable` | The model could not be reached, no `AI_API_KEY` is configured, or the household or the service has asked too often (see below) | empty |
+
+A model chooses the ids and nothing else: it receives the question and the catalogue of reviewed questions, never household data, and any text it returns beyond the ids is discarded. Ids that are not in the catalogue are dropped, repeats are removed and at most two are kept. The question is never logged. The emergency check is deterministic, English only, and never complete; the interface also shows a fixed "call 000" notice at all times. The suggested question buttons do not use this endpoint.
+
+Typed questions are rate limited, because each one spends a hosted quota shared with the rendezvous explanation and the endpoint needs no login: at most 6 per household and 30 in total in any 60 seconds. A refused question is answered with `unavailable`, exactly as if the model were down, and uses up nothing. Emergency wording is answered before the limit is checked and never counts against it. The counters live in the server process, so with several workers the limits apply per worker.
 
 ## Frontend contract
 

@@ -228,3 +228,141 @@ test('there are no more questions when every entry is suggested', async (context
 
   assert.deepEqual(store.moreQuestions, [])
 })
+
+const answer = (status, entryIds = []) => ({ status, entry_ids: entryIds })
+
+// One mock for the whole test, so a test can change the reply without stacking mocks.
+function scriptedAsk(context) {
+  const state = { reply: null }
+  mockApi(context, 'askSafetyGuidance', async () => {
+    if (state.reply instanceof Error) throw state.reply
+    return state.reply
+  })
+  return state
+}
+
+async function loadedStore(context, ids = ['a', 'b', 'c']) {
+  setActivePinia(createPinia())
+  mockApi(context, 'getSafetyGuidance', async () => response(ids))
+  const store = useSafetyGuidanceStore()
+  await store.load('hh_1')
+  return store
+}
+
+test('a typed question shows the question and then each reviewed answer in order', async (context) => {
+  const store = await loadedStore(context)
+  mockApi(context, 'askSafetyGuidance', async (id, question) => {
+    assert.equal(id, 'hh_1')
+    assert.equal(question, 'my own words')
+    return answer('matched', ['c', 'a'])
+  })
+
+  const sent = await store.askTyped('hh_1', '  my own words  ')
+
+  assert.equal(sent, true)
+  assert.deepEqual(
+    store.messages.map((message) => message.role === 'user' ? message.text : message.entryId),
+    ['my own words', 'c', 'a'],
+  )
+})
+
+test('ids that are not among the entries are skipped, and all-unknown is no match', async (context) => {
+  const store = await loadedStore(context)
+  const ask = scriptedAsk(context)
+
+  ask.reply = answer('matched', ['gone', 'b'])
+  await store.askTyped('hh_1', 'first')
+  assert.deepEqual(store.messages.slice(1).map((message) => message.entryId), ['b'])
+
+  ask.reply = answer('matched', ['gone'])
+  await store.askTyped('hh_1', 'second')
+  assert.equal(store.messages.at(-1).kind, 'no_match')
+})
+
+test('each answer status becomes the right fixed message', async (context) => {
+  const store = await loadedStore(context)
+  const ask = scriptedAsk(context)
+
+  for (const status of ['no_match', 'emergency', 'unavailable']) {
+    ask.reply = answer(status)
+    await store.askTyped('hh_1', `question ${status}`)
+    assert.equal(store.messages.at(-1).role, 'assistant')
+    assert.equal(store.messages.at(-1).kind, status)
+  }
+})
+
+test('a failed request or an unknown status is shown as unavailable', async (context) => {
+  const store = await loadedStore(context)
+  const ask = scriptedAsk(context)
+
+  ask.reply = new Error('boom')
+  await store.askTyped('hh_1', 'one')
+  assert.equal(store.messages.at(-1).kind, 'unavailable')
+
+  ask.reply = answer('something_new')
+  await store.askTyped('hh_1', 'two')
+  assert.equal(store.messages.at(-1).kind, 'unavailable')
+})
+
+test('a blank or over-long question is not sent', async (context) => {
+  const store = await loadedStore(context)
+  let called = false
+  mockApi(context, 'askSafetyGuidance', async () => { called = true; return answer('matched', ['a']) })
+
+  assert.equal(await store.askTyped('hh_1', '   '), false)
+  assert.equal(await store.askTyped('hh_1', 'x'.repeat(301)), false)
+  assert.equal(called, false)
+  assert.deepEqual(store.messages, [])
+})
+
+test('nothing is sent without a household', async (context) => {
+  const store = await loadedStore(context)
+  let called = false
+  mockApi(context, 'askSafetyGuidance', async () => { called = true; return answer('matched', ['a']) })
+
+  assert.equal(await store.askTyped(null, 'a question'), false)
+  assert.equal(called, false)
+})
+
+test('a second question is ignored while one is in flight', async (context) => {
+  const store = await loadedStore(context)
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  let calls = 0
+  mockApi(context, 'askSafetyGuidance', async () => { calls += 1; await gate; return answer('matched', ['a']) })
+
+  const first = store.askTyped('hh_1', 'first')
+  assert.equal(store.asking, true)
+  const second = store.askTyped('hh_1', 'second')
+  // Open the gate before waiting, so a missing guard fails the assertion instead of hanging.
+  release()
+  assert.equal(await second, false)
+  await first
+
+  assert.equal(calls, 1)
+  assert.equal(store.asking, false)
+})
+
+test('asking is cleared after a failure', async (context) => {
+  const store = await loadedStore(context)
+  mockApi(context, 'askSafetyGuidance', async () => { throw new Error('boom') })
+
+  await store.askTyped('hh_1', 'one')
+
+  assert.equal(store.asking, false)
+})
+
+test('a reply that arrives after the conversation was reset adds nothing', async (context) => {
+  const store = await loadedStore(context)
+  let release
+  const gate = new Promise((resolve) => { release = resolve })
+  mockApi(context, 'askSafetyGuidance', async () => { await gate; return answer('matched', ['a']) })
+
+  const pending = store.askTyped('hh_1', 'slow one')
+  store.reset()
+  release()
+  await pending
+
+  assert.deepEqual(store.messages, [])
+  assert.equal(store.asking, false)
+})

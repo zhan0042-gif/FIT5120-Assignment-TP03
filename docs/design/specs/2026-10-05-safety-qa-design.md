@@ -1,6 +1,6 @@
 # Safety Q&A — Design
 
-**Status:** Phase 1 implemented on `feature/safety-guidance`; every entry still awaits content review (`reviewed_by`) before it is shown. Phase 2 (typed questions) is not started.
+**Status:** Phase 1 and Phase 2 implemented. Phase 2 is on `feature/safety-qa-phase-2`; the routing model comparison and decision are recorded in `safety-qa-router-evaluation.md`.
 **Branch:** `feature/safety-guidance` (builds on, and reshapes, the safety guidance already on it)
 **Date:** 2026-10-05
 **Builds on:** `2026-10-05-safety-guidance-design.md`

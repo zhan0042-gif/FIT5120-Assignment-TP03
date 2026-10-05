@@ -12,6 +12,8 @@ from app.core.dependencies import (
     get_household_repository,
     get_road_disruption_client,
     get_routing_client,
+    get_guidance_rate_limit,
+    get_guidance_router,
     get_safety_guidance_entries,
     get_travel_route_client,
     get_spatial_provider,
@@ -20,6 +22,7 @@ from app.core.dependencies import (
 from app.core.exceptions import HouseholdNotFound, LocationNotFound
 from app.providers.interfaces import (
     AddressClient,
+    GuidanceRouter,
     ExplanationClient,
     FireDangerClient,
     RoadDisruptionClient,
@@ -44,7 +47,12 @@ from app.schemas.households import (
     PreparationSupport,
 )
 from app.schemas.rendezvous import RendezvousResult
-from app.schemas.safety_guidance import GuidanceEntryDefinition, SafetyGuidance
+from app.schemas.safety_guidance import (
+    GuidanceAnswer,
+    GuidanceEntryDefinition,
+    GuidanceQuestion,
+    SafetyGuidance,
+)
 from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
 from app.schemas.travel_disruptions import TravelDisruptionResult
 from app.schemas.travel_routes import TravelRouteResult
@@ -59,6 +67,8 @@ from app.services.plans import HouseholdPlanService, PlanCompletionService
 from app.services.preparedness_pdf import PreparednessPdfService
 from app.services.rendezvous import RendezvousSimulationService
 from app.services.safety_guidance import SafetyGuidanceService
+from app.services.rate_limit import AskRateLimit
+from app.services.safety_guidance_ask import GuidanceAskService
 from app.services.scenarios import BasicScenarioService
 from app.services.travel_disruptions import TravelDisruptionService
 from app.services.travel_routes import TravelRouteService
@@ -85,6 +95,11 @@ RoadDisruptionDependency = Annotated[
 ExplanationDependency = Annotated[
     ExplanationClient,
     Depends(get_explanation_client),
+]
+
+GuidanceRouterDependency = Annotated[
+    GuidanceRouter,
+    Depends(get_guidance_router),
 ]
 
 
@@ -429,6 +444,35 @@ def get_safety_guidance(
         spatial_provider,
         entries,
     ).get(household_id)
+
+
+@router.post(
+    "/{household_id}/safety-guidance/ask",
+    response_model=GuidanceAnswer,
+)
+def ask_safety_guidance(
+    household_id: str,
+    body: GuidanceQuestion,
+    repository: RepositoryDependency,
+    guidance_router: GuidanceRouterDependency,
+    entries: Annotated[
+        list[GuidanceEntryDefinition],
+        Depends(get_safety_guidance_entries),
+    ],
+    rate_limit: Annotated[AskRateLimit, Depends(get_guidance_rate_limit)],
+) -> GuidanceAnswer:
+    """Say which reviewed entries answer a typed question.
+
+    The household id only scopes the route. Nothing about the household is sent to
+    the model, and the question is never logged.
+    """
+
+    if not repository.household_exists(household_id):
+        raise HouseholdNotFound(f"Household '{household_id}' was not found.")
+
+    return GuidanceAskService(guidance_router, entries, rate_limit).ask(
+        body.question, household_id
+    )
 
 
 @router.post(
