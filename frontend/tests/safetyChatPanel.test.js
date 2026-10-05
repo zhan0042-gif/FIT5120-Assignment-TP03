@@ -140,3 +140,96 @@ test('there is no More questions button when every question is already suggested
 
   assert.doesNotMatch(html, /More questions/)
 })
+
+test('a typed question box is shown when there are entries', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+  })
+
+  assert.match(html, /id="safety-question"/)
+  assert.match(html, /maxlength="300"/)
+  assert.match(html, /<label[^>]*for="safety-question"/)
+})
+
+test('the typed question box is hidden while the guidance is loading', async (context) => {
+  const html = await render(context, (store) => { store.status = 'loading' })
+
+  assert.doesNotMatch(html, /id="safety-question"/)
+})
+
+test('the typed question box is hidden after the guidance fails to load', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'error'
+    store.error = 'Could not be loaded.'
+  })
+
+  assert.doesNotMatch(html, /id="safety-question"/)
+})
+
+test('the typed question box is hidden when there are no entries', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = []
+    store.suggestedIds = []
+  })
+
+  assert.doesNotMatch(html, /id="safety-question"/)
+})
+
+test('the send control is disabled while a question is in flight', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.asking = true
+  })
+
+  assert.match(html, /ask-button[^>]*disabled/)
+})
+
+test('a no-match reply shows the fixed message', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'Should I leave tomorrow?' },
+      { id: 2, role: 'assistant', kind: 'no_match' },
+    ]
+  })
+
+  assert.match(html, /Should I leave tomorrow\?/)
+  assert.match(html, /don&#39;t have a reviewed answer|don't have a reviewed answer/)
+})
+
+test('an emergency reply is an alert that says to call 000 now', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'My house is on fire' },
+      { id: 2, role: 'assistant', kind: 'emergency' },
+    ]
+  })
+
+  assert.match(html, /role="alert"/)
+  assert.match(html, /call 000 now/)
+})
+
+test('an unavailable reply points to the suggested questions', async (context) => {
+  const html = await render(context, (store) => {
+    store.status = 'success'
+    store.entries = [entry('a')]
+    store.suggestedIds = ['a']
+    store.messages = [
+      { id: 1, role: 'user', text: 'Anything?' },
+      { id: 2, role: 'assistant', kind: 'unavailable' },
+    ]
+  })
+
+  assert.match(html, /not available right now/)
+  assert.match(html, /suggested questions/)
+})

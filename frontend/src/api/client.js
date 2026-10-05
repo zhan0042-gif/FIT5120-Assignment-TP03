@@ -309,6 +309,12 @@ export const api = {
   getSafetyGuidance: (householdId) =>
     request(`/households/${encodeURIComponent(householdId)}/safety-guidance`),
 
+  askSafetyGuidance: (householdId, question) =>
+    request(`/households/${encodeURIComponent(householdId)}/safety-guidance/ask`, {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+    }),
+
   getTravelDisruptions: (
     householdId,
     radiusKm = 10,

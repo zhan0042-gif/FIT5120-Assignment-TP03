@@ -4,7 +4,14 @@ import { useHouseholdStore } from '../../stores/household'
 import { useLocalContextStore } from '../../stores/localContext'
 import { useSafetyGuidanceStore } from '../../stores/safetyGuidance'
 import { isStale } from '../../utils/guidanceFreshness'
-import { EMPTY_MESSAGE, SAFETY_NOTICE } from '../../utils/safetyGuidanceCopy'
+import {
+  EMERGENCY_MESSAGE,
+  EMPTY_MESSAGE,
+  MAX_QUESTION_LENGTH,
+  NO_MATCH_MESSAGE,
+  SAFETY_NOTICE,
+  UNAVAILABLE_MESSAGE,
+} from '../../utils/safetyGuidanceCopy'
 import { locationNote } from '../../utils/safetyGuidanceNote'
 import ErrorState from '../common/ErrorState.vue'
 import LoadingState from '../common/LoadingState.vue'
@@ -14,6 +21,7 @@ const localContextStore = useLocalContextStore()
 const store = useSafetyGuidanceStore()
 const conversation = ref(null)
 const showMore = ref(false)
+const draft = ref('')
 
 const note = computed(() =>
   locationNote({
@@ -30,6 +38,21 @@ function readOn(isoDate) {
 
 function load() {
   return store.loadFor(() => householdStore.ensureHousehold())
+}
+
+const FIXED_MESSAGES = {
+  no_match: NO_MATCH_MESSAGE,
+  emergency: EMERGENCY_MESSAGE,
+  unavailable: UNAVAILABLE_MESSAGE,
+}
+
+function fixedMessage(kind) {
+  return FIXED_MESSAGES[kind] ?? UNAVAILABLE_MESSAGE
+}
+
+async function send() {
+  const sent = await store.askTyped(householdStore.householdId, draft.value)
+  if (sent) draft.value = ''
 }
 
 // Keep the newest answer in view without moving the rest of the page.
@@ -106,6 +129,15 @@ onMounted(load)
             <div v-if="message.role === 'user'" class="message user">
               <p class="bubble">{{ message.text }}</p>
             </div>
+            <div v-else-if="message.kind" class="message assistant">
+              <p
+                class="bubble fixed"
+                :class="message.kind"
+                :role="message.kind === 'emergency' ? 'alert' : undefined"
+              >
+                {{ fixedMessage(message.kind) }}
+              </p>
+            </div>
             <div v-else-if="store.entriesById[message.entryId]" class="message assistant">
               <div class="bubble">
                 <p>{{ store.entriesById[message.entryId].answer }}</p>
@@ -123,6 +155,23 @@ onMounted(load)
             </div>
           </template>
         </div>
+
+        <form class="ask-form" @submit.prevent="send">
+          <label class="sr-only" for="safety-question">Type your own question</label>
+          <input
+            id="safety-question"
+            v-model="draft"
+            class="ask-input"
+            type="text"
+            :maxlength="MAX_QUESTION_LENGTH"
+            autocomplete="off"
+            placeholder="Or type your own question"
+            :disabled="store.asking"
+          />
+          <button class="ask-button" type="submit" :disabled="store.asking || !draft.trim()">
+            {{ store.asking ? 'Asking…' : 'Ask' }}
+          </button>
+        </form>
 
         <p v-if="note === 'verify'" class="note">
           Add and verify your household location to see guidance for bushfire-prone areas.
@@ -155,4 +204,10 @@ onMounted(load)
 .more-chips { margin-top: 0.4rem; }
 .stale { color: var(--color-text-muted); font-size: 0.85rem; font-style: italic; }
 .note { font-size: 0.9rem; margin-top: 1rem; }
+.sr-only { border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; }
+.ask-form { display: flex; gap: 0.5rem; margin-top: 1rem; }
+.ask-input { background: var(--color-surface, transparent); border: 1px solid var(--color-summary-border); border-radius: 999px; color: inherit; flex: 1; font: inherit; font-size: 0.9rem; min-width: 0; padding: 0.45rem 0.9rem; }
+.ask-button { background: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 999px; color: var(--color-text-inverse); cursor: pointer; font: inherit; font-size: 0.9rem; padding: 0.45rem 1.1rem; }
+.ask-button:disabled { cursor: not-allowed; opacity: 0.6; }
+.bubble.emergency { border-color: var(--color-accent); font-weight: 700; }
 </style>
