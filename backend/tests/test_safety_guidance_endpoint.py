@@ -113,3 +113,17 @@ def test_the_shipped_content_is_served_by_default() -> None:
 
     assert response.status_code == 200
     assert set(response.json()) == {"entries", "suggested_ids", "location_conditions_applied"}
+
+
+def test_the_shipped_phrasings_are_never_sent_to_the_browser() -> None:
+    repository = InMemoryHouseholdRepository()
+    app.dependency_overrides[get_household_repository] = lambda: repository
+    try:
+        with TestClient(app) as client:
+            household_id = client.post("/api/v1/households").json()["household_id"]
+            body = client.get(f"/api/v1/households/{household_id}/safety-guidance").json()
+    finally:
+        app.dependency_overrides.clear()
+
+    assert body["entries"]
+    assert all("asked_as" not in entry for entry in body["entries"])
