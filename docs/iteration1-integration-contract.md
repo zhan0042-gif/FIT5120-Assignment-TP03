@@ -31,6 +31,7 @@ All paths are under `/api/v1` and use snake_case JSON.
 | `GET /households/{household_id}/local-context` | Return saved location, static spatial context, current weather, and official FDR state. |
 | `GET /households/{household_id}/historical-fire-points?limit=500` | Return a bounded 20 km Historical Fire point set. Limit must be 1-1000; the response reports total/returned counts and truncation. |
 | `GET /households/{household_id}/preparation-support` | Return rule-based review guidance when FDR is usable. |
+| `GET /households/{household_id}/safety-guidance` | Return the reviewed CFA question-and-answer entries and the questions to offer this household. Read-only, no model call. Always `200` for a known household. |
 | `GET /scenarios/basic?household_id=…` | List fixed I1 scenarios relevant to the saved plan. |
 | `POST /households/{household_id}/rendezvous-simulation` | Estimate when every member reaches the primary destination from their declared usual location. Requires a 100% complete plan. Not stored: figures reflect traffic at call time. |
 | `POST /households/{household_id}/rendezvous-explanation` | Explain a rendezvous result in 2-3 sentences. Takes the result the browser is displaying. Returns `explanation: null` when the model is unavailable or the passage fails validation. |
@@ -96,6 +97,16 @@ BOM weather selects an appropriate fresh observed station; BOM weather and FDR c
 Preparation Support is transparent rule-based guidance, not prediction. With usable fresh FDR, it returns `up_to_date` or `review_recommended` using FDR and saved-plan completion; it can point to incomplete sections. Unavailable or stale FDR does not generate a recommendation.
 
 Scenarios are deterministic and run only on the latest saved plan. They do not mutate that plan. `vehicle_unavailable` requires an independent backup transport with an eligible recorded driver; `person_unavailable` requires a different valid backup person for relevant responsibilities; and `destination_unavailable` requires a genuinely different backup destination. The service evaluates available ordered backups rather than a fixed singular backup. Results are persisted independently as `test_run` and ordered `test_check_result` records.
+
+## Safety guidance
+
+Safety guidance is a set of short question-and-answer entries written and reviewed by the team, each a summary of one CFA page with a link to it. The service chooses which questions to offer; it does not generate advice, call a model, or write to the plan.
+
+- `entries` is every reviewed entry, in the order of `backend/app/content/safety_guidance.json`, whatever the household. An entry with no `reviewed_by` is never returned. The browser answers a tapped question from this list.
+- `suggested_ids` is at most six ids of the questions to offer as buttons: first up to four entries tailored to the household, then general entries, each in file order. An entry is tailored when it has conditions and all of them hold. Conditions come from the saved plan (`has_dependants`, `has_mobility_support`, `has_pets`, `has_livestock`, `no_private_transport`) and the cached bushfire-prone-area flag (`in_bushfire_prone_area`). `no_private_transport` requires an explicit `has_private_transport: false`. Conditions never stop an entry being returned in `entries`.
+- A household with no saved plan is offered the general entries.
+- If the location is missing or unverified, or the spatial lookup fails, entries that depend on `in_bushfire_prone_area` are not suggested and `location_conditions_applied` is `false`. The condition is not guessed. The flag is `false` for any of those three causes; the frontend tells them apart using the household's own location state.
+- Response: `{ "entries": [{ "id", "question", "answer", "source_name", "source_url", "retrieved_on" }], "suggested_ids": ["..."], "location_conditions_applied": boolean }`. `retrieved_on` is an ISO date (`YYYY-MM-DD`) recording when a person checked the entry against its source page; it is never refreshed automatically.
 
 ## Frontend contract
 

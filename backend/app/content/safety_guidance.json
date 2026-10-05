@@ -1,0 +1,148 @@
+[
+  {
+    "id": "when-to-leave",
+    "question": "When should I leave on a high-risk day?",
+    "answer": "CFA advises leaving before any fire starts, by 10 am or the night before, on Extreme and Catastrophic fire danger days. Do not wait for smoke or flames. Check the Fire Danger Rating each day during bushfire season so you know what kind of day it is.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {}
+  },
+  {
+    "id": "leaving-late-danger",
+    "question": "Why is leaving late so dangerous?",
+    "answer": "CFA says many people who die in bushfires wait too long to leave and are trapped by radiant heat, smoke and embers. Leaving late can also put you on roads with thick smoke, fallen trees, road closures or traffic jams. Leaving early gives you more time, more control and more choices about where to go and how to travel.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {}
+  },
+  {
+    "id": "too-late-to-leave",
+    "question": "What if it is too late to leave?",
+    "answer": "Leaving early is the plan; these are last resorts for when it is too late, not alternatives to leaving. CFA lists a well-prepared house or building, a personal bushfire shelter, a Community Fire Refuge, a Neighbourhood Safer Place, a parked car in a clear area, or open ground such as a ploughed paddock, reserve or water body. Read CFA's full guidance before relying on any of them.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {}
+  },
+  {
+    "id": "stay-and-defend",
+    "question": "Should I stay and defend my home?",
+    "answer": "CFA does not recommend staying to defend a property and describes it as extremely dangerous. It advises planning to leave early instead.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {}
+  },
+  {
+    "id": "emergency-kit",
+    "question": "What should I put in an emergency kit?",
+    "answer": "CFA suggests a change of clothes and toiletries for each person, medicines and prescriptions, a first aid kit, identity and insurance documents, printed contact numbers, a battery-powered radio, a torch, phone chargers or a power bank, drinking water and easy-to-pack food. It also suggests pure wool blankets, which help protect from radiant heat. Keep the kit somewhere easy to reach and practise packing the car before fire season or on a day of low fire risk.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/what-to-take-with-you",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {}
+  },
+  {
+    "id": "children-comfort",
+    "question": "What should I pack for children?",
+    "answer": "Alongside the practical items in the emergency kit, CFA suggests comfort items for children, such as a blanket, a special toy or card games.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/what-to-take-with-you",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "has_dependants": true
+    }
+  },
+  {
+    "id": "pets-plan",
+    "question": "What about my pets?",
+    "answer": "CFA says never to stay home or risk your life for a pet, and to leave early with pets on high-risk days. Arrange where your pet will go, such as friends, family, a kennel or a cattery, and confirm it in advance. Never return once a fire has started.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/pets-and-bushfires",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "has_pets": true
+    }
+  },
+  {
+    "id": "pet-kit",
+    "question": "What should a pet kit include?",
+    "answer": "CFA suggests food and water for several days, bowls and a tin opener, a carrier or crate, a backup collar and lead, a pet first-aid kit, about a week of any medication, medical and vaccination records, your vet's details and familiar bedding. Keep microchip and ID tag details up to date and practise loading pets into the car.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/pets-and-bushfires",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "has_pets": true
+    }
+  },
+  {
+    "id": "pets-relief-centres",
+    "question": "Can I take my pet to a relief centre?",
+    "answer": "CFA warns that relief centres and Neighbourhood Safer Places are not set up to house animals and may turn pets away, so arrange somewhere for your pet before the season.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/pets-and-bushfires",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "has_pets": true
+    }
+  },
+  {
+    "id": "extra-help-leave-early",
+    "question": "Someone in my household needs extra help to move. When should we leave?",
+    "answer": "CFA says leaving early matters most for people who are older, have a disability, are unwell, can't drive, have younger children or need help leaving home. Give yourself extra time to get ready.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/when-to-leave",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "has_mobility_support": true
+    }
+  },
+  {
+    "id": "extra-support-plan",
+    "question": "How do we plan for someone who needs extra support?",
+    "answer": "CFA says people who need extra support should have a clear, workable bushfire plan and should not assume they will be evacuated. The plan should be practical, realistic and made with the person involved. CFA provides a template with room for backup plans and an emergency bag, such as mobility aids, communication devices, medical equipment and medications.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/planning-with-people-who-need-extra-support",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "has_mobility_support": true
+    }
+  },
+  {
+    "id": "property-prep",
+    "question": "How do I get my property ready before the season?",
+    "answer": "In early spring CFA suggests clearing gutters, sealing gaps and vents, storing fuels and chemicals away from the house and securing LPG tanks, moving woodpiles away, pruning shrubs and overhanging branches, marking water sources, and mowing about 10 metres of well-kept grass around the home. During the season keep grass trimmed and gutters clear.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/preparing-for-bushfire-season",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "in_bushfire_prone_area": true
+    }
+  },
+  {
+    "id": "extreme-day-home",
+    "question": "What should I do around my home on Extreme or Catastrophic days?",
+    "answer": "CFA suggests mowing the lawn, removing leaf piles and other combustible material, clearing gutters, moving doormats, outdoor furniture and potted plants away from the house, and checking that gas bottles are securely anchored with their valves pointing away from anything that could catch fire.",
+    "source_name": "CFA",
+    "source_url": "https://www.cfa.vic.gov.au/fire-safety/your-fire-plan/preparing-for-bushfire-season",
+    "retrieved_on": "2026-10-05",
+    "reviewed_by": null,
+    "applies_when": {
+      "in_bushfire_prone_area": true
+    }
+  }
+]

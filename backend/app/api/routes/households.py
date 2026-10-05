@@ -12,6 +12,7 @@ from app.core.dependencies import (
     get_household_repository,
     get_road_disruption_client,
     get_routing_client,
+    get_safety_guidance_entries,
     get_travel_route_client,
     get_spatial_provider,
     get_weather_client,
@@ -43,6 +44,7 @@ from app.schemas.households import (
     PreparationSupport,
 )
 from app.schemas.rendezvous import RendezvousResult
+from app.schemas.safety_guidance import GuidanceEntryDefinition, SafetyGuidance
 from app.schemas.scenarios import ScenarioTestRequest, ScenarioTestResult
 from app.schemas.travel_disruptions import TravelDisruptionResult
 from app.schemas.travel_routes import TravelRouteResult
@@ -56,6 +58,7 @@ from app.services.explanation import ExplanationService
 from app.services.plans import HouseholdPlanService, PlanCompletionService
 from app.services.preparedness_pdf import PreparednessPdfService
 from app.services.rendezvous import RendezvousSimulationService
+from app.services.safety_guidance import SafetyGuidanceService
 from app.services.scenarios import BasicScenarioService
 from app.services.travel_disruptions import TravelDisruptionService
 from app.services.travel_routes import TravelRouteService
@@ -401,6 +404,31 @@ def get_preparation_support(
         household_id,
         completion,
     )
+
+
+@router.get(
+    "/{household_id}/safety-guidance",
+    response_model=SafetyGuidance,
+)
+def get_safety_guidance(
+    household_id: str,
+    repository: RepositoryDependency,
+    spatial_provider: Annotated[
+        SpatialProvider,
+        Depends(get_spatial_provider),
+    ],
+    entries: Annotated[
+        list[GuidanceEntryDefinition],
+        Depends(get_safety_guidance_entries),
+    ],
+) -> SafetyGuidance:
+    """Return the reviewed CFA question-and-answer entries and the questions to offer."""
+
+    return SafetyGuidanceService(
+        repository,
+        spatial_provider,
+        entries,
+    ).get(household_id)
 
 
 @router.post(

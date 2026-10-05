@@ -20,6 +20,8 @@ from app.providers.interfaces import (
 from app.providers.mock import MockSpatialProvider
 from app.repositories.households import HouseholdRepository, InMemoryHouseholdRepository
 from app.repositories.mysql import MySQLHouseholdRepository
+from app.schemas.safety_guidance import GuidanceEntryDefinition
+from app.services.safety_guidance import DEFAULT_ENTRIES
 
 
 _repository: HouseholdRepository = (
@@ -68,3 +70,7 @@ def get_weather_client() -> WeatherClient:
 
 def get_travel_route_client() -> RoadRouteClient:
     return _external_providers.travel_routes
+
+
+def get_safety_guidance_entries() -> list[GuidanceEntryDefinition]:
+    return DEFAULT_ENTRIES
