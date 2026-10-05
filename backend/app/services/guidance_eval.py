@@ -125,9 +125,9 @@ def format_report(report: EvalReport, model: str) -> str:
     lines = [
         f"Model: {model}",
         f"Questions that should match: {report.top_correct}/{report.positives} "
-        f"first choice correct ({report.top_accuracy:.0%})",
+        f"first choice correct ({report.top_accuracy:.1%})",
         f"Questions that should be declined: {report.declined}/{report.negatives} "
-        f"declined ({report.decline_rate:.0%})",
+        f"declined ({report.decline_rate:.1%})",
         f"Wrong ids returned: {report.wrong_ids}",
         f"Unavailable: {report.unavailable}",
         f"Median latency: {report.median_latency_ms:.0f} ms",

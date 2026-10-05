@@ -1,3 +1,4 @@
+import difflib
 from pathlib import Path
 
 from app.core.exceptions import ExternalDataUnavailable
@@ -50,6 +51,24 @@ def test_every_expected_id_is_a_real_entry() -> None:
     known = {entry.id for entry in DEFAULT_ENTRIES}
     for case in load_cases(FIXTURE):
         assert set(case.expected) <= known, case.question
+
+
+def test_no_positive_question_is_a_near_copy_of_what_the_router_already_sees() -> None:
+    # The router is shown each entry's question and phrasings. A test sentence that
+    # copies one of them measures nothing, so the set must stay independent of them.
+    seen = [
+        text.lower()
+        for entry in DEFAULT_ENTRIES
+        for text in [entry.question, *entry.asked_as]
+    ]
+    for case in load_cases(FIXTURE):
+        if not case.expected:
+            continue
+        closest = max(
+            difflib.SequenceMatcher(None, case.question.lower(), text).ratio()
+            for text in seen
+        )
+        assert closest < 0.8, f"{closest:.2f}: {case.question}"
 
 
 def test_no_question_is_repeated() -> None:
@@ -142,5 +161,12 @@ def test_the_report_names_the_model_and_the_bar() -> None:
     text = format_report(EvalReport(positives=2, top_correct=2, negatives=2, declined=2), "vendor/model")
 
     assert "vendor/model" in text
-    assert "100%" in text
+    assert "100.0%" in text
     assert "meets the 90% bar" in text
+
+
+def test_a_rate_is_shown_to_one_decimal_so_it_is_not_rounded_up() -> None:
+    text = format_report(EvalReport(positives=29, top_correct=28, negatives=13, declined=13), "m")
+
+    assert "96.6%" in text
+    assert "97%" not in text
