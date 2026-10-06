@@ -21,6 +21,22 @@ function validationMessage(items) {
   return messages.join('; ') || 'The request contains invalid information.'
 }
 
+// Backend 404s for a household without a saved address or plan include the raw
+// household ID; show users what to do next instead.
+function friendlyDetail(status, detail) {
+  if (status !== 404) return detail
+
+  if (/does not have a location\.?$/.test(detail)) {
+    return 'Please add your household address first to use this feature.'
+  }
+
+  if (/does not have a plan\.?$/.test(detail)) {
+    return 'Please add your household address in My Plan first to use this feature.'
+  }
+
+  return detail
+}
+
 async function apiError(response) {
   // FastAPI may return a plain message, Pydantic validation items, or the
   // service-layer error envelope. Normalize all forms for stores/components.
@@ -39,7 +55,7 @@ async function apiError(response) {
     const detail = body.detail
 
     if (typeof detail === 'string') {
-      return new ApiError(response.status, detail)
+      return new ApiError(response.status, friendlyDetail(response.status, detail))
     }
 
     if (Array.isArray(detail)) {
