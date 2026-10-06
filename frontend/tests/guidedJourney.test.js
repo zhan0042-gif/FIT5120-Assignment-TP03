@@ -52,7 +52,7 @@ test('clean saved Review navigates without saving again', async () => {
   assert.match(review, /Save &amp; Review Plan/)
 })
 
-test('Welcome introduces all four journey steps', async () => {
+test('Welcome introduces all five journey steps', async () => {
   const welcome = await source('../src/views/WelcomeView.vue')
   assert.match(welcome, /How to use FIREBREAK/)
   assert.equal((welcome.match(/<section class="journey"/g) ?? []).length, 1)
@@ -60,10 +60,24 @@ test('Welcome introduces all four journey steps', async () => {
   assert.doesNotMatch(welcome, /Ranked for your household|preview-card/)
   for (const heading of [
     'Build your plan',
-    'Review your plan',
+    'Safety Insights',
     'Explore your local fire history',
-    'Test your plan',
+    'Check your routes',
+    'See how long to regroup',
   ]) assert.match(welcome, new RegExp(`<strong>${heading}</strong>`))
+  const journey = welcome.slice(welcome.indexOf('<section class="journey"'), welcome.indexOf('</section>'))
+  assert.equal((journey.match(/<li>/g) ?? []).length, 5)
+  // Every step links to the page where it happens.
+  for (const [heading, to] of [
+    ['Build your plan', '/plan'],
+    ['Safety Insights', '/safety-insights'],
+    ['Explore your local fire history', '/map'],
+    ['Check your routes', '/travel-readiness'],
+    ['See how long to regroup', '/scenarios'],
+  ]) assert.match(journey, new RegExp(`<router-link to="${to}"[^>]*><strong>${heading}</strong></router-link>`))
+  assert.match(journey, /<span>Add your household, transport, evacuation destinations and responsibilities\.<\/span>/)
+  // Nothing here may read as a prediction.
+  assert.doesNotMatch(journey, /predict|forecast|\brisk\b/i)
   assert.match(welcome, /Start my plan/)
   assert.match(welcome, /Continue my plan/)
   assert.match(welcome, /See where I am/)
