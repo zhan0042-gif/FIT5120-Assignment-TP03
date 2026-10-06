@@ -1,0 +1,282 @@
+<script setup>
+import { computed, ref } from 'vue'
+
+import { useFdrPredictionStore } from '../../stores/fdrPrediction'
+
+
+const fdrStore = useFdrPredictionStore()
+
+const districts = [
+  'Central',
+  'East Gippsland',
+  'Mallee',
+  'North Central',
+  'North East',
+  'Northern Country',
+  'South West',
+  'South and West Gippsland',
+  'Wimmera',
+]
+
+const district = ref('Central')
+const date = ref('')
+
+const probabilityText = computed(() => {
+  const probability = fdrStore.result?.elevated_probability
+
+  if (typeof probability !== 'number') {
+    return 'Not available'
+  }
+
+  return `${(probability * 100).toFixed(1)}%`
+})
+
+async function submitPrediction() {
+  await fdrStore.predict(
+    district.value,
+    date.value,
+  )
+}
+</script>
+
+<template>
+  <section class="card fdr-panel">
+    <div class="panel-header">
+      <div>
+        <h2>Fire Danger Pattern Estimate</h2>
+
+        <p>
+          See how the selected district and time of year compare with
+          historical Fire Danger Rating patterns.
+        </p>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <label>
+        <span>Fire district</span>
+
+        <select v-model="district">
+          <option
+            v-for="item in districts"
+            :key="item"
+            :value="item"
+          >
+            {{ item }}
+          </option>
+        </select>
+      </label>
+
+      <label>
+        <span>Date</span>
+
+        <input
+          v-model="date"
+          type="date"
+        />
+      </label>
+    </div>
+
+    <button
+      class="btn btn-accent"
+      type="button"
+      :disabled="
+        !district ||
+        !date ||
+        fdrStore.status === 'loading'
+      "
+      @click="submitPrediction"
+    >
+      {{
+        fdrStore.status === 'loading'
+          ? 'Estimating...'
+          : 'Estimate fire danger pattern'
+      }}
+    </button>
+
+    <p
+      v-if="fdrStore.status === 'error'"
+      class="field-error"
+    >
+      {{ fdrStore.error }}
+    </p>
+
+    <div
+      v-if="
+        fdrStore.status === 'success' &&
+        fdrStore.result
+      "
+      class="prediction-result"
+    >
+      <h3>
+        Estimated pattern:
+        {{ fdrStore.result.prediction_label }}
+      </h3>
+
+      <dl>
+        <div>
+          <dt>District</dt>
+          <dd>{{ fdrStore.result.district }}</dd>
+        </div>
+
+        <div>
+          <dt>Date</dt>
+          <dd>{{ fdrStore.result.date }}</dd>
+        </div>
+
+        <div>
+          <dt>Chance of elevated historical pattern</dt>
+          <dd>{{ probabilityText }}</dd>
+        </div>
+      </dl>
+
+      <div class="meaning-note">
+        <h4>What does this mean?</h4>
+
+        <p>
+          <strong>Moderate:</strong>
+          Historically more similar to days with a Moderate Fire Danger Rating.
+        </p>
+
+        <p>
+          <strong>Elevated:</strong>
+          Historically more similar to days with High, Extreme or Catastrophic
+          Fire Danger Ratings.
+        </p>
+      </div>
+
+      <p class="disclaimer">
+        This estimate is based on historical seasonal patterns.
+        It is not an official Fire Danger Rating forecast and should not
+        be used for emergency decisions.
+      </p>
+    </div>
+  </section>
+</template>
+
+<style scoped>
+.fdr-panel {
+  margin-top: 1.25rem;
+}
+
+.panel-header {
+  margin-bottom: 1rem;
+}
+
+.panel-header h2 {
+  font-size: 1.35rem;
+}
+
+.panel-header p {
+  color: var(--color-text-muted);
+  margin-top: 0.4rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+label span {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+select,
+input {
+  background: transparent;
+  border: 1px solid var(--color-summary-border);
+  border-radius: 0.4rem;
+  color: var(--color-text);
+  padding: 0.7rem;
+  width: 100%;
+}
+
+select option {
+  color: #222;
+}
+
+.prediction-result {
+  background: transparent;
+  border: 1px solid var(--color-summary-border);
+  border-radius: 0.5rem;
+  color: var(--color-text);
+  margin-top: 1.25rem;
+  padding: 1rem;
+}
+
+.prediction-result h3 {
+  color: var(--color-text);
+  margin-bottom: 0.85rem;
+}
+
+.prediction-result dl {
+  margin: 0;
+}
+
+.prediction-result dl div {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.4fr) minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.45rem 0;
+}
+
+.prediction-result dt {
+  color: var(--color-text-muted);
+}
+
+.prediction-result dd {
+  color: var(--color-text);
+  margin: 0;
+}
+
+.meaning-note {
+  border-top: 1px solid var(--color-summary-border);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.meaning-note h4 {
+  color: var(--color-text);
+  margin-bottom: 0.65rem;
+}
+
+.meaning-note p {
+  color: var(--color-text-muted);
+  margin: 0.4rem 0;
+}
+
+.meaning-note strong {
+  color: var(--color-text);
+}
+
+.disclaimer {
+  border-top: 1px solid var(--color-summary-border);
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.field-error {
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 700px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .prediction-result dl div {
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+  }
+}
+</style>

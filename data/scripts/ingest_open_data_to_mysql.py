@@ -1,13 +1,14 @@
 """
-Load processed FIREBREAK spatial Open Data into MySQL.
+Load processed FIREBREAK Open Data into MySQL.
 
 This script ingests:
 - Bushfire Prone Area polygons
 - CFA Fire District polygons
 - lightweight Historical Fire representative points
+- Australian Fire Danger Rating System history
 
-The processed GeoParquet files remain the reproducible application-ready
-data artifacts, while MySQL becomes the runtime storage used by Backend.
+The processed files remain the reproducible application-ready data artifacts,
+while MySQL becomes the runtime storage used by Backend.
 """
 
 import os
@@ -20,6 +21,7 @@ import pymysql
 BPA_PATH = "data/processed/bpa.parquet"
 FIRE_DISTRICT_PATH = "data/processed/fire_district.parquet"
 FIRE_HISTORY_PATH = "data/processed/fire_history_lightweight.parquet"
+FDR_HISTORY_PATH = "data/processed/fdr_history.parquet"
 
 
 def get_connection():
@@ -209,12 +211,71 @@ def load_fire_history(cursor, batch_size=5000):
             f"{min(start + batch_size, total)}/{total}"
         )
 
+def load_fdr_history(cursor):
+    """
+    Load the processed AFDRS Fire Danger Rating history into MySQL.
+
+    The processed dataset contains one latest rating per date and fire
+    weather district. Existing rows are removed before reloading.
+
+    Args:
+        cursor:
+            Active PyMySQL cursor.
+
+    Returns:
+        None.
+    """
+    fdr_history = pd.read_parquet(FDR_HISTORY_PATH)
+
+    print(f"Loading FDR History rows: {len(fdr_history)}")
+
+    cursor.execute("DELETE FROM open_data_fdr_history")
+
+    sql = """
+        INSERT INTO open_data_fdr_history (
+            date,
+            issued_at,
+            district,
+            rating_code,
+            rating_label,
+            year,
+            month,
+            day_of_year
+        )
+        VALUES (
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s
+        )
+    """
+
+    rows = [
+        (
+            pd.Timestamp(row.date).date(),
+            pd.Timestamp(row.issued_at).to_pydatetime(),
+            str(row.district),
+            int(row.rating_code),
+            str(row.rating_label),
+            int(row.year),
+            int(row.month),
+            int(row.day_of_year),
+        )
+        for row in fdr_history.itertuples(index=False)
+    ]
+
+    cursor.executemany(sql, rows)
+
 
 def main():
     """
     Run the complete Open Data ingestion process.
 
-    BPA, CFA Fire District, and lightweight Historical Fire data are loaded
+    BPA, CFA Fire District, lightweight Historical Fire, and FDR History data are loaded
     inside one transaction. The transaction is committed when all loaders
     succeed and rolled back if any loader fails.
 
@@ -228,6 +289,7 @@ def main():
             load_bpa(cursor)
             load_fire_district(cursor)
             load_fire_history(cursor)
+            load_fdr_history(cursor)
 
         connection.commit()
 

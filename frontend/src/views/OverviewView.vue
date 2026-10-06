@@ -5,6 +5,7 @@ import CompletionOverview from '../components/completion/CompletionOverview.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingState from '../components/common/LoadingState.vue'
 import PreparationSupportBanner from '../components/localContext/PreparationSupportBanner.vue'
+import FdrPredictionPanel from '../components/overview/FdrPredictionPanel.vue'
 import SafetyChatPanel from '../components/overview/SafetyChatPanel.vue'
 import { useHouseholdStore } from '../stores/household'
 import { useLocalContextStore } from '../stores/localContext'
@@ -121,6 +122,7 @@ onMounted(async () => {
     </div>
 
     <SafetyChatPanel />
+    <FdrPredictionPanel />
 
     <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your saved plan..." />
     <ErrorState v-else-if="householdStore.planStatus === 'error'" :message="householdStore.planError || 'Could not load your saved plan.'" @retry="householdStore.loadPlan" />

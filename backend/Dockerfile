@@ -9,6 +9,8 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/app ./app
+COPY backend/models ./models
+
 COPY data/__init__.py ./data/__init__.py
 COPY data/scripts/__init__.py data/scripts/location_context.py data/scripts/open_data_mysql.py ./data/scripts/
 
