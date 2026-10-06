@@ -25,10 +25,6 @@ const localContextSource = await readFile(
   'utf8',
 )
 const mapSource = await readFile(new URL('../src/views/MapView.vue', import.meta.url), 'utf8')
-const completionSource = await readFile(
-  new URL('../src/components/completion/CompletionOverview.vue', import.meta.url),
-  'utf8',
-)
 const layoutSource = await readFile(
   new URL('../src/components/layout/AppLayout.vue', import.meta.url),
   'utf8',
@@ -70,16 +66,13 @@ test('overview loads the latest saved plan through the existing store', async ()
 })
 
 test('overview contains only the concise saved-plan summary', () => {
-  assert.match(
-    overviewSource,
-    /<CompletionOverview[\s\S]*?<div class="right-stack">[\s\S]*?<PreparationSupportBanner \/>/,
-  )
+  // The completion and preparation-status cards were removed from this page.
+  assert.doesNotMatch(overviewSource, /CompletionOverview|PreparationSupportBanner|Plan completion|Preparation status/)
   assert.doesNotMatch(overviewSource, /LocalContextCard/)
   assert.equal((mapSource.match(/<LocalContextCard \/>/g) ?? []).length, 1)
   assert.match(localContextSource, /Household address/)
   assert.match(localContextSource, /Edit address/)
   assert.match(localContextSource, /AddressAutocompleteInput/)
-  assert.match(completionSource, /Edit my plan/)
   assert.match(overviewSource, /Export preparedness plan/)
   const overviewTemplate = overviewSource.slice(overviewSource.indexOf('<template>'), overviewSource.lastIndexOf('</template>'))
   assert.ok(overviewTemplate.indexOf('class="page-actions"') > overviewTemplate.indexOf('<h3>Responsibilities</h3>'))

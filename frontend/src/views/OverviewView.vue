@@ -1,10 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { api } from '../api/client'
-import CompletionOverview from '../components/completion/CompletionOverview.vue'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingState from '../components/common/LoadingState.vue'
-import PreparationSupportBanner from '../components/localContext/PreparationSupportBanner.vue'
 import { useHouseholdStore } from '../stores/household'
 import { useLocalContextStore } from '../stores/localContext'
 import { useRendezvousStore } from '../stores/rendezvous'
@@ -112,13 +110,6 @@ onMounted(async () => {
       </div>
     </header>
 
-    <div class="top-grid">
-      <CompletionOverview :completion="householdStore.completion" :loading="householdStore.completionStatus === 'loading'" />
-      <div class="right-stack">
-        <PreparationSupportBanner />
-      </div>
-    </div>
-
     <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your saved plan..." />
     <ErrorState v-else-if="householdStore.planStatus === 'error'" :message="householdStore.planError || 'Could not load your saved plan.'" @retry="householdStore.loadPlan" />
     <section v-else-if="noSavedPlan" class="card empty-summary">
@@ -188,9 +179,6 @@ onMounted(async () => {
 .page-header p, .empty-summary p { color: var(--color-text-muted); margin-top: 0.5rem; }
 .page-actions { display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.25rem; }
 .page-actions .btn, .empty-summary .btn { align-items: center; display: inline-flex; justify-content: center; text-decoration: none; }
-.top-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; align-items: start; }
-.right-stack { display: grid; gap: 1.25rem; }
-.right-stack :deep(.card) { margin-top: 0; }
 .plan-summary, .empty-summary { margin-top: 1.25rem; }
 .plan-summary > h2 { font-size: 1.35rem; margin-bottom: 1.25rem; }
 .plan-summary h3 { font-size: 1rem; margin: 1.35rem 0 0.65rem; }
@@ -216,8 +204,7 @@ onMounted(async () => {
   .page-header { align-items: stretch; flex-direction: column; }
   .page-actions { flex-wrap: wrap; }
   .page-actions .btn { flex: 1 1 12rem; }
-  .top-grid { grid-template-columns: 1fr; }
-}
+  }
 @media (max-width: 520px) {
   .summary-table { font-size: 0.8rem; }
   .summary-table th, .summary-table td { padding: 0.55rem 0.45rem; }
