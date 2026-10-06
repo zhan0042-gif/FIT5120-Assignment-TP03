@@ -122,20 +122,23 @@ function keydown(event) {
 
 <template>
   <div class="address-input">
-    <label>{{ label }}</label>
+    <label :for="`${componentId}-input`">{{ label }}</label>
     <input
+      :id="`${componentId}-input`"
       :value="modelValue"
       type="text"
       :placeholder="placeholder"
       autocomplete="street-address"
       :disabled="disabled"
+      role="combobox"
       aria-autocomplete="list"
+      :aria-controls="suggestions.length ? `${componentId}-listbox` : undefined"
       :aria-expanded="suggestions.length > 0"
       :aria-activedescendant="activeIndex >= 0 ? `${componentId}-suggestion-${activeIndex}` : undefined"
       @input="update($event.target.value)"
       @keydown="keydown"
     />
-    <ul v-if="suggestions.length" class="suggestion-list" role="listbox" aria-label="Victorian address suggestions">
+    <ul v-if="suggestions.length" :id="`${componentId}-listbox`" class="suggestion-list" role="listbox" aria-label="Victorian address suggestions">
       <li v-for="(suggestion, index) in suggestions" :id="`${componentId}-suggestion-${index}`" :key="`${suggestion.address}-${suggestion.latitude}-${suggestion.longitude}`" role="option" :aria-selected="index === activeIndex">
         <button type="button" :class="{ 'is-active': index === activeIndex }" @mousedown.prevent="select(suggestion)">
           <span>{{ suggestion.address }}</span>
@@ -143,10 +146,12 @@ function keydown(event) {
         </button>
       </li>
     </ul>
-    <span v-if="status === 'loading'" class="field-help">Finding official Victorian addresses…</span>
-    <span v-else-if="status === 'empty'" class="field-help">No official match yet. You can still save the address you entered.</span>
-    <span v-else-if="status === 'error'" class="field-help">Suggestions are unavailable. You can still save the address you entered.</span>
-    <span v-else-if="helperText" class="field-help">{{ helperText }}</span>
+    <span class="field-help" role="status">
+      <template v-if="status === 'loading'">Finding official Victorian addresses…</template>
+      <template v-else-if="status === 'empty'">No official match yet. You can still save the address you entered.</template>
+      <template v-else-if="status === 'error'">Suggestions are unavailable. You can still save the address you entered.</template>
+      <template v-else-if="helperText">{{ helperText }}</template>
+    </span>
   </div>
 </template>
 
@@ -161,9 +166,9 @@ function keydown(event) {
   gap: 0.35rem;
 }
 .address-input label {
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
@@ -176,11 +181,11 @@ function keydown(event) {
   background: var(--color-bg-card);
   color: var(--color-text);
 }
-.address-input input:focus {
-  outline: 2px solid var(--color-accent);
+.address-input input:focus-visible {
+  outline: 3px solid var(--color-focus);
   outline-offset: 1px;
 }
-.field-help { display: block; color: var(--color-text-muted); font-size: 0.8rem; }
+.field-help { display: block; color: var(--color-text-muted); font-size: 0.875rem; }
 .suggestion-list { position: absolute; z-index: 20; top: 100%; width: 100%; max-height: 16rem; overflow-y: auto; list-style: none; margin: 0.25rem 0 0; padding: 0; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-bg-card); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14); }
 .suggestion-list li + li { border-top: 1px solid var(--color-border); }
 .suggestion-list button { display: flex; width: 100%; flex-direction: column; gap: 0.15rem; border: 0; padding: 0.65rem 0.75rem; background: transparent; color: var(--color-text); text-align: left; cursor: pointer; }

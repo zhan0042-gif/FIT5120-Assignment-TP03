@@ -3,7 +3,7 @@ defineProps({ message: { type: String, default: 'Loading…' } })
 </script>
 
 <template>
-  <div class="state-block">
+  <div class="state-block" role="status">
     <span class="spinner" aria-hidden="true" />
     <p>{{ message }}</p>
   </div>

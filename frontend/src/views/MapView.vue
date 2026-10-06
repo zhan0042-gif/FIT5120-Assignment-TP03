@@ -343,7 +343,7 @@ onMounted(async () => {
 }
 
 .insight-card:not(.insight-card-empty):focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 

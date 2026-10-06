@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useHouseholdStore } from '../stores/household'
 import LoadingState from '../components/common/LoadingState.vue'
@@ -89,9 +89,16 @@ const validationErrors = computed(() => {
   return errors
 })
 
-const saveDisabled = computed(() =>
-  !hasUnsavedChanges.value || validationErrors.value.length > 0 || householdStore.saveStatus === 'loading',
-)
+// Validation problems do not disable Save: a disabled button gives no reason.
+// Pressing it with problems present reveals the summary and moves focus there.
+const showErrors = ref(false)
+const errorSummary = ref(null)
+const saveDisabled = computed(() => !hasUnsavedChanges.value || householdStore.saveStatus === 'loading')
+const visibleErrors = computed(() => (showErrors.value ? validationErrors.value : []))
+
+watch(validationErrors, (errors) => {
+  if (!errors.length) showErrors.value = false
+})
 const saveLabel = computed(() =>
   householdStore.saveStatus === 'loading' ? 'Saving…' : hasUnsavedChanges.value ? 'Save plan' : 'Saved',
 )
@@ -99,7 +106,13 @@ const saveLabel = computed(() =>
 async function save() {
   // The backend accepts one structurally valid aggregate even when completion
   // sections are unfinished; completion and checks evaluate saved state later.
-  if (!draft.value || validationErrors.value.length > 0 || householdStore.saveStatus === 'loading') return false
+  if (!draft.value || householdStore.saveStatus === 'loading') return false
+  if (validationErrors.value.length > 0) {
+    showErrors.value = true
+    await nextTick()
+    errorSummary.value?.focus()
+    return false
+  }
   await householdStore.savePlan(draft.value)
   if (householdStore.saveStatus !== 'success') return false
   resetDraft()
@@ -125,10 +138,12 @@ async function reviewPlan() {
           type="button"
           class="step-chip"
           :class="{ 'is-current': index === stepIndex, 'is-done': index < stepIndex }"
+          :aria-current="index === stepIndex ? 'step' : undefined"
           @click="goToStep(index)"
         >
-          <span class="step-number">{{ index + 1 }}</span>
+          <span class="step-number" aria-hidden="true">{{ index < stepIndex ? '✓' : index + 1 }}</span>
           <span class="step-label">{{ step.label }}</span>
+          <span v-if="index < stepIndex" class="sr-only">(visited)</span>
         </button>
         <span class="step-progress">Step {{ stepIndex + 1 }} of {{ STEPS.length }}</span>
       </nav>
@@ -142,10 +157,6 @@ async function reviewPlan() {
           <button class="btn" :class="hasUnsavedChanges ? 'btn-accent' : 'btn-ghost saved-button'" type="button" :disabled="saveDisabled" @click="save">
             {{ saveLabel }}
           </button>
-          <span v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</span>
-          <span v-else-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</span>
-          <span v-else-if="hasUnsavedChanges" class="save-message">Unsaved changes</span>
-          <span v-else class="save-message status-text status-success">✓ All changes saved.</span>
         </div>
       </div>
 
@@ -181,13 +192,28 @@ async function reviewPlan() {
       </template>
     </div>
 
+    <div
+      v-if="visibleErrors.length"
+      ref="errorSummary"
+      class="error-summary save-errors"
+      role="alert"
+      tabindex="-1"
+      aria-labelledby="plan-error-title"
+    >
+      <h2 id="plan-error-title" class="error-summary-title">
+        {{ visibleErrors.length === 1 ? 'There is 1 problem to fix before saving' : `There are ${visibleErrors.length} problems to fix before saving` }}
+      </h2>
+      <ul>
+        <li v-for="(message, index) in visibleErrors" :key="index">{{ message }}</li>
+      </ul>
+    </div>
+
     <div v-if="draft" class="save-bar">
       <button v-show="householdStore.planStatus !== 'loading' && householdStore.planStatus !== 'error'" type="button" class="btn btn-ghost" :disabled="stepIndex === 0" @click="goToStep(stepIndex - 1)">Back</button>
       <div class="plan-actions">
         <div class="save-controls">
-          <div>
-            <p v-if="validationErrors.length" class="field-error">{{ validationErrors[0] }}</p>
-            <p v-else-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</p>
+          <div role="status" aria-live="polite">
+            <p v-if="householdStore.saveStatus === 'error'" class="field-error">Your plan could not be saved. Please try again.</p>
             <p v-else-if="hasUnsavedChanges" class="save-message">Unsaved changes</p>
             <p v-else class="save-message status-text status-success">✓ All changes saved.</p>
           </div>
@@ -202,7 +228,7 @@ async function reviewPlan() {
           </button>
         </div>
         <button v-if="stepIndex < STEPS.length - 1" v-show="householdStore.planStatus !== 'loading' && householdStore.planStatus !== 'error'" type="button" class="btn btn-accent next-action" @click="goToStep(stepIndex + 1)">Continue</button>
-        <button v-else v-show="householdStore.planStatus !== 'loading' && householdStore.planStatus !== 'error'" type="button" class="btn btn-accent next-action" :disabled="validationErrors.length > 0 || householdStore.saveStatus === 'loading'" @click="reviewPlan">Save &amp; Review Plan</button>
+        <button v-else v-show="householdStore.planStatus !== 'loading' && householdStore.planStatus !== 'error'" type="button" class="btn btn-accent next-action" :disabled="householdStore.saveStatus === 'loading'" @click="reviewPlan">Save &amp; Review Plan</button>
       </div>
     </div>
   </div>
@@ -212,7 +238,10 @@ async function reviewPlan() {
 .plan-builder {
   width: 100%;
   min-width: 0;
-  border-radius: 24px;
+  background: var(--color-bg-card);
+  border: var(--border-width) solid var(--color-border-strong);
+  border-radius: 28px;
+  box-shadow: var(--shadow-card);
   padding: 1.75rem;
 }
 
@@ -226,40 +255,46 @@ async function reviewPlan() {
 
 .step-chip {
   align-items: center;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
+  background: var(--color-bg-card);
+  border: 2.5px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-btn-sm);
   cursor: pointer;
   display: flex;
   font-family: inherit;
   gap: 0.6rem;
   min-height: 2.75rem;
-  padding: 0 1.1rem 0 0.75rem;
+  padding: 0 1.1rem 0 0.6rem;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
 }
+
+.step-chip:hover { box-shadow: 3px 3px 0 var(--color-shadow); transform: translate(-1px, -1px); }
 
 .step-chip .step-number {
   align-items: center;
   background: var(--color-bg-card-muted);
-  border-radius: var(--radius-pill);
-  color: var(--color-text-muted);
+  border: 2px solid var(--color-border-strong);
+  border-radius: 10px;
+  color: var(--color-text);
   display: inline-flex;
+  font-family: var(--font-display);
   font-size: 0.8125rem;
   font-weight: 700;
-  height: 1.5rem;
+  height: 1.7rem;
   justify-content: center;
-  width: 1.5rem;
+  width: 1.7rem;
 }
 
 .step-chip .step-label {
-  color: var(--color-text-muted);
+  color: var(--color-text);
   font-size: 0.9375rem;
-  font-weight: 500;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .step-chip.is-done .step-number {
   background: var(--color-success);
-  color: #fff;
+  color: var(--color-text-inverse);
 }
 
 .step-chip.is-done .step-label {
@@ -267,18 +302,18 @@ async function reviewPlan() {
 }
 
 .step-chip.is-current {
-  background: var(--color-text);
-  border-color: var(--color-text);
+  background: var(--color-accent);
+  box-shadow: var(--shadow-btn);
 }
 
 .step-chip.is-current .step-number {
-  background: var(--color-accent);
-  color: var(--color-text-inverse);
+  background: var(--color-bg-card);
+  color: var(--color-text);
 }
 
 .step-chip.is-current .step-label {
-  color: var(--color-bg-content);
-  font-weight: 700;
+  color: var(--color-on-accent);
+  font-weight: 800;
 }
 
 .step-progress {
@@ -310,7 +345,7 @@ async function reviewPlan() {
 .step-heading { min-width: 0; }
 
 .headline {
-  font-size: clamp(2rem, 4vw, 2.25rem);
+  font-size: clamp(2rem, 4vw, 2.5rem);
   margin: 0.4rem 0 0.5rem;
 }
 
@@ -335,13 +370,16 @@ async function reviewPlan() {
   .top-save { align-items: flex-start; max-width: 100%; text-align: left; }
 }
 
+.save-errors { margin-top: 2rem; }
+.save-errors + .save-bar { margin-top: 0.75rem; }
+
 .save-bar {
   /* Save belongs to the end of the plan in normal flow; it does not overlay forms. */
   margin-top: 2rem;
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  padding: 0.75rem 1rem;
+  border: 2.5px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  padding: 0.85rem 1.1rem;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -368,7 +406,7 @@ async function reviewPlan() {
 
 .saved-button:disabled {
   background: var(--color-bg-card-muted);
-  border-color: var(--color-border);
+  border-color: var(--color-border-strong);
   color: var(--color-text-muted);
   opacity: 1;
 }

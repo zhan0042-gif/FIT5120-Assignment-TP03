@@ -197,29 +197,28 @@ onMounted(load)
 .notice { margin-top: 0.5rem; }
 .intro, .empty, .note { color: var(--color-text-muted); margin-top: 0.5rem; }
 .suggestions-panel { background: var(--color-bg-card-muted); border-radius: 0.9rem; margin-top: 1rem; padding: 0.85rem 1rem 1rem; }
-.chat-window { border: 1.5px solid var(--color-summary-border); border-radius: 0.9rem; margin-top: 1rem; padding: 0.85rem 1rem 1rem; }
-.panel-title { color: var(--color-text-muted); font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; margin: 0 0 0.6rem; text-transform: uppercase; }
+.chat-window { border: 1.5px solid var(--color-border-strong); border-radius: 0.9rem; margin-top: 1rem; padding: 0.85rem 1rem 1rem; }
+.panel-title { color: var(--color-text-muted); font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; margin: 0 0 0.6rem; text-transform: uppercase; }
 .chat-empty { color: var(--color-text-muted); font-size: 0.9rem; font-style: italic; margin: 0; }
 .conversation { display: grid; gap: 0.6rem; max-height: 22rem; overflow-y: auto; }
 .conversation.has-messages { margin-top: 0.4rem; }
 .message { display: flex; }
 .message.user { justify-content: flex-end; }
-.bubble { border: 1px solid var(--color-summary-border); border-radius: 0.9rem; max-width: 92%; overflow-wrap: anywhere; padding: 0.65rem 0.85rem; }
-.message.user .bubble { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-text-inverse); }
+.bubble { border: 1px solid var(--color-border-strong); border-radius: 0.9rem; max-width: 92%; overflow-wrap: anywhere; padding: 0.65rem 0.85rem; }
+.message.user .bubble { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
 .bubble p + p { margin-top: 0.5rem; }
 .chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem; }
-.chip { background: transparent; border: 1px solid var(--color-accent); border-radius: 999px; color: var(--color-accent); cursor: pointer; font: inherit; font-size: 0.9rem; padding: 0.4rem 0.85rem; text-align: left; }
-.chip:hover, .chip:focus-visible { background: var(--color-accent); color: var(--color-text-inverse); }
-.source { color: var(--color-text-muted); font-size: 0.85rem; }
-.more-toggle { background: none; border: 0; color: var(--color-accent); cursor: pointer; font: inherit; font-size: 0.9rem; margin-top: 0.6rem; padding: 0.25rem 0; text-decoration: underline; }
+.chip { background: transparent; border: 1px solid var(--color-accent); border-radius: 999px; color: var(--color-accent-ink); cursor: pointer; font: inherit; font-size: 0.9375rem; min-height: 2.75rem; padding: 0.5rem 1rem; text-align: left; }
+.chip:hover { background: var(--color-accent); color: var(--color-on-accent); }
+.source { color: var(--color-text-muted); font-size: 0.875rem; }
+.more-toggle { background: none; border: 0; color: var(--color-accent-ink); cursor: pointer; font: inherit; font-size: 0.9375rem; margin-top: 0.6rem; min-height: 2.75rem; padding: 0.25rem 0; text-decoration: underline; }
 .more-chips { margin-top: 0.4rem; }
-.stale { color: var(--color-text-muted); font-size: 0.85rem; font-style: italic; }
+.stale { color: var(--color-text-muted); font-size: 0.875rem; font-style: italic; }
 .note { font-size: 0.9rem; margin-top: 0.75rem; }
-.sr-only { border: 0; clip: rect(0 0 0 0); height: 1px; margin: -1px; overflow: hidden; padding: 0; position: absolute; width: 1px; }
-.ask-form { border-top: 1px solid var(--color-summary-border); display: flex; gap: 0.5rem; margin-top: 0.85rem; padding-top: 0.85rem; }
-.ask-input { background: var(--color-surface, transparent); border: 1px solid var(--color-summary-border); border-radius: 999px; color: inherit; flex: 1; font: inherit; font-size: 0.9rem; min-width: 0; padding: 0.45rem 0.9rem; }
-.ask-button { background: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 999px; color: var(--color-text-inverse); cursor: pointer; font: inherit; font-size: 0.9rem; padding: 0.45rem 1.1rem; }
-.privacy { color: var(--color-text-muted); font-size: 0.8rem; margin-top: 0.4rem; }
+.ask-form { border-top: 1px solid var(--color-border-strong); display: flex; gap: 0.5rem; margin-top: 0.85rem; padding-top: 0.85rem; }
+.ask-input { background: var(--color-surface, transparent); border: 1px solid var(--color-border-strong); border-radius: 999px; color: inherit; flex: 1; font: inherit; font-size: 0.9375rem; min-height: 2.75rem; min-width: 0; padding: 0.45rem 1rem; }
+.ask-button { background: var(--color-accent); border: 1px solid var(--color-accent); border-radius: 999px; color: var(--color-on-accent); cursor: pointer; font: inherit; font-size: 0.9375rem; font-weight: 600; min-height: 2.75rem; padding: 0.45rem 1.25rem; }
+.privacy { color: var(--color-text-muted); font-size: 0.8125rem; margin-top: 0.4rem; }
 .ask-button:disabled { cursor: not-allowed; opacity: 0.6; }
 .bubble.emergency { border-color: var(--color-accent); font-weight: 700; }
 </style>

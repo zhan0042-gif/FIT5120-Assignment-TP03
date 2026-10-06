@@ -7,7 +7,7 @@ const emit = defineEmits(['retry'])
 </script>
 
 <template>
-  <div class="state-block is-error">
+  <div class="state-block is-error" role="alert">
     <p class="state-title">Unable to load this section</p>
     <p>{{ message }}</p>
     <button class="btn btn-ghost btn-sm" type="button" @click="emit('retry')">Retry</button>
