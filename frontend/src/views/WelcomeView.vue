@@ -22,11 +22,11 @@ const householdStore = useHouseholdStore()
       <section class="journey" aria-labelledby="journey-heading">
         <h2 id="journey-heading">How to use FIREBREAK</h2>
         <ol>
-          <li><router-link to="/plan"><strong>Build your plan</strong></router-link><span>Answer one question at a time: who is in your household, how you would leave, where you would go and who does what. Skip anything and finish later.</span></li>
-          <li><router-link to="/safety-insights"><strong>Safety Insights</strong></router-link><span>Explore historical fire danger patterns and read bushfire safety guidance reviewed against CFA's pages.</span></li>
-          <li><router-link to="/map"><strong>Know more about your area</strong></router-link><span>See past bushfire records near your home and how far the nearest one was.</span></li>
-          <li><router-link to="/travel-readiness"><strong>Check your routes</strong></router-link><span>View road routes to your saved destinations and any road disruptions reported near them.</span></li>
-          <li><router-link to="/scenarios"><strong>Estimate your time in your plan</strong></router-link><span>Try "what if" cases, such as your car being unavailable, and see how long it would take everyone in your household to reach the same place.</span></li>
+          <li><router-link to="/plan"><strong>Build your plan</strong></router-link><span>Answer one question at a time. Skip any and finish later.</span></li>
+          <li><router-link to="/safety-insights"><strong>Safety Insights</strong></router-link><span>Explore historical fire danger patterns and safety guidance checked against CFA's pages.</span></li>
+          <li><router-link to="/map"><strong>Explore your local fire history</strong></router-link><span>See past bushfire records near your home.</span></li>
+          <li><router-link to="/travel-readiness"><strong>Check your routes</strong></router-link><span>See road routes to your destinations and reported disruptions.</span></li>
+          <li><router-link to="/scenarios"><strong>See how long to regroup</strong></router-link><span>Find out how long it takes everyone to get together.</span></li>
         </ol>
       </section>
     </div>

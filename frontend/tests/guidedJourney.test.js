@@ -61,9 +61,9 @@ test('Welcome introduces all five journey steps', async () => {
   for (const heading of [
     'Build your plan',
     'Safety Insights',
-    'Know more about your area',
+    'Explore your local fire history',
     'Check your routes',
-    'Estimate your time in your plan',
+    'See how long to regroup',
   ]) assert.match(welcome, new RegExp(`<strong>${heading}</strong>`))
   const journey = welcome.slice(welcome.indexOf('<section class="journey"'), welcome.indexOf('</section>'))
   assert.equal((journey.match(/<li>/g) ?? []).length, 5)
@@ -71,9 +71,9 @@ test('Welcome introduces all five journey steps', async () => {
   for (const [heading, to] of [
     ['Build your plan', '/plan'],
     ['Safety Insights', '/safety-insights'],
-    ['Know more about your area', '/map'],
+    ['Explore your local fire history', '/map'],
     ['Check your routes', '/travel-readiness'],
-    ['Estimate your time in your plan', '/scenarios'],
+    ['See how long to regroup', '/scenarios'],
   ]) assert.match(journey, new RegExp(`<router-link to="${to}"[^>]*><strong>${heading}</strong></router-link>`))
   // Nothing here may read as a prediction.
   assert.doesNotMatch(journey, /predict|forecast|\brisk\b/i)
