@@ -92,8 +92,8 @@ test('Overview removes both insights while retaining its summary and export', as
   assert.doesNotMatch(overview, /FdrPredictionPanel|SafetyChatPanel/)
   assert.match(overview, /Household Plan Summary/)
   assert.match(overview, /Export preparedness plan/)
-  assert.match(overview, /CompletionOverview/)
-  assert.match(overview, /PreparationSupportBanner/)
+  // The completion and preparation-status cards were later removed on request.
+  assert.doesNotMatch(overview, /CompletionOverview|PreparationSupportBanner/)
 })
 
 test('FDR failure remains local while reviewed Safety Guidance still renders', async () => {
