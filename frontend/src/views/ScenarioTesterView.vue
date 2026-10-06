@@ -65,7 +65,7 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
 .test-steps { display: inline-grid; gap: 0.85rem; list-style: none; margin: 0.5rem 0 0; padding: 0; text-align: left; max-width: 30rem; }
 .test-steps li { align-items: flex-start; display: flex; gap: 0.75rem; line-height: 1.5; }
 .test-steps strong { color: var(--color-text); }
-.step-number { align-items: center; background: var(--color-accent-soft); border-radius: 50%; color: var(--color-accent); display: inline-flex; flex: none; font-size: 0.85rem; font-weight: 700; height: 1.6rem; justify-content: center; width: 1.6rem; }
+.step-number { align-items: center; background: var(--color-accent-soft); border-radius: 50%; color: var(--color-accent-ink); display: inline-flex; flex: none; font-size: 0.85rem; font-weight: 700; height: 1.6rem; justify-content: center; width: 1.6rem; }
 .scenario-caveat { color: var(--color-text-muted); font-size: 0.8125rem; line-height: 1.5; margin: 0; }
 @media (max-width: 760px) { .tester-grid { grid-template-columns: 1fr; } }
 </style>

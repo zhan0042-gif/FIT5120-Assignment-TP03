@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
 
 :deep(.popup-field strong) {
   display: block;
-  font-size: 0.72rem;
+  font-size: 0.8125rem;
 }
 
 .map-legend {
@@ -250,7 +250,7 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.94);
   color: #1b1410;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  font-size: 0.78rem;
+  font-size: 0.8125rem;
   line-height: 1.2;
 }
 

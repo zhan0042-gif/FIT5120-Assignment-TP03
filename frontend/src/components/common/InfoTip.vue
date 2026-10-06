@@ -48,21 +48,29 @@ const pinned = ref(false)
   cursor: help;
   display: inline-flex;
   font: italic 700 0.7rem/1 Georgia, serif;
-  height: 1.05rem;
+  height: 1.25rem;
   justify-content: center;
   padding: 0;
-  width: 1.05rem;
+  position: relative;
+  width: 1.25rem;
+}
+
+/* The visible icon stays small; the pressable area grows to 44px. */
+.info-tip-trigger::after {
+  content: '';
+  inset: -0.75rem;
+  position: absolute;
 }
 
 .info-tip-trigger:hover,
 .info-tip-trigger:focus-visible,
 .info-tip.is-open .info-tip-trigger {
   border-color: var(--color-accent);
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 .info-tip-trigger:focus-visible {
-  outline: 2px solid var(--color-accent);
+  outline: 3px solid var(--color-focus);
   outline-offset: 2px;
 }
 
@@ -71,7 +79,7 @@ const pinned = ref(false)
   border-radius: var(--radius);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
   color: var(--color-bg-card);
-  font-size: 0.8rem;
+  font-size: 0.875rem;
   left: -0.5rem;
   line-height: 1.45;
   opacity: 0;

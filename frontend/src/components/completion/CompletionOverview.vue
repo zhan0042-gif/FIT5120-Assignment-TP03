@@ -26,7 +26,7 @@ const labels = { household_profile: 'Household profile', member_locations: 'Memb
 .sections { list-style: none; margin: 0; padding: 0; }
 .sections li { display: grid; grid-template-columns: 1.35rem minmax(0, 1fr) auto; align-items: center; gap: 0.6rem; padding: 0.55rem 0; border-bottom: 1px solid var(--color-border); }
 .indicator { border: 2px solid var(--color-border-strong); border-radius: 50%; display: inline-grid; place-items: center; width: 1.15rem; height: 1.15rem; font-size: 0.75rem; }
-.indicator.complete { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+.indicator.complete { background: var(--color-success); border-color: var(--color-success); color: var(--color-text-inverse); }
 .status { color: var(--color-text-muted); font-size: 0.9rem; }
 .hint { color: var(--color-text-muted); margin-top: 1rem; }
 .edit-link { display: inline-flex; margin-top: 1rem; text-decoration: none; }

@@ -150,8 +150,8 @@ function explain() {
 .explanation-label {
   color: var(--color-text-muted);
   display: block;
-  font-size: 0.75rem;
-  letter-spacing: 0.06em;
+  font-size: 0.8125rem;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .explain-btn { margin-bottom: 1rem; }

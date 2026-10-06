@@ -1,122 +1,106 @@
-/* Space Grotesk, self-hosted. Served from nginx with the app rather than
-   linked from Google Fonts: one fewer external dependency between a household
-   and their plan. These are variable files covering 300-700, one per subset --
-   the vietnamese subset matters because household and place names are typed by
-   the people using this. */
-@font-face {
-  font-family: 'Space Grotesk';
-  font-style: normal;
-  font-weight: 300 700;
-  font-display: swap;
-  src: url('/fonts/space-grotesk-vietnamese.woff2') format('woff2');
-  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
-}
-
-@font-face {
-  font-family: 'Space Grotesk';
-  font-style: normal;
-  font-weight: 300 700;
-  font-display: swap;
-  src: url('/fonts/space-grotesk-latin-ext.woff2') format('woff2');
-  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
-}
-
-@font-face {
-  font-family: 'Space Grotesk';
-  font-style: normal;
-  font-weight: 300 700;
-  font-display: swap;
-  src: url('/fonts/space-grotesk-latin.woff2') format('woff2');
-  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
-}
-
-/* The existing dark shell remains the default when no preference is saved. */
-:root {
-  color-scheme: dark;
-
-  --color-bg-content: #16110e;
-  --color-bg-card: #221a15;
-  --color-bg-card-muted: #2c221b;
-  --color-border: rgba(245, 239, 231, 0.1);
-  --color-border-strong: rgba(245, 239, 231, 0.22);
-  --color-text: #f5efe7;
-  --color-text-muted: #a89c90;
-  --color-text-inverse: #16110e;
-  --color-text-inverse-muted: #7a6e63;
-
-  --color-accent: #ff6b35;
-  --color-accent-soft: rgba(255, 107, 53, 0.1);
-  --color-success: #4cb963;
-  --color-success-soft: rgba(76, 185, 99, 0.1);
-  --color-warning: #ffb627;
-  --color-warning-soft: rgba(255, 182, 39, 0.1);
-  --color-danger: #ff3b30;
-  --color-danger-soft: rgba(255, 59, 48, 0.1);
-  --color-rank-bg: rgba(245, 239, 231, 0.12);
-  --color-summary-border: #d8ccbe;
-  --color-summary-text: #241f1b;
-  --color-summary-heading: #ede4d8;
-  --color-summary-row: #f6f1e8;
-  --color-summary-muted: #5f554d;
-
-  --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
-  --font-sans: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
-  --radius: 10px;
-  --radius-lg: 18px;
-  --radius-pill: 999px;
-  --shadow-card: none;
-}
-
-/* The existing paper form and the new light shell share a palette. */
-.surface-paper,
-:root[data-theme='light'] {
+/* Playful "clay" look: cream ground, thick outlines, hard offset shadows,
+   large radii. Fonts are self-hosted through @fontsource (see main.js), so a
+   household's plan never waits on a third-party font server. Fredoka is for
+   headings, Nunito for everything else. */
+:root,
+.surface-paper {
   color-scheme: light;
 
-  --color-bg-content: #f7f2ea;
+  --color-bg-content: #fff8f5;
   --color-bg-card: #ffffff;
-  --color-bg-card-muted: #fbf8f2;
-  --color-border: #e3dacd;
-  --color-border-strong: #cfc3b2;
-  --color-text: #1b1410;
-  /* #7c6e62 measured 4.42:1 on the paper ground, just under the 4.5 floor.
-     This is 4.97:1 there and 5.54:1 on a white card. */
-  --color-text-muted: #74665a;
-  --color-text-inverse: #f7f2ea;
-  --color-text-inverse-muted: #a89c90;
+  --color-bg-card-muted: #fdf0ea;
+  /* Hairline dividers inside a card; the heavy outline is --color-border-strong. */
+  --color-border: #e8dcd4;
+  --color-border-strong: #2d3748;
+  --color-shadow: #2d3748;
+  --color-text: #2d3748;
+  /* 5.7:1 on the cream ground, 5.3:1 on the peach muted card. */
+  --color-text-muted: #5a6478;
+  --color-text-inverse: #fff8f5;
+  --color-text-inverse-muted: #cbd5e0;
 
-  --color-accent: #b83b0f;
-  --color-accent-soft: #ffe9df;
-  --color-success: #247243;
-  --color-success-soft: #e6f4ea;
+  /* Bright green fills a surface and always carries dark text. Text and
+     focus rings use the deeper -ink green, because bright green on cream is
+     only about 2:1. */
+  --color-accent: #22c55e;
+  --color-accent-ink: #166534;
+  --color-accent-soft: #dcfce7;
+  --color-on-accent: #1a2433;
+  --color-focus: #166534;
+  --color-success: #166534;
+  --color-success-soft: #dcfce7;
   --color-warning: #8b5b00;
   --color-warning-soft: #fff4e3;
   --color-danger: #c1272d;
   --color-danger-soft: #fbe6e6;
-  --color-rank-bg: #eee5d9;
+  --color-rank-bg: #f3e8e1;
   --color-summary-border: var(--color-border);
   --color-summary-text: var(--color-text);
   --color-summary-heading: var(--color-bg-card-muted);
   --color-summary-row: var(--color-bg-card);
   --color-summary-muted: var(--color-text-muted);
-  --shadow-card: 0 1px 2px rgba(27, 20, 16, 0.06);
 
+  /* Pastel fills for icon chips and highlights; always paired with dark text. */
+  --clay-pink: #f8c4bb;
+  --clay-blue: #add8e6;
+  --clay-lavender: #e6e6fa;
+  --clay-mint: #b5ffb0;
+
+  --border-width: 2.5px;
+  --font-display: 'Fredoka Variable', 'Nunito Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'Nunito Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: var(--font-display);
+  --radius: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+  --shadow-card: 5px 5px 0 var(--color-shadow), inset 0 -4px 0 rgba(0, 0, 0, 0.06);
+  --shadow-btn: 4px 4px 0 var(--color-shadow);
+  --shadow-btn-sm: 2px 2px 0 var(--color-shadow);
+}
+
+.surface-paper {
   background: var(--color-bg-content);
   color: var(--color-text);
 }
 
-/* Opting a subtree back into the shell context from inside a paper one. */
+/* Dark keeps the same shapes; outlines turn cream and shadows turn black. */
+:root[data-theme='dark'],
 .surface-dark {
   color-scheme: dark;
 
   --color-bg-content: #16110e;
   --color-bg-card: #221a15;
   --color-bg-card-muted: #2c221b;
-  --color-border: rgba(245, 239, 231, 0.1);
-  --color-border-strong: rgba(245, 239, 231, 0.22);
+  --color-border: rgba(245, 239, 231, 0.12);
+  --color-border-strong: rgba(245, 239, 231, 0.55);
+  --color-shadow: #000000;
   --color-text: #f5efe7;
-  --color-text-muted: #a89c90;
-  --shadow-card: none;
+  --color-text-muted: #b3a79b;
+  --color-text-inverse: #16110e;
+  --color-text-inverse-muted: #7a6e63;
 
+  --color-accent: #22c55e;
+  --color-accent-ink: #4ade80;
+  --color-accent-soft: rgba(34, 197, 94, 0.16);
+  --color-on-accent: #10201a;
+  --color-focus: #4ade80;
+  --color-success: #4cb963;
+  --color-success-soft: rgba(76, 185, 99, 0.12);
+  --color-warning: #ffb627;
+  --color-warning-soft: rgba(255, 182, 39, 0.1);
+  --color-danger: #ff6a61;
+  --color-danger-soft: rgba(255, 59, 48, 0.12);
+  --color-rank-bg: rgba(245, 239, 231, 0.12);
+  /* The saved-plan summary stays a sheet of paper in dark mode too. */
+  --color-summary-border: #d8ccbe;
+  --color-summary-text: #241f1b;
+  --color-summary-heading: #ede4d8;
+  --color-summary-row: #f6f1e8;
+  --color-summary-muted: #5f554d;
+  --shadow-card: 5px 5px 0 var(--color-shadow);
+}
+
+.surface-dark {
   background: var(--color-bg-content);
   color: var(--color-text);
 }
@@ -152,7 +136,9 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: inherit;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0;
 }
 
@@ -172,31 +158,62 @@ textarea {
   font-size: inherit;
 }
 
+/* One visible keyboard focus indicator for every interactive element. Pointer
+   clicks do not trigger :focus-visible, so mouse users see no ring. */
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  border: 0;
+  clip: rect(0 0 0 0);
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  white-space: nowrap;
+  width: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Checkboxes and radios otherwise render in the browser's own blue, which
    belongs to no part of this palette. */
 input[type='checkbox'],
 input[type='radio'] {
-  accent-color: var(--color-accent);
+  accent-color: var(--color-accent-ink);
 }
 
 .eyebrow {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
+  font-family: var(--font-display);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-text-muted);
 }
 
 .card {
   background: var(--color-bg-card);
-  border: 1px solid var(--color-border);
+  border: var(--border-width) solid var(--color-border-strong);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
   padding: 1.5rem;
 }
 
 .card + .card {
-  margin-top: 1.25rem;
+  margin-top: 1.75rem;
 }
 
 .card-header {
@@ -208,8 +225,8 @@ input[type='radio'] {
 }
 
 .card-title {
-  font-size: 1.2rem;
-  font-weight: 600;
+  font-size: 1.3rem;
+  font-weight: 700;
 }
 
 .field-grid {
@@ -225,11 +242,9 @@ input[type='radio'] {
 }
 
 .field label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .field input[type='text'],
@@ -237,23 +252,53 @@ input[type='radio'] {
 .field input[type='number'],
 .field select,
 .field textarea {
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius);
-  padding: 0.55rem 0.65rem;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
   background: var(--color-bg-card);
   color: var(--color-text);
 }
 
-.field input:focus,
-.field select:focus,
-.field textarea:focus {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 1px;
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
 .field-error {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
   color: var(--color-danger);
+}
+
+/* Lists every problem with the plan at once, above the save controls. */
+.error-summary {
+  background: var(--color-danger-soft);
+  border: var(--border-width) solid var(--color-danger);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  padding: 0.85rem 1rem;
+}
+
+.error-summary:focus-visible {
+  outline: 3px solid var(--color-danger);
+  outline-offset: 2px;
+}
+
+.error-summary-title {
+  color: var(--color-danger);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.error-summary ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.error-summary li + li {
+  margin-top: 0.2rem;
 }
 
 .checkbox-row {
@@ -263,66 +308,80 @@ input[type='radio'] {
   font-size: 0.9375rem;
 }
 
+/* Buttons sit on a hard shadow. Hover lifts them, press sinks them into it. */
 .btn {
   font-size: 0.9375rem;
-  font-weight: 700;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--color-border-strong);
+  font-weight: 800;
+  border-radius: var(--radius);
+  border: var(--border-width) solid var(--color-border-strong);
+  box-shadow: var(--shadow-btn);
   padding: 0.65rem 1.35rem;
   min-height: 2.75rem;
   cursor: pointer;
-  background: transparent;
+  background: var(--color-bg-card);
   color: var(--color-text);
-  transition: opacity 0.15s ease;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
 }
 
-.btn:hover {
-  opacity: 0.8;
+.btn:hover:not(:disabled) {
+  transform: translate(-1px, -1px);
+  box-shadow: 5px 5px 0 var(--color-shadow);
+}
+
+.btn:active:not(:disabled) {
+  transform: translate(3px, 3px);
+  box-shadow: 1px 1px 0 var(--color-shadow);
 }
 
 .btn:disabled {
   cursor: not-allowed;
   opacity: 0.55;
+  box-shadow: var(--shadow-btn-sm);
 }
 
 .btn-primary {
-  background: var(--color-text);
-  color: var(--color-text-inverse);
-  border-color: var(--color-text);
+  background: var(--clay-blue);
+  color: var(--color-on-accent);
 }
 
 .btn-accent {
   background: var(--color-accent);
-  color: var(--color-text-inverse);
-  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .btn-ghost {
-  background: transparent;
-  border-color: var(--color-border);
+  background: var(--color-bg-card);
+  box-shadow: var(--shadow-btn-sm);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  box-shadow: 3px 3px 0 var(--color-shadow);
 }
 
 .btn-danger {
-  background: transparent;
+  background: var(--color-bg-card);
   border-color: var(--color-danger);
+  box-shadow: 2px 2px 0 var(--color-danger);
   color: var(--color-danger);
 }
 
 .btn-sm {
-  padding: 0.45rem 0.75rem;
-  min-height: 2.125rem;
-  font-size: 0.8125rem;
+  padding: 0.45rem 0.9rem;
+  min-height: 2.75rem;
+  font-size: 0.875rem;
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  letter-spacing: 0.06em;
+  font-family: var(--font-sans);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  padding: 0.25rem 0.55rem;
+  padding: 0.2rem 0.65rem;
+  border: 2px solid currentColor;
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -345,12 +404,11 @@ input[type='radio'] {
 .badge-neutral {
   background: var(--color-bg-card-muted);
   color: var(--color-text-muted);
-  border: 1px solid var(--color-border);
 }
 
 .badge-accent {
   background: var(--color-accent-soft);
-  color: var(--color-accent);
+  color: var(--color-accent-ink);
 }
 
 .status-text {
