@@ -23,10 +23,10 @@ const householdStore = useHouseholdStore()
         <h2 id="journey-heading">How to use FIREBREAK</h2>
         <ol>
           <li><router-link to="/plan"><strong>Build your plan</strong></router-link><span>Answer one question at a time: who is in your household, how you would leave, where you would go and who does what. Skip anything and finish later.</span></li>
-          <li><router-link to="/map"><strong>Learn about your area</strong></router-link><span>See past bushfire records near your home, historical fire danger patterns, and safety guidance reviewed against CFA's pages.</span></li>
+          <li><router-link to="/safety-insights"><strong>Safety Insights</strong></router-link><span>Explore historical fire danger patterns and read bushfire safety guidance reviewed against CFA's pages.</span></li>
+          <li><router-link to="/map"><strong>Know more about your area</strong></router-link><span>See past bushfire records near your home and how far the nearest one was.</span></li>
           <li><router-link to="/travel-readiness"><strong>Check your routes</strong></router-link><span>View road routes to your saved destinations and any road disruptions reported near them.</span></li>
-          <li><router-link to="/scenarios"><strong>Test your plan</strong></router-link><span>Try "what if" cases, such as your car being unavailable, and see whether you have a backup that works.</span></li>
-          <li><router-link to="/scenarios"><strong>See how long until you meet</strong></router-link><span>Find out how long it would take everyone in your household to reach the same place, using road routes from where each person is.</span></li>
+          <li><router-link to="/scenarios"><strong>Estimate your time in your plan</strong></router-link><span>Try "what if" cases, such as your car being unavailable, and see how long it would take everyone in your household to reach the same place.</span></li>
         </ol>
       </section>
     </div>
