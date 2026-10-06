@@ -75,6 +75,7 @@ test('Welcome introduces all five journey steps', async () => {
     ['Check your routes', '/travel-readiness'],
     ['See how long to regroup', '/scenarios'],
   ]) assert.match(journey, new RegExp(`<router-link to="${to}"[^>]*><strong>${heading}</strong></router-link>`))
+  assert.match(journey, /<span>Add your household, transport, evacuation destinations and responsibilities\.<\/span>/)
   // Nothing here may read as a prediction.
   assert.doesNotMatch(journey, /predict|forecast|\brisk\b/i)
   assert.match(welcome, /Start my plan/)
