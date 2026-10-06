@@ -22,10 +22,11 @@ const householdStore = useHouseholdStore()
       <section class="journey" aria-labelledby="journey-heading">
         <h2 id="journey-heading">How to use FIREBREAK</h2>
         <ol>
-          <li><strong>Build your plan</strong><span>Add your household, transport, evacuation destinations and responsibilities.</span></li>
-          <li><strong>Review your plan</strong><span>Check your saved plan and local preparedness information.</span></li>
-          <li><strong>Explore your local fire history</strong><span>View historical bushfire activity near your household.</span></li>
-          <li><strong>Test your plan</strong><span>Check possible weaknesses, travel readiness and current road disruptions.</span></li>
+          <li><router-link to="/plan"><strong>Build your plan</strong></router-link><span>Answer one question at a time: who is in your household, how you would leave, where you would go and who does what. Skip anything and finish later.</span></li>
+          <li><router-link to="/map"><strong>Learn about your area</strong></router-link><span>See past bushfire records near your home, historical fire danger patterns, and safety guidance reviewed against CFA's pages.</span></li>
+          <li><router-link to="/travel-readiness"><strong>Check your routes</strong></router-link><span>View road routes to your saved destinations and any road disruptions reported near them.</span></li>
+          <li><router-link to="/scenarios"><strong>Test your plan</strong></router-link><span>Try "what if" cases, such as your car being unavailable, and see whether you have a backup that works.</span></li>
+          <li><router-link to="/scenarios"><strong>See how long until you meet</strong></router-link><span>Find out how long it would take everyone in your household to reach the same place, using road routes from where each person is.</span></li>
         </ol>
       </section>
     </div>
@@ -65,8 +66,10 @@ h1 { font-size: clamp(2.6rem, 5.4vw, 4.2rem); font-weight: 700; letter-spacing: 
 .journey li:nth-child(2)::before { background: var(--clay-blue); }
 .journey li:nth-child(3)::before { background: var(--clay-lavender); }
 .journey li:nth-child(4)::before { background: var(--clay-mint); }
-.journey li strong { align-self: end; }
+.journey li:nth-child(5)::before { background: var(--clay-pink); }
+.journey li a { align-self: end; color: inherit; text-decoration: none; }
+.journey li a:hover strong { text-decoration: underline; }
 .journey li span { color: var(--color-text-muted); font-size: 0.9375rem; grid-column: 2; line-height: 1.5; }
 @media (max-width: 900px) { .hero { grid-template-columns: 1fr; gap: 1.75rem; } .beats { grid-template-columns: 1fr; gap: 1.25rem; } }
-@media (max-width: 520px) { .actions { flex-direction: column; align-items: stretch; } .journey { padding: 1.1rem; } .journey li span { display: none; } .journey li strong { align-self: center; font-size: 0.9375rem; line-height: 1.3; grid-row: 1 / span 2; } }
+@media (max-width: 520px) { .actions { flex-direction: column; align-items: stretch; } .journey { padding: 1.1rem; } .journey li span { display: none; } .journey li a { align-self: center; grid-row: 1 / span 2; } .journey li strong { font-size: 0.9375rem; line-height: 1.3; } }
 </style>
