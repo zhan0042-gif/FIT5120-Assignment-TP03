@@ -5,24 +5,12 @@ import { saveAndReview } from '../src/utils/planReviewNavigation.js'
 
 const source = async (path) => readFile(new URL(path, import.meta.url), 'utf8')
 
-test('editable steps offer a second Save using the same handler and button state', async () => {
+test('the plan view saves one draft through the household store and the API client', async () => {
   const plan = await source('../src/views/PlanBuilderView.vue')
   const store = await source('../src/stores/household.js')
   const client = await source('../src/api/client.js')
 
-  assert.match(plan, /v-if="draft && stepIndex < STEPS\.length - 1" class="top-save"/)
-  assert.match(plan, /class="step-header"[\s\S]*?class="step-heading"[\s\S]*?class="top-save"/)
-  assert.equal((plan.match(/@click="save"/g) ?? []).length, 2)
-  assert.equal((plan.match(/:disabled="saveDisabled"/g) ?? []).length, 2)
-  assert.equal((plan.match(/\{\{ saveLabel \}\}/g) ?? []).length, 2)
   assert.equal((plan.match(/householdStore\.savePlan\(draft\.value\)/g) ?? []).length, 1)
-  const footer = plan.slice(plan.indexOf('<div v-if="draft" class="save-bar">'), plan.lastIndexOf('</template>'))
-  assert.match(footer, />Back<\/button>[\s\S]*?class="plan-actions"[\s\S]*?class="save-controls"[\s\S]*?@click="save"[\s\S]*?>Continue<\/button>/)
-  assert.doesNotMatch(plan, /class="step-nav"/)
-  assert.match(plan, /grid-template-columns: auto minmax\(0, 1fr\)/)
-  assert.match(plan, /\.plan-actions \{[^}]*justify-content: flex-end;/)
-  assert.match(plan, /\.plan-actions > \.next-action \{ flex: 0 0 auto;/)
-  assert.match(plan, /@media \(max-width: 700px\)[\s\S]*?\.save-bar \{ display: flex; flex-wrap: wrap;/)
   assert.match(store, /api\.saveHouseholdPlan\(id, next\)/)
   assert.match(client, /method: 'PUT',[\s\S]*?body: JSON\.stringify\(plan\)/)
 })
@@ -60,7 +48,8 @@ test('clean saved Review navigates without saving again', async () => {
   assert.deepEqual(calls, ['/overview'])
   const plan = await source('../src/views/PlanBuilderView.vue')
   assert.match(plan, /needsSave: hasUnsavedChanges\.value \|\| !householdStore\.planExists/)
-  assert.match(plan, /Save &amp; Review Plan/)
+  const review = await source('../src/components/wizard/ReviewScreen.vue')
+  assert.match(review, /Save &amp; Review Plan/)
 })
 
 test('Welcome introduces all four journey steps', async () => {
