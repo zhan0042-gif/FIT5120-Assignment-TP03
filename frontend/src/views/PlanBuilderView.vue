@@ -53,7 +53,11 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnloa
 watch(
   () => householdStore.plan,
   () => {
-    if (!draft.value) resetDraft()
+    // A plan that arrives after mount (a retry after an error, or a load that
+    // finished late) still opens at the right place.
+    if (draft.value) return
+    resetDraft()
+    if (draft.value) chooseStartingStep()
   },
 )
 
@@ -175,6 +179,7 @@ async function reviewPlan() {
           :completion-loading="householdStore.completionStatus === 'loading'"
           :editable="editableSections"
           :saving="saving"
+          :error="saveMessage"
           @edit="editSection"
           @finish="reviewPlan"
         />
@@ -189,6 +194,7 @@ async function reviewPlan() {
           @submit="wizard.submit"
           @skip="wizard.skip"
           @back="wizard.back()"
+          @remove="wizard.removeCurrent"
           @select="selectAddress"
           @add-vehicle="addVehicle"
         />

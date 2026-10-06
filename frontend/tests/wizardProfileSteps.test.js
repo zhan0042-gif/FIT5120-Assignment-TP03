@@ -118,3 +118,47 @@ function createMember(name) {
     relationship_other: null,
   }
 }
+
+test('pressing Next on an unchanged category keeps the animal type and its description', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.animals.push({ animal_id: 'a_1', category: 'livestock', animal_type: 'alpaca', animal_type_other: null, quantity: 2 })
+  byKey(householdProfileSteps(plan), 'animal:0:category').write(plan, 'livestock')
+  assert.equal(plan.animals[0].animal_type, 'alpaca')
+  plan.animals[0].animal_type = 'other'
+  plan.animals[0].animal_type_other = 'Llama'
+  byKey(householdProfileSteps(plan), 'animal:0:category').write(plan, 'livestock')
+  assert.equal(plan.animals[0].animal_type_other, 'Llama')
+  byKey(householdProfileSteps(plan), 'animal:0:category').write(plan, 'pet')
+  assert.equal(plan.animals[0].animal_type, 'dog')
+})
+
+test('pressing Next on an unchanged daytime kind keeps the saved address', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push({ ...createMember('Maya'), usual_location: { kind: 'work', address: '1 Work St', latitude: -37, longitude: 144, verification_status: 'verified' } })
+  byKey(memberLocationSteps(plan), 'location:0:kind').write(plan, 'work')
+  assert.equal(plan.members[0].usual_location.address, '1 Work St')
+  assert.equal(plan.members[0].usual_location.verification_status, 'verified')
+})
+
+test('a second person is never offered "Self"; gates start unanswered', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push(createMember('Maya'), createMember('Sam'))
+  const steps = householdProfileSteps(plan)
+  assert.ok(!byKey(steps, 'member:1:relationship').options.some(([value]) => value === 'self'))
+  assert.equal(byKey(steps, 'member:1:more').read(plan), null)
+  assert.equal(byKey(steps, 'animals:any').read(plan), null)
+})
+
+test('the first question of each person and animal can remove the record', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push(createMember('Maya'), createMember('Sam'))
+  plan.animals.push({ animal_id: 'a_1', category: 'pet', animal_type: 'dog', quantity: 1 })
+  const steps = householdProfileSteps(plan)
+  assert.equal(byKey(steps, 'member:1:name').remove.label, 'Remove this person')
+  assert.equal(byKey(steps, 'animal:0:category').remove.label, 'Remove this animal')
+  assert.equal(householdProfileSteps(createEmptyHouseholdPlan())[0].remove, undefined)
+  byKey(steps, 'member:1:name').remove.run(plan)
+  assert.deepEqual(plan.members.map((m) => m.display_name), ['Maya'])
+  byKey(steps, 'animal:0:category').remove.run(plan)
+  assert.equal(plan.animals.length, 0)
+})

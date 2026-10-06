@@ -43,7 +43,7 @@ export function backupTransportSteps(plan) {
   const assigned = backups.filter((backup) => backup.transport_id).length
   if (backups[last]?.transport_id && assigned < candidates.length) {
     steps.push(question(SECTION, `backup:${last}:more`, 'yesno', 'Is there another vehicle you could use?', {
-      read: () => false,
+      read: () => null,
       write: (p, value) => { if (value) backupAt(p, count) },
     }))
   }

@@ -13,7 +13,7 @@ function toggle(value) {
 </script>
 
 <template>
-  <div class="choices" role="group" :aria-describedby="describedBy">
+  <div class="choices" role="group" aria-labelledby="wizard-prompt" :aria-describedby="describedBy">
     <label v-for="[value, label] in options" :key="value" class="choice" :class="{ 'is-selected': model.includes(value) }">
       <input type="checkbox" :value="value" :checked="model.includes(value)" @change="toggle(value)" />
       <span>{{ label }}</span>

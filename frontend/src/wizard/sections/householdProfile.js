@@ -1,7 +1,7 @@
 import { ANIMAL_CATEGORIES, ANIMAL_TYPES, RELATIONSHIPS } from '../options.js'
 import { memberLabel } from '../labels.js'
 import { question } from '../step.js'
-import { animalAt, memberAt } from '../wizardDraft.js'
+import { animalAt, memberAt, removeAnimal, removeMember } from '../wizardDraft.js'
 
 const SECTION = 'household_profile'
 
@@ -21,6 +21,9 @@ export function householdProfileSteps(plan) {
     steps.push(question(SECTION, `member:${i}:name`, 'text', i === 0 ? 'What is your name?' : 'What is their name?', {
       placeholder: 'e.g. Maya',
       maxLength: 100,
+      remove: member
+        ? { label: 'Remove this person', run: (p) => removeMember(p, p.members[i]?.member_id) }
+        : undefined,
       read: (p) => p.members[i]?.display_name ?? '',
       write: (p, value) => {
         const created = !p.members[i]
@@ -32,7 +35,7 @@ export function householdProfileSteps(plan) {
 
     if (i > 0) {
       steps.push(question(SECTION, `member:${i}:relationship`, 'choice', `How is ${label} related to you?`, {
-        options: [['', 'Prefer not to say'], ...RELATIONSHIPS],
+        options: [['', 'Prefer not to say'], ...RELATIONSHIPS.filter(([value]) => value !== 'self')],
         read: (p) => p.members[i]?.relationship ?? '',
         write: (p, value) => { memberAt(p, i).relationship = value || null },
       }))
@@ -79,14 +82,14 @@ export function householdProfileSteps(plan) {
   const last = memberCount - 1
   if (plan.members[last]?.display_name?.trim()) {
     steps.push(question(SECTION, `member:${last}:more`, 'yesno', 'Is there anyone else in your household?', {
-      read: () => false,
+      read: () => null,
       write: (p, value) => { if (value) memberAt(p, memberCount) },
     }))
   }
 
   steps.push(question(SECTION, 'animals:any', 'yesno', 'Do any animals leave with you?', {
     helper: 'Pets or livestock. Skip if you have none.',
-    read: (p) => p.animals.length > 0,
+    read: (p) => (p.animals.length > 0 ? true : null),
     write: (p, value) => {
       if (value) animalAt(p, 0)
       else p.animals.splice(0)
@@ -98,9 +101,12 @@ export function householdProfileSteps(plan) {
     const animal = plan.animals[i]
     steps.push(question(SECTION, `animal:${i}:category`, 'choice', 'Is this a pet or livestock?', {
       options: ANIMAL_CATEGORIES,
+      remove: { label: 'Remove this animal', run: (p) => removeAnimal(p, i) },
       read: (p) => p.animals[i]?.category ?? '',
       write: (p, value) => {
         const target = animalAt(p, i)
+        // The same category again (Next on a pre-filled question) must keep the type.
+        if (target.category === value) return
         target.category = value
         target.animal_type = ANIMAL_TYPES[value][0][0]
         target.animal_type_other = null
@@ -136,7 +142,7 @@ export function householdProfileSteps(plan) {
   if (animalCount > 0) {
     const lastAnimal = animalCount - 1
     steps.push(question(SECTION, `animal:${lastAnimal}:more`, 'yesno', 'Is there another animal?', {
-      read: () => false,
+      read: () => null,
       write: (p, value) => { if (value) animalAt(p, animalCount) },
     }))
   }

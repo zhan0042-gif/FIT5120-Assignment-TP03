@@ -62,5 +62,16 @@ export function useWizard(plan) {
     return true
   }
 
-  return { steps, current, currentIndex, currentKey, error, goTo, goToSection, skip, back, submit }
+  // Removes the record behind the current question (a person, animal, vehicle,
+  // job or place) and returns to the start of its section.
+  function removeCurrent(forKey) {
+    const step = current.value
+    if (!step || step.key !== forKey || !step.remove) return false
+    const section = step.section
+    step.remove.run(plan.value)
+    goToSection(section)
+    return true
+  }
+
+  return { steps, current, currentIndex, currentKey, error, goTo, goToSection, skip, back, submit, removeCurrent }
 }

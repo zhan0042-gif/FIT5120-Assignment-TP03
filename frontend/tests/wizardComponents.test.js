@@ -134,3 +134,31 @@ test('the review screen hides Edit for a section that has no questions', async (
   assert.equal((html.match(/>Edit</g) ?? []).length, 6)
   assert.match(html, /Not needed without a vehicle/)
 })
+
+test('yes/no questions can be skipped, and a removable record offers Remove', async () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push({ member_id: 'm_a', display_name: 'Maya', relationship: 'self', usual_location: null }, { member_id: 'm_b', display_name: 'Sam', relationship: null, usual_location: null })
+  const find = (key) => buildSteps(plan).find((step) => step.key === key)
+  const yesno = await render('../src/components/wizard/WizardShell.vue', { step: find('animals:any'), plan, error: null, canGoBack: true })
+  assert.match(yesno, />Skip for now</)
+  assert.doesNotMatch(yesno, /aria-pressed="true"/)
+  const second = await render('../src/components/wizard/WizardShell.vue', { step: find('member:1:name'), plan, error: null, canGoBack: true })
+  assert.match(second, />Remove this person</)
+  const first = await render('../src/components/wizard/WizardShell.vue', { step: find('member:0:name'), plan, error: null, canGoBack: false })
+  assert.match(first, />Remove this person</)
+})
+
+test('choice and multi groups are named by the question', async () => {
+  const plan = createEmptyHouseholdPlan()
+  const find = (key) => buildSteps(plan).find((step) => step.key === key)
+  const html = await render('../src/components/wizard/WizardShell.vue', { step: find('member:0:help'), plan, error: null, canGoBack: true })
+  assert.match(html, /role="group"[^>]*aria-labelledby="wizard-prompt"/)
+})
+
+test('a failed save is shown on the review screen', async () => {
+  const plan = createEmptyHouseholdPlan()
+  const html = await render('../src/components/wizard/ReviewScreen.vue', {
+    plan, completion: completion(7), completionLoading: false, editable: [], saving: false, error: 'Your plan could not be saved.',
+  })
+  assert.match(html, /role="alert"[^>]*>Your plan could not be saved\./)
+})

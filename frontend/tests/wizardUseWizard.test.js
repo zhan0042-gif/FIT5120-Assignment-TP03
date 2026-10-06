@@ -122,3 +122,19 @@ test('Next on a required description with nothing typed shows its error instead 
   wizard.skip('animal:0:type_other')
   assert.equal(wizard.currentKey.value, 'animal:0:quantity')
 })
+
+test('removeCurrent removes the record behind the current question and returns to its section', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push(
+    { member_id: 'm_a', display_name: 'Maya', relationship: 'self', usual_location: null },
+    { member_id: 'm_b', display_name: 'Sam', relationship: 'partner', usual_location: null },
+  )
+  const { draft, wizard } = start(plan, 'member:1:name')
+  assert.equal(wizard.removeCurrent('member:0:name'), false)
+  assert.equal(draft.value.members.length, 2)
+  assert.equal(wizard.removeCurrent('member:1:name'), true)
+  assert.deepEqual(draft.value.members.map((m) => m.display_name), ['Maya'])
+  assert.equal(wizard.currentKey.value, 'member:0:name')
+  assert.equal(wizard.removeCurrent('member:0:name'), true)
+  assert.equal(draft.value.members.length, 0)
+})

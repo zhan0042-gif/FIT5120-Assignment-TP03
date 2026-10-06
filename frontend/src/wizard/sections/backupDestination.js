@@ -1,5 +1,5 @@
 import { question } from '../step.js'
-import { backupAt, backupDestination, selectDestinationAddress, setDestinationAddress } from '../wizardDraft.js'
+import { backupAt, backupDestination, removeBackupPlace, selectDestinationAddress, setDestinationAddress } from '../wizardDraft.js'
 
 const SECTION = 'backup_destination'
 
@@ -19,6 +19,7 @@ export function backupDestinationSteps(plan) {
       {
         placeholder: 'e.g. Community centre',
         maxLength: 100,
+        remove: place ? { label: 'Remove this place', run: (p) => removeBackupPlace(p, i) } : undefined,
         read: (p) => p.arrangements?.backup_arrangements?.[i]?.destination?.display_name ?? '',
         write: (p, value) => { backupDestination(p, i).display_name = value.trim() },
       },
@@ -43,7 +44,7 @@ export function backupDestinationSteps(plan) {
   const last = count - 1
   if (backups[last]?.destination?.display_name?.trim()) {
     steps.push(question(SECTION, `backupplace:${last}:more`, 'yesno', 'Is there another place you could go?', {
-      read: () => false,
+      read: () => null,
       write: (p, value) => { if (value) backupAt(p, count) },
     }))
   }

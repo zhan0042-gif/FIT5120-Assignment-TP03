@@ -1,4 +1,6 @@
 <script setup>
+import { isPointerClick } from '../../../wizard/pick'
+
 defineProps({
   name: { type: String, required: true },
   options: { type: Array, required: true },
@@ -9,14 +11,20 @@ const emit = defineEmits(['pick'])
 </script>
 
 <template>
-  <div class="choices" role="radiogroup" :aria-describedby="describedBy">
-    <label v-for="[value, label] in options" :key="value" class="choice" :class="{ 'is-selected': model === value }">
+  <div class="choices" role="radiogroup" aria-labelledby="wizard-prompt" :aria-describedby="describedBy">
+    <label
+      v-for="[value, label] in options"
+      :key="value"
+      class="choice"
+      :class="{ 'is-selected': model === value }"
+      @click="isPointerClick($event) && emit('pick', value)"
+    >
       <input
         type="radio"
         :name="name"
         :value="value"
         :checked="model === value"
-        @change="model = value; emit('pick', value)"
+        @change="model = value"
       />
       <span>{{ label }}</span>
     </label>

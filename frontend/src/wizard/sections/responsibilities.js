@@ -1,7 +1,7 @@
 import { TASK_PRESETS } from '../options.js'
 import { memberTitle } from '../labels.js'
 import { question } from '../step.js'
-import { responsibilityAt } from '../wizardDraft.js'
+import { removeResponsibility, responsibilityAt } from '../wizardDraft.js'
 
 const SECTION = 'responsibilities'
 
@@ -21,13 +21,21 @@ export function responsibilitySteps(plan) {
 
     steps.push(question(SECTION, `resp:${i}:task`, 'choice', i === 0 ? 'What is one job that has to happen?' : 'What is the next job?', {
       options: [...TASK_PRESETS.map((task) => [task, task]), ['other', 'Something else']],
+      remove: item ? { label: 'Remove this job', run: (p) => removeResponsibility(p, i) } : undefined,
       read: (p) => {
         const name = p.responsibilities[i]?.task_name
         if (!p.responsibilities[i]) return ''
         return TASK_PRESETS.includes(name) ? name : 'other'
       },
       write: (p, value) => {
-        responsibilityAt(p, i).task_name = value === 'other' ? '' : value
+        const target = responsibilityAt(p, i)
+        // "Something else" again (Next on a pre-filled question) keeps the
+        // custom name; it only clears a name that was one of the presets.
+        if (value === 'other') {
+          if (TASK_PRESETS.includes(target.task_name)) target.task_name = ''
+        } else {
+          target.task_name = value
+        }
       },
     }))
 
@@ -45,7 +53,14 @@ export function responsibilitySteps(plan) {
     steps.push(question(SECTION, `resp:${i}:primary`, 'choice', 'Who does it?', {
       options: [['', 'Not decided yet'], ...people],
       read: (p) => p.responsibilities[i]?.primary_member_id ?? '',
-      write: (p, value) => { responsibilityAt(p, i).primary_member_id = value || null },
+      write: (p, value) => {
+        const target = responsibilityAt(p, i)
+        target.primary_member_id = value || null
+        // The backend rejects a backup person who is also the main person.
+        if (target.backup_member_id && target.backup_member_id === target.primary_member_id) {
+          target.backup_member_id = null
+        }
+      },
     }))
 
     steps.push(question(SECTION, `resp:${i}:backup`, 'choice', 'Who covers it if they cannot?', {
@@ -63,7 +78,7 @@ export function responsibilitySteps(plan) {
   const last = count - 1
   if (plan.responsibilities[last]?.task_name?.trim()) {
     steps.push(question(SECTION, `resp:${last}:more`, 'yesno', 'Is there another job to cover?', {
-      read: () => false,
+      read: () => null,
       write: (p, value) => { if (value) responsibilityAt(p, count) },
     }))
   }

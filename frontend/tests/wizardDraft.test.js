@@ -116,3 +116,25 @@ test('question fills defaults and lets extras override them', () => {
     ['transport', 'k', 'text', 'Prompt?', null, false, 'x'],
   )
 })
+
+test('editing a daytime address by hand drops the earlier suggestion it was verified from', () => {
+  const member = memberAt(createEmptyHouseholdPlan(), 0)
+  setUsualKind(member, 'home')
+  selectUsualAddress(member, { address: '10 A St' })
+  assert.equal(member.usual_location.selected_address, '10 A St')
+  setUsualAddress(member, '12 B Rd')
+  assert.equal(member.usual_location.selected_address, null)
+  assert.equal(member.usual_location.address, '12 B Rd')
+})
+
+test('setting the same kind again keeps the address already entered', () => {
+  const member = memberAt(createEmptyHouseholdPlan(), 0)
+  setUsualKind(member, 'work')
+  setUsualAddress(member, '1 Work St')
+  member.usual_location.latitude = -37.8
+  setUsualKind(member, 'work')
+  assert.equal(member.usual_location.address, '1 Work St')
+  assert.equal(member.usual_location.latitude, -37.8)
+  setUsualKind(member, 'home')
+  assert.equal(member.usual_location.address, '')
+})

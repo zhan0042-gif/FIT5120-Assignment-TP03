@@ -10,6 +10,7 @@ const props = defineProps({
   completionLoading: { type: Boolean, default: false },
   editable: { type: Array, default: () => [] },
   saving: { type: Boolean, default: false },
+  error: { type: String, default: null },
 })
 const emit = defineEmits(['edit', 'finish'])
 
@@ -39,6 +40,7 @@ function statusOf(id) {
 
     <PlanChecks :completion="completion" :loading="completionLoading" />
 
+    <p v-if="error" class="field-error" role="alert">{{ error }}</p>
     <div class="controls">
       <button type="button" class="btn btn-accent" :disabled="saving" @click="emit('finish')">Save &amp; Review Plan</button>
     </div>

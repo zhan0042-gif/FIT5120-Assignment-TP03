@@ -98,6 +98,9 @@ export function backupDestination(plan, index) {
 }
 
 export function setUsualKind(member, kind) {
+  // Answering the same kind again (Next on a pre-filled question) must not wipe
+  // the address already entered.
+  if ((member.usual_location?.kind ?? '') === kind) return
   // Changing the kind discards coordinates: they belonged to the previous place.
   member.usual_location = kind
     ? { kind, address: '', latitude: null, longitude: null, verification_status: 'unverified' }
@@ -113,6 +116,9 @@ export function setUsualAddress(member, address) {
     location.latitude = null
     location.longitude = null
     location.verification_status = 'unverified'
+    // Otherwise the backend would resolve the earlier suggestion instead of
+    // the text now typed.
+    location.selected_address = null
   }
   location.address = address
 }
@@ -150,4 +156,51 @@ export function setDestinationAddress(destination, address) {
 export function selectDestinationAddress(destination, suggestion) {
   setDestinationAddress(destination, suggestion.address)
   destination.selected_address = suggestion.address
+}
+
+const PRIVATE_TRANSPORT_TYPES = ['car', 'ute', 'van', 'motorbike', 'truck']
+
+export function removeMember(plan, memberId) {
+  plan.members = plan.members.filter((member) => member.member_id !== memberId)
+  for (const transport of plan.transports) {
+    transport.driver_member_ids = (transport.driver_member_ids ?? []).filter((id) => id !== memberId)
+  }
+  for (const item of plan.responsibilities) {
+    if (item.primary_member_id === memberId) item.primary_member_id = null
+    if (item.backup_member_id === memberId) item.backup_member_id = null
+  }
+}
+
+export function removeAnimal(plan, index) {
+  plan.animals.splice(index, 1)
+}
+
+export function removeTransport(plan, transportId) {
+  plan.transports = plan.transports.filter((transport) => transport.transport_id !== transportId)
+  if (plan.arrangements?.primary_transport_id === transportId) plan.arrangements.primary_transport_id = null
+  for (const backup of plan.arrangements?.backup_arrangements ?? []) {
+    if (backup.transport_id === transportId) backup.transport_id = null
+  }
+}
+
+// The backend rejects "no private transport" next to private vehicle records.
+export function removePrivateTransports(plan) {
+  const ids = plan.transports
+    .filter((transport) => PRIVATE_TRANSPORT_TYPES.includes(transport.transport_type))
+    .map((transport) => transport.transport_id)
+  for (const id of ids) removeTransport(plan, id)
+}
+
+export function removeResponsibility(plan, index) {
+  plan.responsibilities.splice(index, 1)
+}
+
+// A backup entry holds a vehicle and a place. Removing the place keeps the
+// vehicle choice, and drops the entry only when nothing else is in it.
+export function removeBackupPlace(plan, index) {
+  const backups = plan.arrangements?.backup_arrangements
+  const entry = backups?.[index]
+  if (!entry) return
+  entry.destination = null
+  if (!entry.transport_id) backups.splice(index, 1)
 }

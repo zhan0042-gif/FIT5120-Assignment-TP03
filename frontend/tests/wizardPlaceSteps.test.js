@@ -105,3 +105,46 @@ test('builders survive missing arrangements', () => {
   assert.doesNotThrow(() => backupDestinationSteps(plan))
   assert.doesNotThrow(() => responsibilitySteps(plan))
 })
+
+test('pressing Next on "Something else" keeps a custom job name', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push({ member_id: 'm_a', display_name: 'Maya' })
+  plan.responsibilities.push({ responsibility_id: 'r_1', task_name: 'Feed the chickens', primary_member_id: null, backup_member_id: null })
+  byKey(responsibilitySteps(plan), 'resp:0:task').write(plan, 'other')
+  assert.equal(plan.responsibilities[0].task_name, 'Feed the chickens')
+  plan.responsibilities[0].task_name = 'Drive the household'
+  byKey(responsibilitySteps(plan), 'resp:0:task').write(plan, 'other')
+  assert.equal(plan.responsibilities[0].task_name, '')
+})
+
+test('choosing the backup person as the main person clears the backup', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push({ member_id: 'm_a', display_name: 'Maya' }, { member_id: 'm_b', display_name: 'Sam' })
+  plan.responsibilities.push({ responsibility_id: 'r_1', task_name: 'Drive the household', primary_member_id: 'm_a', backup_member_id: 'm_b' })
+  byKey(responsibilitySteps(plan), 'resp:0:primary').write(plan, 'm_b')
+  assert.equal(plan.responsibilities[0].primary_member_id, 'm_b')
+  assert.equal(plan.responsibilities[0].backup_member_id, null)
+})
+
+test('jobs and backup places can be removed from their first question', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.members.push({ member_id: 'm_a', display_name: 'Maya' })
+  plan.responsibilities.push({ responsibility_id: 'r_1', task_name: 'Drive', primary_member_id: 'm_a', backup_member_id: null })
+  plan.arrangements.backup_arrangements.push(
+    { transport_id: null, destination: { destination_id: 'd_1', display_name: 'Library' } },
+    { transport_id: 't_1', destination: { destination_id: 'd_2', display_name: 'Hall' } },
+  )
+  const job = byKey(responsibilitySteps(plan), 'resp:0:task')
+  assert.equal(job.remove.label, 'Remove this job')
+  job.remove.run(plan)
+  assert.equal(plan.responsibilities.length, 0)
+
+  const places = backupDestinationSteps(plan)
+  assert.equal(byKey(places, 'backupplace:0:name').remove.label, 'Remove this place')
+  byKey(places, 'backupplace:0:name').remove.run(plan)
+  assert.equal(plan.arrangements.backup_arrangements.length, 1)
+  byKey(backupDestinationSteps(plan), 'backupplace:0:name').remove.run(plan)
+  assert.equal(plan.arrangements.backup_arrangements.length, 1)
+  assert.equal(plan.arrangements.backup_arrangements[0].transport_id, 't_1')
+  assert.equal(plan.arrangements.backup_arrangements[0].destination, null)
+})

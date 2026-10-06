@@ -1,7 +1,7 @@
 import { TRANSPORT_TYPES, transportLabel } from '../options.js'
 import { memberTitle } from '../labels.js'
 import { question } from '../step.js'
-import { transportAt } from '../wizardDraft.js'
+import { removePrivateTransports, removeTransport, transportAt } from '../wizardDraft.js'
 
 const SECTION = 'transport'
 
@@ -13,8 +13,9 @@ export function transportSteps(plan) {
       if (value) {
         transportAt(p, 0)
       } else {
-        // The backend only counts "no private transport" as complete while no
-        // primary vehicle is set.
+        // The backend rejects "no private transport" beside private vehicle
+        // records, and only counts it complete while no primary vehicle is set.
+        removePrivateTransports(p)
         p.arrangements ??= {}
         p.arrangements.primary_transport_id = null
       }
@@ -29,6 +30,9 @@ export function transportSteps(plan) {
 
     steps.push(question(SECTION, `vehicle:${i}:type`, 'choice', i === 0 ? 'What kind of vehicle is it?' : 'What kind of vehicle is the next one?', {
       options: TRANSPORT_TYPES,
+      remove: vehicle
+        ? { label: 'Remove this vehicle', run: (p) => removeTransport(p, p.transports[i]?.transport_id) }
+        : undefined,
       read: (p) => p.transports[i]?.transport_type ?? '',
       write: (p, value) => {
         const target = transportAt(p, i)
@@ -68,7 +72,7 @@ export function transportSteps(plan) {
 
   const last = count - 1
   steps.push(question(SECTION, `vehicle:${last}:more`, 'yesno', 'Is there another vehicle?', {
-    read: () => false,
+    read: () => null,
     write: (p, value) => { if (value) transportAt(p, count) },
   }))
 

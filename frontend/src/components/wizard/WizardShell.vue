@@ -1,5 +1,6 @@
 <script setup>
 import { nextTick, onMounted, ref, useId, watch } from 'vue'
+import { acceptsPick } from '../../wizard/pick'
 import AddressQuestion from './questions/AddressQuestion.vue'
 import ChoiceQuestion from './questions/ChoiceQuestion.vue'
 import MultiQuestion from './questions/MultiQuestion.vue'
@@ -13,13 +14,14 @@ const props = defineProps({
   error: { type: String, default: null },
   canGoBack: { type: Boolean, default: false },
 })
-const emit = defineEmits(['submit', 'skip', 'back', 'select', 'add-vehicle'])
+const emit = defineEmits(['submit', 'skip', 'back', 'remove', 'select', 'add-vehicle'])
 
 const uid = useId()
 const inputId = `${uid}-input`
 const errorId = `${uid}-error`
 const prompt = ref(null)
 const value = ref(initial())
+let openedAt = Date.now()
 
 function initial() {
   return props.step.read ? props.step.read(props.plan) : null
@@ -30,6 +32,7 @@ function initial() {
 // so mounting is the usual path; the watcher covers a reused instance.
 onMounted(() => prompt.value?.focus())
 watch(() => props.step.key, async () => {
+  openedAt = Date.now()
   value.value = initial()
   await nextTick()
   prompt.value?.focus()
@@ -42,6 +45,8 @@ function submit() {
 }
 
 function answer(picked) {
+  // A double-click must not answer this question and the next one.
+  if (!acceptsPick(openedAt, Date.now())) return
   emit('submit', props.step.key, picked)
 }
 </script>
@@ -78,11 +83,10 @@ function answer(picked) {
 
       <div class="controls">
         <button v-if="canGoBack" type="button" class="btn btn-ghost" @click="emit('back')">Back</button>
+        <button v-if="step.remove" type="button" class="btn btn-danger btn-sm" @click="emit('remove', step.key)">{{ step.remove.label }}</button>
         <span class="spacer"></span>
-        <template v-if="step.kind !== 'yesno'">
-          <button type="button" class="btn btn-ghost" @click="emit('skip', step.key)">Skip for now</button>
-          <button type="submit" class="btn btn-accent">Next</button>
-        </template>
+        <button type="button" class="btn btn-ghost" @click="emit('skip', step.key)">Skip for now</button>
+        <button v-if="step.kind !== 'yesno'" type="submit" class="btn btn-accent">Next</button>
       </div>
     </form>
   </section>
