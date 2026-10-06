@@ -46,7 +46,9 @@ export function useWizard(plan) {
       skip(forKey)
       return true
     }
-    if (isEmptyAnswer(value) && isEmptyAnswer(step.read?.(plan.value))) {
+    // Nothing typed into an empty optional field is just a skip. A required
+    // description is validated instead, so Next explains what is missing.
+    if (step.optional !== false && isEmptyAnswer(value) && isEmptyAnswer(step.read?.(plan.value))) {
       skip(forKey)
       return true
     }

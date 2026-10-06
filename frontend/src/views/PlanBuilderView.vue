@@ -160,7 +160,7 @@ async function reviewPlan() {
           v-if="wizard.current.value.kind === 'summary'"
           :section="currentSection"
           :text="describeSection(draft, currentSection.id)"
-          :needs-attention="sectionNeedsAttention"
+          :needs-attention="sectionNeedsAttention && !hasUnsavedChanges"
           :saving="saving"
           :error="saveMessage"
           :is-edit="returnToReview"

@@ -111,3 +111,14 @@ test('notices are skipped by submit; a null plan yields no steps', () => {
   assert.deepEqual(empty.steps.value, [])
   assert.equal(empty.current.value, null)
 })
+
+test('Next on a required description with nothing typed shows its error instead of skipping', () => {
+  const plan = createEmptyHouseholdPlan()
+  plan.animals.push({ animal_id: 'a_1', category: 'pet', animal_type: 'other', animal_type_other: null, quantity: 1 })
+  const { wizard } = start(plan, 'animal:0:type_other')
+  assert.equal(wizard.submit('animal:0:type_other', ''), false)
+  assert.equal(wizard.error.value, 'Please describe the animal.')
+  assert.equal(wizard.currentKey.value, 'animal:0:type_other')
+  wizard.skip('animal:0:type_other')
+  assert.equal(wizard.currentKey.value, 'animal:0:quantity')
+})

@@ -70,7 +70,7 @@ function answer(picked) {
 
       <MultiQuestion v-else-if="step.kind === 'multi'" v-model="value" :options="step.options" :described-by="describedBy()" />
 
-      <AddressQuestion v-else-if="step.kind === 'address'" v-model="value" label="Address" :helper="step.helper ?? ''" @select="emit('select', step.key, $event)" />
+      <AddressQuestion v-else-if="step.kind === 'address'" v-model="value" label="Address" :helper="''" @select="emit('select', step.key, $event)" />
 
       <YesNoQuestion v-else-if="step.kind === 'yesno'" :current="value" @answer="answer" />
 
