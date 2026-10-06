@@ -25,8 +25,7 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
 </script>
 <template>
   <div class="scenario-tester">
-    <h1>What happens if?</h1>
-    <p class="subhead">Each scenario checks your saved plan for a backup you can actually use.</p>
+    <h1 class="sr-only">Test my plan</h1>
     <LoadingState v-if="householdStore.planStatus === 'loading'" message="Loading your household plan..." />
     <ErrorState v-else-if="householdStore.planStatus === 'error'" message="Could not load your household plan." @retry="householdStore.loadPlan" />
     <EmptyState v-else-if="noSavedPlan" title="No saved plan found" message="Build and save your plan before testing scenarios."><div class="state-actions"><router-link class="btn btn-primary btn-sm" to="/plan">Go to My Plan</router-link><button class="btn btn-ghost btn-sm" type="button" @click="retryPlanAvailability">Retry</button></div></EmptyState>
@@ -60,7 +59,7 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
   </div>
 </template>
 <style scoped>
-.scenario-tester { width: 100%; min-width: 0; }.scenario-tester > h1 { font-size: clamp(2rem, 4vw, 2.25rem); line-height: 1.2; }.subhead { color: var(--color-text-muted); margin: 0.5rem 0 1.75rem; }
+.scenario-tester { width: 100%; min-width: 0; }
 .tester-grid { display: grid; grid-template-columns: minmax(250px, 340px) 1fr; gap: 1.5rem; align-items: start; }.scenario-column { display: flex; flex-direction: column; gap: 1rem; }.run-btn { width: 100%; }.state-actions { display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap; }
 .test-steps { display: inline-grid; gap: 0.85rem; list-style: none; margin: 0.5rem 0 0; padding: 0; text-align: left; max-width: 30rem; }
 .test-steps li { align-items: flex-start; display: flex; gap: 0.75rem; line-height: 1.5; }
