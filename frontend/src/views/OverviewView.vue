@@ -1,11 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { api } from '../api/client'
 import ErrorState from '../components/common/ErrorState.vue'
 import LoadingState from '../components/common/LoadingState.vue'
 import { useHouseholdStore } from '../stores/household'
 import { useLocalContextStore } from '../stores/localContext'
 import { useRendezvousStore } from '../stores/rendezvous'
+import { pdfFile, shareFile, whatsappWebUrl } from '../utils/sharePlan'
 
 const householdStore = useHouseholdStore()
 const localContextStore = useLocalContextStore()
@@ -74,24 +75,77 @@ const acceptedAdvice = computed(() =>
   rendezvousStore.explanationStatus === 'success' ? rendezvousStore.explanation : null,
 )
 
+async function fetchPlanPdf() {
+  const householdId = await householdStore.ensureHousehold()
+  return api.getPreparednessPlanPdf(householdId, acceptedAdvice.value)
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(url)
+}
+
 async function exportPdf() {
   exportStatus.value = 'loading'
   exportError.value = null
   try {
-    const householdId = await householdStore.ensureHousehold()
-    const { blob, filename } = await api.getPreparednessPlanPdf(householdId, acceptedAdvice.value)
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = filename
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+    const { blob, filename } = await fetchPlanPdf()
+    downloadBlob(blob, filename)
     exportStatus.value = 'success'
   } catch (error) {
     exportStatus.value = 'error'
     exportError.value = error instanceof Error ? error.message : 'Could not export the PDF.'
+  }
+}
+
+// Share: build the PDF, then hand it to the device's share sheet. A browser
+// that wants a fresh tap after a slow build keeps the finished file, so the
+// second tap shares immediately.
+const shareStatus = ref('idle')
+const shareMessage = ref(null)
+const preparedShare = ref(null)
+const shareLabel = computed(() => {
+  if (shareStatus.value === 'loading') return 'Preparing PDF...'
+  return preparedShare.value ? 'Share now' : 'Share preparedness plan'
+})
+
+// A prepared file describes the plan as it was; drop it when the plan or the
+// accepted advice changes.
+watch(() => [householdStore.planRevision, acceptedAdvice.value], () => { preparedShare.value = null })
+
+async function sharePlan() {
+  shareMessage.value = null
+  shareStatus.value = 'loading'
+  exportError.value = null
+  try {
+    if (!preparedShare.value) {
+      const { blob, filename } = await fetchPlanPdf()
+      preparedShare.value = { blob, filename, file: pdfFile(blob, filename) }
+    }
+    const outcome = await shareFile(navigator, preparedShare.value.file)
+    if (outcome === 'shared') {
+      shareStatus.value = 'shared'
+      shareMessage.value = 'Shared. You can choose another app any time.'
+    } else if (outcome === 'cancelled') {
+      shareStatus.value = 'idle'
+    } else if (outcome === 'needs-gesture') {
+      shareStatus.value = 'ready'
+      shareMessage.value = 'Your PDF is ready. Tap Share again to choose an app.'
+    } else {
+      downloadBlob(preparedShare.value.blob, preparedShare.value.filename)
+      preparedShare.value = null
+      shareStatus.value = 'fallback'
+      shareMessage.value = 'This browser cannot share files directly, so the PDF was downloaded. Attach it in WhatsApp, Messenger or any other app.'
+    }
+  } catch (error) {
+    shareStatus.value = 'error'
+    exportError.value = error instanceof Error ? error.message : 'Could not share the PDF.'
   }
 }
 
@@ -167,7 +221,14 @@ onMounted(async () => {
       <button class="btn btn-accent" type="button" :disabled="noSavedPlan || exportStatus === 'loading'" @click="exportPdf">
         {{ exportStatus === 'loading' ? 'Generating PDF...' : 'Export preparedness plan' }}
       </button>
+      <button class="btn btn-primary" type="button" :disabled="noSavedPlan || shareStatus === 'loading' || exportStatus === 'loading'" @click="sharePlan">
+        {{ shareLabel }}
+      </button>
     </div>
+    <p v-if="shareMessage" class="share-note" role="status">
+      {{ shareMessage }}
+      <a v-if="shareStatus === 'fallback'" :href="whatsappWebUrl()" target="_blank" rel="noopener noreferrer">Open WhatsApp Web (message only)</a>
+    </p>
     <p v-if="exportError" class="field-error export-error">{{ exportError }}</p>
   </div>
 </template>
@@ -198,6 +259,8 @@ onMounted(async () => {
 .summary-list dt { color: var(--color-summary-muted); }
 .summary-list dd { color: var(--color-summary-text); margin: 0; overflow-wrap: anywhere; }
 .export-error { margin: 1rem 0; }
+.share-note { color: var(--color-text-muted); margin: 0.75rem 0 0; text-align: right; }
+.share-note a { color: var(--color-accent-ink); font-weight: 700; margin-left: 0.4rem; }
 .empty-summary { text-align: center; }
 .empty-summary .btn { margin-top: 1rem; }
 @media (max-width: 800px) {

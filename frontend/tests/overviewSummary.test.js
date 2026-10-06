@@ -174,3 +174,12 @@ test('fire map aligns address and 2 by 2 metrics with the historical map columns
   assert.match(mapSource, /CFA Fire District/)
   assert.match(mapSource, /Used to match official fire danger information for your area\./)
 })
+
+test('the export area offers Share beside Export, with a safe fallback', () => {
+  assert.match(overviewSource, /@click="sharePlan"/)
+  assert.match(overviewSource, /Share preparedness plan|>\s*\{\{ shareLabel \}\}/)
+  assert.match(overviewSource, /whatsappWebUrl\(\)/)
+  assert.match(overviewSource, /target="_blank" rel="noopener noreferrer"/)
+  assert.match(overviewSource, /role="status"/)
+  assert.equal((overviewSource.match(/api\.getPreparednessPlanPdf\(/g) ?? []).length, 1)
+})
