@@ -61,10 +61,10 @@ test('FDR API success is stored and displayed with conservative wording', async 
     panelStore.status = 'success'
     panelStore.result = store.result
   })
-  assert.match(html, /Estimated pattern:[\s\S]*Elevated/)
-  assert.match(html, /Estimated elevated historical pattern/)
+  assert.match(html, /Historical pattern:[\s\S]*Elevated/)
+  assert.match(html, /Elevated pattern score/)
   assert.match(html, /80\.0%/)
-  assert.match(html, /not an official Fire Danger Rating forecast/)
+  assert.match(html, /not a forecast[\s\S]*or an official Fire Danger Rating forecast/)
 })
 
 
@@ -76,26 +76,34 @@ test('FDR API failure is shown only inside the FDR panel', async () => {
 
   assert.match(html, /role="alert"/)
   assert.match(html, /temporarily unavailable/)
-  assert.match(html, /Fire Danger Pattern Estimate/)
+  assert.match(html, /Historical Fire Danger Pattern/)
 })
 
 
-test('FDR coexists with Safety Guidance and does not gate current Overview content', async () => {
+test('FDR coexists with Safety Guidance on Safety Insights without gating Overview', async () => {
+  const insights = await readFile(
+    new URL('../src/views/SafetyInsightsView.vue', import.meta.url),
+    'utf8',
+  )
   const overview = await readFile(
     new URL('../src/views/OverviewView.vue', import.meta.url),
     'utf8',
   )
-  const template = overview.slice(
-    overview.indexOf('<template>'),
-    overview.lastIndexOf('</template>'),
+  const insightsTemplate = insights.slice(
+    insights.indexOf('<template>'),
+    insights.lastIndexOf('</template>'),
   )
 
-  assert.match(overview, /import SafetyChatPanel/)
-  assert.match(overview, /import FdrPredictionPanel/)
-  assert.ok(template.indexOf('<SafetyChatPanel />') < template.indexOf('<FdrPredictionPanel />'))
-  assert.ok(template.indexOf('<FdrPredictionPanel />') < template.indexOf('Household Plan Summary'))
-  assert.doesNotMatch(template, /fdrStore/)
-  assert.match(template, /Export preparedness plan/)
+  assert.match(insights, /import SafetyChatPanel/)
+  assert.match(insights, /import FdrPredictionPanel/)
+  assert.ok(
+    insightsTemplate.indexOf('<FdrPredictionPanel />')
+      < insightsTemplate.indexOf('<SafetyChatPanel />'),
+  )
+  assert.doesNotMatch(insightsTemplate, /v-if=.*(?:fdr|safety)/)
+  assert.doesNotMatch(overview, /SafetyChatPanel|FdrPredictionPanel/)
+  assert.match(overview, /Household Plan Summary/)
+  assert.match(overview, /Export preparedness plan/)
 })
 
 

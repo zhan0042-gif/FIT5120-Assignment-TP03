@@ -43,11 +43,11 @@ async function submitPrediction() {
   <section class="card fdr-panel">
     <div class="panel-header">
       <div>
-        <h2>Fire Danger Pattern Estimate</h2>
+        <h2>Historical Fire Danger Pattern</h2>
 
         <p>
-          See how the selected district and time of year compare with
-          historical Fire Danger Rating patterns.
+          Compare a Victorian fire district and time of year with historical
+          Fire Danger Rating patterns.
         </p>
       </div>
     </div>
@@ -89,8 +89,8 @@ async function submitPrediction() {
     >
       {{
         fdrStore.status === 'loading'
-          ? 'Estimating...'
-          : 'Estimate fire danger pattern'
+          ? 'Checking...'
+          : 'Check historical pattern'
       }}
     </button>
 
@@ -111,7 +111,7 @@ async function submitPrediction() {
       aria-live="polite"
     >
       <h3>
-        Estimated pattern:
+        Historical pattern:
         {{ fdrStore.result.prediction_label }}
       </h3>
 
@@ -127,7 +127,7 @@ async function submitPrediction() {
         </div>
 
         <div>
-          <dt>Estimated elevated historical pattern</dt>
+          <dt>Elevated pattern score</dt>
           <dd>{{ probabilityText }}</dd>
         </div>
       </dl>
@@ -137,20 +137,19 @@ async function submitPrediction() {
 
         <p>
           <strong>Moderate:</strong>
-          Historically more similar to days with a Moderate Fire Danger Rating.
+          More similar to historical days rated Moderate.
         </p>
 
         <p>
           <strong>Elevated:</strong>
-          Historically more similar to days with High, Extreme or Catastrophic
-          Fire Danger Ratings.
+          More similar to historical days rated High, Extreme or Catastrophic.
         </p>
       </div>
 
       <p class="disclaimer">
-        This estimate is based on historical seasonal patterns.
-        It is not an official Fire Danger Rating forecast and should not
-        be used for emergency decisions.
+        This score reflects historical seasonal patterns. It is not a forecast
+        of future fire danger or an official Fire Danger Rating forecast, and
+        should not be used for emergency decisions.
       </p>
     </div>
   </section>
