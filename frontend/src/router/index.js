@@ -3,7 +3,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   history: createWebHistory(),
   // Each route has one product responsibility: entry, plan editing, status
-  // review, or saved-plan scenario testing. Navigation order lives in AppLayout.
+  // review, safety insights, or saved-plan scenario testing. Navigation order
+  // lives in AppLayout.
   routes: [
     {
       path: '/',
@@ -14,6 +15,11 @@ const router = createRouter({
       path: '/overview',
       name: 'overview',
       component: () => import('../views/OverviewView.vue'),
+    },
+    {
+      path: '/safety-insights',
+      name: 'safety-insights',
+      component: () => import('../views/SafetyInsightsView.vue'),
     },
     {
       path: '/plan',

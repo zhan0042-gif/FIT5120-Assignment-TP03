@@ -73,8 +73,9 @@ onMounted(load)
     <h2 id="safety-chat-title" class="card-title">Safety guidance</h2>
     <p class="notice" role="note"><strong>{{ SAFETY_NOTICE }}</strong></p>
     <p class="intro">
-      Pick a question to see what the Country Fire Authority advises. Answers are summarised by the FIREBREAK team
-      and checked against CFA's pages. They are advice to read, not a forecast.
+      Choose a suggested question or ask your own. FIREBREAK matches your question
+      to reviewed guidance based on CFA information. This guidance is for general
+      preparedness and is not a forecast.
     </p>
 
     <LoadingState v-if="store.status === 'loading'" message="Loading safety guidance..." />
