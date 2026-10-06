@@ -97,6 +97,7 @@ async function submitPrediction() {
     <p
       v-if="fdrStore.status === 'error'"
       class="field-error"
+      role="alert"
     >
       {{ fdrStore.error }}
     </p>
@@ -107,6 +108,7 @@ async function submitPrediction() {
         fdrStore.result
       "
       class="prediction-result"
+      aria-live="polite"
     >
       <h3>
         Estimated pattern:
@@ -125,7 +127,7 @@ async function submitPrediction() {
         </div>
 
         <div>
-          <dt>Chance of elevated historical pattern</dt>
+          <dt>Estimated elevated historical pattern</dt>
           <dd>{{ probabilityText }}</dd>
         </div>
       </dl>
@@ -191,22 +193,23 @@ label span {
 
 select,
 input {
-  background: transparent;
-  border: 1px solid var(--color-summary-border);
-  border-radius: 0.4rem;
+  background: var(--color-bg-card);
+  border: 2px solid var(--color-border-strong);
+  border-radius: 12px;
   color: var(--color-text);
   padding: 0.7rem;
   width: 100%;
 }
 
 select option {
-  color: #222;
+  background: var(--color-bg-card);
+  color: var(--color-text);
 }
 
 .prediction-result {
-  background: transparent;
-  border: 1px solid var(--color-summary-border);
-  border-radius: 0.5rem;
+  background: var(--color-bg-card-muted);
+  border: 2px solid var(--color-border);
+  border-radius: var(--radius);
   color: var(--color-text);
   margin-top: 1.25rem;
   padding: 1rem;
@@ -238,7 +241,7 @@ select option {
 }
 
 .meaning-note {
-  border-top: 1px solid var(--color-summary-border);
+  border-top: 1px solid var(--color-border);
   margin-top: 1rem;
   padding-top: 1rem;
 }
@@ -258,7 +261,7 @@ select option {
 }
 
 .disclaimer {
-  border-top: 1px solid var(--color-summary-border);
+  border-top: 1px solid var(--color-border);
   color: var(--color-text-muted);
   font-size: 0.9rem;
   margin-top: 1rem;

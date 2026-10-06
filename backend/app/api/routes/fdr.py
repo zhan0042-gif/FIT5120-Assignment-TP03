@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from app.schemas.fdr_prediction import FdrPredictionResponse
 from app.services.fdr_prediction import (
     FdrPredictionService,
+    FdrRuntimeUnavailable,
     VALID_DISTRICTS,
 )
 
@@ -61,7 +62,7 @@ def predict_fdr_pattern(
             target_date=target_date,
         )
 
-    except RuntimeError as exc:
+    except FdrRuntimeUnavailable as exc:
         raise HTTPException(
             status_code=503,
             detail=str(exc),
