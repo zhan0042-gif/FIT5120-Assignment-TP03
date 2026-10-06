@@ -5,3 +5,7 @@ pytest==9.0.3
 reportlab==4.4.4
 SQLAlchemy==2.0.43
 uvicorn[standard]==0.35.0
+
+pandas
+joblib==1.5.3
+scikit-learn==1.5.2
