@@ -20,6 +20,11 @@ export const CONNECT_TIMEOUT_MS = 15_000
 export const MAX_SESSION_MS = 10 * 60_000
 // A number can arrive split across transcript fragments, so check once speech pauses.
 export const NUMBER_CHECK_DELAY_MS = 1500
+// GPT-Live can signal a delegation before the transcript of what was said has come in
+// (the transcription runs separately), so a delegation waits for the words to settle:
+// this long with nothing new, and never longer than the maximum.
+export const TRANSCRIPT_SETTLE_MS = 400
+export const TRANSCRIPT_MAX_WAIT_MS = 3000
 
 function describeStartError(error) {
   if (error?.name === 'MicrophoneDenied') return 'Microphone access was blocked. You can still use the chat.'
@@ -65,6 +70,8 @@ export const useVoiceStore = defineStore('voice', () => {
   let maxTimer = null
   let checkTimer = null
   let connectTimer = null
+  // A delegation that is waiting for its transcript to settle: { resolve, quietTimer, capTimer }.
+  let transcriptWait = null
 
   function clearTimers() {
     clearTimeout(idleTimer)
@@ -77,7 +84,31 @@ export const useVoiceStore = defineStore('voice', () => {
     connectTimer = null
   }
 
+  function finishTranscriptWait() {
+    const wait = transcriptWait
+    if (!wait) return
+    transcriptWait = null
+    clearTimeout(wait.quietTimer)
+    clearTimeout(wait.capTimer)
+    wait.resolve()
+  }
+
+  // Resolves when no new words have arrived for TRANSCRIPT_SETTLE_MS (once there are
+  // some), or when the maximum wait is up, or when the session ends.
+  function waitForTranscript() {
+    finishTranscriptWait() // a newer delegation supersedes an older one still waiting
+    return new Promise((resolve) => {
+      transcriptWait = {
+        resolve,
+        quietTimer: null,
+        capTimer: setTimeout(finishTranscriptWait, TRANSCRIPT_MAX_WAIT_MS),
+      }
+      if (utterance.trim()) transcriptWait.quietTimer = setTimeout(finishTranscriptWait, TRANSCRIPT_SETTLE_MS)
+    })
+  }
+
   function resetSession() {
+    finishTranscriptWait()
     clearTimers()
     connection = null
     active = false
@@ -120,9 +151,6 @@ export const useVoiceStore = defineStore('voice', () => {
 
   async function runDelegation(id) {
     latestDelegation = id
-    const text = utterance.trim().slice(-MAX_QUESTION_LENGTH)
-    utterance = ''
-    delegatedSinceHeard = true
     notice.value = null
     status.value = 'checking'
 
@@ -134,6 +162,12 @@ export const useVoiceStore = defineStore('voice', () => {
     }
 
     try {
+      await waitForTranscript()
+      // Superseded or the session ended while waiting: leave the words for the newer request.
+      if (latestDelegation !== id || !active) return
+      const text = utterance.trim().slice(-MAX_QUESTION_LENGTH)
+      utterance = ''
+      delegatedSinceHeard = true
       if (!text) {
         say(VOICE_NOT_UNDERSTOOD)
         return
@@ -173,13 +207,19 @@ export const useVoiceStore = defineStore('voice', () => {
         break
       case 'session.input_transcript.delta':
         utterance += event.delta ?? ''
-        delegatedSinceHeard = false
+        if (transcriptWait) {
+          // The words of a request already signalled: keep waiting until they settle.
+          clearTimeout(transcriptWait.quietTimer)
+          transcriptWait.quietTimer = setTimeout(finishTranscriptWait, TRANSCRIPT_SETTLE_MS)
+        } else {
+          delegatedSinceHeard = false
+        }
         touch()
         break
       case 'session.output_transcript.delta':
         // The assistant is answering on its own, so what was heard is a finished turn:
         // do not let it run into the next request.
-        if (!delegatedSinceHeard && utterance) utterance = ''
+        if (!delegatedSinceHeard && utterance && !transcriptWait) utterance = ''
         spoken += event.delta ?? ''
         touch()
         scheduleNumberCheck()

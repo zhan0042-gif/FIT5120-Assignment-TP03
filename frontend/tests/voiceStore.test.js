@@ -33,7 +33,15 @@ const { liveTransport } = await import('../src/voice/liveConnection.js')
 const { MicrophoneDenied } = await import('../src/voice/liveConnection.js')
 const { useHouseholdStore } = await import('../src/stores/household.js')
 const { useLocalContextStore } = await import('../src/stores/localContext.js')
-const { useVoiceStore, CONNECT_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_SESSION_MS, NUMBER_CHECK_DELAY_MS } = await import(
+const {
+  useVoiceStore,
+  CONNECT_TIMEOUT_MS,
+  IDLE_TIMEOUT_MS,
+  MAX_SESSION_MS,
+  NUMBER_CHECK_DELAY_MS,
+  TRANSCRIPT_MAX_WAIT_MS,
+  TRANSCRIPT_SETTLE_MS,
+} = await import(
   '../src/stores/voice.js'
 )
 const { VOICE_CHECK_FIGURES, VOICE_NOT_UNDERSTOOD, VOICE_UNAVAILABLE } = await import(
@@ -67,9 +75,16 @@ const WEATHER_CONTEXT = {
   fire_danger: { availability: 'unavailable', message: 'x' },
 }
 
-// Let pending promises (the decide call, the handler, the commentary send) settle.
-// setImmediate is not mocked, so this works while setTimeout is.
-const flush = () => new Promise((resolve) => setImmediate(resolve))
+// Let pending promises settle. setImmediate is not mocked, so this works while
+// setTimeout is.
+const microtasks = () => new Promise((resolve) => setImmediate(resolve))
+
+// A delegation waits for its transcript to settle before it is acted on; let that wait
+// run out too, then let the decide call, the handler and the commentary send settle.
+async function flush() {
+  mock.timers.tick(TRANSCRIPT_MAX_WAIT_MS)
+  await microtasks()
+}
 
 function setup() {
   // The store starts a 60 s idle timer and a 10 min limit for every session. Mock
@@ -296,9 +311,10 @@ test('a stale delegation result is dropped', async () => {
 
   say(ctx, 'first')
   delegate(ctx, 'old')
+  await flush() // the older request is now with the server
   say(ctx, 'second')
   delegate(ctx, 'new')
-  await flush() // both decide calls are made after an await, so wait for them
+  await flush()
   releases[1]()
   await flush()
   releases[0]()
@@ -502,4 +518,98 @@ test('a session that does start is not ended by the connect timeout', async () =
 
   assert.equal(ctx.fake.closeCalls, 0)
   assert.equal(ctx.store.status, 'listening')
+})
+
+test('a delegation that arrives before its transcript waits for the words to settle', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  delegate(ctx) // GPT-Live signals the request before the transcript has come in
+  await microtasks()
+  assert.equal(ctx.decisions.length, 0)
+
+  say(ctx, 'Show me ')
+  mock.timers.tick(TRANSCRIPT_SETTLE_MS - 1)
+  say(ctx, 'the weather') // more words restart the quiet period
+  mock.timers.tick(TRANSCRIPT_SETTLE_MS - 1)
+  await microtasks()
+  assert.equal(ctx.decisions.length, 0)
+  mock.timers.tick(1)
+  await microtasks()
+
+  assert.equal(ctx.decisions.length, 1)
+  assert.equal(ctx.decisions[0].body.utterance, 'Show me the weather')
+  assert.match(commentary(ctx)[0].content, /^The temperature is 21\.5/)
+})
+
+test('a delegation whose words are already there still waits briefly for the rest', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  say(ctx, 'Show me')
+  delegate(ctx)
+  await microtasks()
+  assert.equal(ctx.decisions.length, 0)
+  say(ctx, ' the weather')
+  mock.timers.tick(TRANSCRIPT_SETTLE_MS)
+  await microtasks()
+
+  assert.equal(ctx.decisions[0].body.utterance, 'Show me the weather')
+})
+
+test('a delegation that never gets a transcript is not understood after the wait runs out', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  delegate(ctx)
+  mock.timers.tick(TRANSCRIPT_MAX_WAIT_MS - 1)
+  await microtasks()
+  assert.equal(commentary(ctx).length, 0)
+  mock.timers.tick(1)
+  await microtasks()
+
+  assert.equal(commentary(ctx)[0].content, VOICE_NOT_UNDERSTOOD)
+  assert.equal(ctx.decisions.length, 0)
+})
+
+test('an acknowledgement spoken while the transcript is still arriving does not erase it', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  delegate(ctx)
+  ctx.fake.emit({ type: 'session.output_transcript.delta', delta: 'Let me check that.' })
+  say(ctx, 'Show me the weather')
+  mock.timers.tick(TRANSCRIPT_SETTLE_MS)
+  await microtasks()
+
+  assert.equal(ctx.decisions[0].body.utterance, 'Show me the weather')
+})
+
+test('a newer delegation supersedes one still waiting for its transcript', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  delegate(ctx, 'old')
+  delegate(ctx, 'new')
+  say(ctx, 'Show me the weather')
+  mock.timers.tick(TRANSCRIPT_SETTLE_MS)
+  await microtasks()
+
+  assert.equal(ctx.decisions.length, 1)
+  const sent = commentary(ctx)
+  assert.equal(sent.length, 1)
+  assert.equal(sent[0].delegation_id, 'new')
+})
+
+test('closing the session while a delegation waits lets it end quietly', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+  delegate(ctx)
+
+  ctx.fake.onClosed(null)
+  await flush()
+
+  assert.equal(commentary(ctx).length, 0)
+  assert.equal(ctx.decisions.length, 0)
+  assert.equal(ctx.store.status, 'idle')
 })

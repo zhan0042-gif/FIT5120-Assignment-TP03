@@ -49,6 +49,25 @@ Needs a browser, a microphone and a real GPT-Live session. To record:
    must wait for the transcript to settle before reading it.
 3. Whether the spoken answer reflects the commentary, and how the assistant words it.
 
+## 2b. First real-microphone attempts — findings
+
+Run by the developer on localhost with the live OpenAI key; a local-only wrapper printed
+what each `/live/decide` request heard.
+
+1. **Every real offer was rejected until the request schema stopped stripping
+   whitespace.** The schema removed the SDP's final CRLF and OpenAI answers
+   `invalid_offer` without it. Fixed with a regression test.
+2. **Transcription works and is accurate.** Heard text such as "Can you show me the
+   weather", "Right, so click fire map on me" and "Mm-hmm. So, go back to the previous
+   one for me" was chosen correctly (`read_weather` 0.97, `open_fire_map` 0.98,
+   `go_back` 0.85). No request reached the server and was classified `none`.
+3. **The assistant said "I couldn't tell…" to clear requests.** Those requests never
+   reached the server (no matching `DECIDE` line), which is what an empty transcript at
+   delegation time produces. The best explanation is that GPT-Live signals a delegation
+   before the separate transcription of what was said has arrived. This is inferred, not
+   proven: no event trace was captured. The store now waits for the words to settle
+   (400 ms of quiet, 3 s at most) before acting. To be confirmed by a retest.
+
 ## 3. Manual checklist — not run
 
 | # | Do this | Pass when | Result |
