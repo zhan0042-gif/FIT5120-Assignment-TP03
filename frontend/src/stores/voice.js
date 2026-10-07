@@ -1,0 +1,227 @@
+import { defineStore } from 'pinia'
+import { ref } from 'vue'
+import { ApiError, api } from '../api/client.js'
+import { MAX_QUESTION_LENGTH } from '../utils/safetyGuidanceCopy.js'
+import { VOICE_CHECK_FIGURES, VOICE_NOT_UNDERSTOOD, VOICE_UNAVAILABLE } from '../utils/voiceCopy.js'
+import { createHandlers, pageLabel } from '../voice/actions.js'
+import { liveTransport } from '../voice/liveConnection.js'
+import { unexpectedNumbers } from '../voice/numberCheck.js'
+import { useFireMapStore } from './fireMap.js'
+import { useHouseholdStore } from './household.js'
+import { useLocalContextStore } from './localContext.js'
+import { useSafetyGuidanceStore } from './safetyGuidance.js'
+import { useTravelDisruptionsStore } from './travelDisruptions.js'
+
+// GPT-Live has no maximum-duration or idle setting, so the browser ends the session.
+export const IDLE_TIMEOUT_MS = 60_000
+export const MAX_SESSION_MS = 10 * 60_000
+// A number can arrive split across transcript fragments, so check once speech pauses.
+export const NUMBER_CHECK_DELAY_MS = 1500
+
+function describeStartError(error) {
+  if (error?.name === 'MicrophoneDenied') return 'Microphone access was blocked. You can still use the chat.'
+  if (error?.name === 'NotFoundError') return 'No microphone was found. You can still use the chat.'
+  if (error instanceof ApiError && error.status === 429) {
+    return 'Too many voice sessions were started. Please wait a minute and try again.'
+  }
+  if (error instanceof ApiError && error.status === 503) {
+    return 'Voice is not available right now. You can still use the chat.'
+  }
+  return 'Voice could not start. You can still use the chat.'
+}
+
+export const useVoiceStore = defineStore('voice', () => {
+  const householdStore = useHouseholdStore()
+  const localContextStore = useLocalContextStore()
+  const fireMapStore = useFireMapStore()
+  const travelStore = useTravelDisruptionsStore()
+  const safetyStore = useSafetyGuidanceStore()
+
+  // idle | connecting | listening | checking | closing | error
+  const status = ref('idle')
+  const error = ref(null)
+  const notice = ref(null)
+
+  // None of this is shown, so none of it is reactive. It all belongs to one session.
+  let connection = null
+  let activeRouter = null
+  let handlers = {}
+  let active = false
+  let utterance = ''
+  let spoken = ''
+  let sentTexts = []
+  let latestDelegation = null
+  let lastLabel = ''
+  let lastText = ''
+  let commentaryCount = 0
+  let idleTimer = null
+  let maxTimer = null
+  let checkTimer = null
+
+  function clearTimers() {
+    clearTimeout(idleTimer)
+    clearTimeout(maxTimer)
+    clearTimeout(checkTimer)
+    idleTimer = null
+    maxTimer = null
+    checkTimer = null
+  }
+
+  function resetSession() {
+    clearTimers()
+    connection = null
+    active = false
+    utterance = ''
+    spoken = ''
+    sentTexts = []
+    latestDelegation = null
+    lastLabel = ''
+    lastText = ''
+  }
+
+  function touch() {
+    if (!active) return
+    clearTimeout(idleTimer)
+    idleTimer = setTimeout(stop, IDLE_TIMEOUT_MS)
+  }
+
+  function scheduleNumberCheck() {
+    clearTimeout(checkTimer)
+    checkTimer = setTimeout(() => {
+      const extra = unexpectedNumbers(sentTexts, spoken)
+      notice.value = extra.length ? VOICE_CHECK_FIGURES : null
+      spoken = ''
+    }, NUMBER_CHECK_DELAY_MS)
+  }
+
+  function sendCommentary(delegationId, content) {
+    if (!connection) return
+    sentTexts.push(content)
+    spoken = ''
+    commentaryCount += 1
+    connection.send({
+      type: 'session.commentary.append',
+      event_id: `result_${commentaryCount}`,
+      delegation_id: delegationId,
+      content,
+    })
+  }
+
+  async function runDelegation(id) {
+    latestDelegation = id
+    const text = utterance.trim().slice(-MAX_QUESTION_LENGTH)
+    utterance = ''
+    notice.value = null
+    status.value = 'checking'
+
+    const say = (content) => {
+      // A newer delegation, or a closed session, makes this result stale.
+      if (latestDelegation !== id || !connection) return
+      sendCommentary(id, content)
+      status.value = 'listening'
+    }
+
+    try {
+      if (!text) {
+        say(VOICE_NOT_UNDERSTOOD)
+        return
+      }
+      const householdId = await householdStore.ensureHousehold()
+      const decision = await api.decideVoiceAction(householdId, {
+        utterance: text,
+        page: pageLabel(activeRouter.currentRoute.value.name),
+        lastReadout: lastLabel,
+      })
+      if (latestDelegation !== id) return
+      const handler = decision.action === 'none' ? null : handlers[decision.action]
+      if (!handler) {
+        say(VOICE_NOT_UNDERSTOOD)
+        return
+      }
+      const result = await handler({ utterance: text })
+      if (latestDelegation !== id) return
+      if (result.label) {
+        lastLabel = result.label
+        lastText = result.spoken
+      }
+      say(result.spoken)
+    } catch {
+      say(VOICE_UNAVAILABLE)
+    }
+  }
+
+  function handleEvent(event) {
+    switch (event?.type) {
+      case 'session.started':
+        status.value = 'listening'
+        maxTimer = setTimeout(stop, MAX_SESSION_MS)
+        touch()
+        break
+      case 'session.input_transcript.delta':
+        utterance += event.delta ?? ''
+        touch()
+        break
+      case 'session.output_transcript.delta':
+        spoken += event.delta ?? ''
+        touch()
+        scheduleNumberCheck()
+        break
+      case 'session.delegation.created':
+        if (event.delegation?.id) {
+          touch()
+          void runDelegation(event.delegation.id)
+        }
+        break
+      default:
+        break
+    }
+  }
+
+  function handleClosed() {
+    resetSession()
+    if (status.value !== 'error') status.value = 'idle'
+  }
+
+  async function start({ router }) {
+    if (status.value !== 'idle' && status.value !== 'error') return
+    status.value = 'connecting'
+    error.value = null
+    notice.value = null
+    activeRouter = router
+    handlers = createHandlers({
+      router,
+      householdStore,
+      localContextStore,
+      fireMapStore,
+      travelStore,
+      safetyStore,
+      getLastText: () => lastText,
+    })
+    active = true
+    try {
+      const householdId = await householdStore.ensureHousehold()
+      connection = await liveTransport.open({
+        requestAnswer: async (sdp) => (await api.createLiveSession(householdId, sdp)).transport.sdp,
+        onEvent: handleEvent,
+        onClosed: handleClosed,
+      })
+    } catch (failure) {
+      resetSession()
+      status.value = 'error'
+      error.value = describeStartError(failure)
+    }
+  }
+
+  function stop() {
+    if (!connection) {
+      resetSession()
+      if (status.value !== 'error') status.value = 'idle'
+      return
+    }
+    clearTimers()
+    status.value = 'closing'
+    connection.close()
+  }
+
+  return { status, error, notice, start, stop }
+})
