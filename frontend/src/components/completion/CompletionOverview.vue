@@ -4,7 +4,7 @@ defineProps({ completion: { type: Object, default: null }, loading: { type: Bool
 const labels = { household_profile: 'Household profile', member_locations: 'Member locations', transport: 'Transport', backup_transport: 'Backup transport', primary_destination: 'Primary destination', backup_destination: 'Backup destination', responsibilities: 'Responsibilities' }
 </script>
 <template>
-  <section class="card completion-card">
+  <section class="card completion-card" data-voice-section="plan-completion">
     <h2 class="card-title">Plan completion</h2>
     <LoadingState v-if="loading" message="Checking plan completion..." />
     <template v-else-if="completion">

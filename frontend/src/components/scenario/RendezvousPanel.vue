@@ -44,7 +44,7 @@ function explain() {
 </script>
 
 <template>
-  <section class="card rendezvous">
+  <section class="card rendezvous" data-voice-section="rendezvous">
     <h2>How long until everyone is together?</h2>
 
     <p v-if="!result" class="subhead">

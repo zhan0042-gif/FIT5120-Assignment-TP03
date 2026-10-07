@@ -70,7 +70,7 @@ onMounted(load)
 </script>
 
 <template>
-  <section class="card safety-chat" aria-labelledby="safety-chat-title">
+  <section class="card safety-chat" aria-labelledby="safety-chat-title" data-voice-section="safety-guidance">
     <h2 id="safety-chat-title" class="card-title">Safety guidance</h2>
     <p class="notice" role="note"><strong>{{ SAFETY_NOTICE }}</strong></p>
     <p class="intro">

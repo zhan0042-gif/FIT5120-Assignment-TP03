@@ -152,6 +152,10 @@ Every read action first navigates to the page that displays the same figures, so
 what is spoken is also on screen.
 | `repeat_last` | Say the last read-out again |
 | `go_back` | Navigate back |
+| `open_home` | Open the home page |
+| `scroll_down`, `scroll_up` | Scroll the page by about four fifths of what is visible; say so at either end |
+| `scroll_to_top`, `scroll_to_bottom` | Go to either end of the page |
+| `section_<id>` (12) | Open the section's page and scroll to its named part (`backend/app/content/voice_sections.json`); say so if it is not on screen |
 | `none` | Do nothing; GPT-Live asks the person to rephrase |
 
 ## Reading figures aloud

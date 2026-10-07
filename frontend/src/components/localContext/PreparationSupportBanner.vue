@@ -7,7 +7,7 @@ const labels = { household_profile: 'Household profile', transport: 'Transport',
 const reviewLabels = computed(() => (store.prepSupport?.sections_to_review ?? []).map((key) => labels[key] ?? key))
 </script>
 <template>
-  <section class="card preparation-card">
+  <section class="card preparation-card" data-voice-section="preparation-status">
     <h2 class="card-title">Preparation status</h2>
     <LoadingState v-if="store.prepStatus === 'loading'" message="Checking current preparation advice..." />
     <template v-else-if="store.prepStatus === 'success' && store.prepSupport?.status === 'up_to_date'">

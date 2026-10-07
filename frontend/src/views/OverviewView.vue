@@ -130,7 +130,7 @@ onMounted(async () => {
       <router-link class="btn btn-accent" to="/plan">Create my plan</router-link>
     </section>
 
-    <section v-else-if="plan" class="card plan-summary">
+    <section v-else-if="plan" class="card plan-summary" data-voice-section="plan-summary">
       <h2>Household Plan Summary</h2>
 
       <h3>Household Members</h3>

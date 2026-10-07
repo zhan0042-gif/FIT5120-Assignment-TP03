@@ -162,7 +162,7 @@ test('fire map aligns address and 2 by 2 metrics with the historical map columns
   assert.equal((mapSource.match(/class="card condition-metric"/g) ?? []).length, 4)
   assert.match(
     mapSource,
-    /class="conditions-grid"[\s\S]*?<h2>Temperature<\/h2>[\s\S]*?<h2>Humidity<\/h2>[\s\S]*?<h2>Wind<\/h2>[\s\S]*?<h2>Fire Danger<\/h2>[\s\S]*?<section class="historical-section">/,
+    /class="conditions-grid"[\s\S]*?<h2>Temperature<\/h2>[\s\S]*?<h2>Humidity<\/h2>[\s\S]*?<h2>Wind<\/h2>[\s\S]*?<h2>Fire Danger<\/h2>[\s\S]*?<section class="historical-section"[^>]*>/,
   )
   assert.match(mapSource, /\.conditions-grid \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/)
   assert.match(mapSource, /@media \(max-width: 900px\)[\s\S]*?\.conditions-layout,[\s\S]*?grid-template-columns: 1fr/)

@@ -13,6 +13,7 @@ import {
   travelDisruptionsReadout,
   weatherReadout,
 } from './readouts.js'
+import { SECTIONS, sectionKey } from './sections.js'
 
 const PAGE_LABELS = {
   welcome: 'welcome',
@@ -33,7 +34,26 @@ const NAVIGATION = {
   open_fire_map: ['/map', 'Opening the fire map.'],
   open_scenarios: ['/scenarios', 'Opening Test My Plan.'],
   open_travel_readiness: ['/travel-readiness', 'Opening travel readiness.'],
+  open_home: ['/', 'Opening the home page.'],
 }
+
+// How far one "scroll down/up" moves, as a share of what is visible, and how close to an
+// end counts as being there.
+const SCROLL_STEP = 0.8
+const EDGE_PX = 2
+const NOTHING_TO_SCROLL = 'There is nothing more to scroll on this page.'
+const SECTION_MISSING = "That part isn't on the page right now."
+// A page can finish drawing a moment after it opens; look for a section for up to ~2 s.
+const SECTION_POLLS = 20
+const SECTION_POLL_MS = 100
+
+// The page scrolls inside <main id="main-content">, not the window.
+const defaultScroller = () => globalThis.document?.getElementById('main-content') ?? null
+const defaultFindSection = (key) =>
+  globalThis.document?.querySelector(`[data-voice-section="${key}"]`) ?? null
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const defaultBehavior = () =>
+  globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
 
 const FIXED_SAFETY_REPLIES = {
   emergency: EMERGENCY_MESSAGE,
@@ -49,6 +69,10 @@ export function createHandlers({
   travelStore,
   safetyStore,
   getLastText,
+  getScroller = defaultScroller,
+  findSection = defaultFindSection,
+  sleep = defaultSleep,
+  behavior = defaultBehavior,
 }) {
   const handlers = {}
 
@@ -56,6 +80,54 @@ export function createHandlers({
     handlers[action] = async () => {
       await router.push(path)
       return { spoken }
+    }
+  }
+
+  // Scrolling and jumping only move the view; they never change data.
+  function scrollHandler(direction) {
+    return async () => {
+      const box = getScroller()
+      const room = box ? box.scrollHeight - box.clientHeight : 0
+      if (!box || room <= EDGE_PX) return { spoken: NOTHING_TO_SCROLL }
+      const atTop = box.scrollTop <= EDGE_PX
+      const atBottom = box.scrollTop >= room - EDGE_PX
+      if (direction === 'down') {
+        if (atBottom) return { spoken: "You're already at the bottom of the page." }
+        box.scrollBy({ top: Math.round(box.clientHeight * SCROLL_STEP), behavior: behavior() })
+        return { spoken: 'Scrolling down.' }
+      }
+      if (direction === 'up') {
+        if (atTop) return { spoken: "You're already at the top of the page." }
+        box.scrollBy({ top: -Math.round(box.clientHeight * SCROLL_STEP), behavior: behavior() })
+        return { spoken: 'Scrolling up.' }
+      }
+      box.scrollTo({ top: direction === 'top' ? 0 : box.scrollHeight, behavior: behavior() })
+      return { spoken: direction === 'top' ? 'Going to the top of the page.' : 'Going to the bottom of the page.' }
+    }
+  }
+  handlers.scroll_down = scrollHandler('down')
+  handlers.scroll_up = scrollHandler('up')
+  handlers.scroll_to_top = scrollHandler('top')
+  handlers.scroll_to_bottom = scrollHandler('bottom')
+
+  async function waitForSection(key) {
+    await nextTick()
+    for (let attempt = 0; attempt < SECTION_POLLS; attempt += 1) {
+      const element = findSection(key)
+      if (element) return element
+      await sleep(SECTION_POLL_MS)
+    }
+    return findSection(key)
+  }
+
+  for (const section of SECTIONS) {
+    handlers[`section_${section.id}`] = async () => {
+      if (router.currentRoute.value.path !== section.route) await router.push(section.route)
+      const element = await waitForSection(sectionKey(section.id))
+      // Not on screen (no saved plan, not run yet, still loading): say so, never guess.
+      if (!element) return { spoken: SECTION_MISSING }
+      element.scrollIntoView({ block: 'start', behavior: behavior() })
+      return { spoken: `Here is ${section.spoken}.` }
     }
   }
 

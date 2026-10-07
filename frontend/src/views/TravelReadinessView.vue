@@ -44,7 +44,7 @@ onMounted(async () => {
     </header>
 
     <div class="travel-layout">
-      <section class="map-section" aria-label="Destination and disruption map">
+      <section class="map-section" aria-label="Destination and disruption map" data-voice-section="travel-map">
         <TravelDisruptionMap
           v-if="mapData.destinations.length || householdLocation"
           :destinations="mapData.destinations"

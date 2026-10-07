@@ -32,14 +32,14 @@ async function retryPlanAvailability() { await householdStore.loadPlan(); if (!n
     <EmptyState v-else-if="noSavedPlan" title="No saved plan found" message="Build and save your plan before testing scenarios."><div class="state-actions"><router-link class="btn btn-primary btn-sm" to="/plan">Go to My Plan</router-link><button class="btn btn-ghost btn-sm" type="button" @click="retryPlanAvailability">Retry</button></div></EmptyState>
     <EmptyState v-else-if="!readyToTest" title="Add household information first" message="Basic testing needs at least one household member recorded in your plan."><router-link class="btn btn-primary btn-sm" to="/plan">Go to My Plan</router-link></EmptyState>
     <div v-else class="tester-grid">
-      <div class="scenario-column">
+      <div class="scenario-column" data-voice-section="scenarios">
         <LoadingState v-if="scenarioStore.scenariosStatus === 'loading'" message="Loading scenarios..." />
         <ErrorState v-else-if="scenarioStore.scenariosStatus === 'error'" message="Could not load scenarios. Please try again." @retry="scenarioStore.loadScenarios" />
         <ScenarioList v-else :scenarios="scenarioStore.scenarios" :selected-id="scenarioStore.selectedScenarioId" @select="scenarioStore.selectScenario" />
         <p class="scenario-caveat">Hypothetical planning exercises. Not evacuation advice — for that, follow the CFA.</p>
         <button v-if="scenarioStore.selectedScenarioId" class="btn btn-accent run-btn" type="button" :disabled="scenarioStore.testStatus === 'loading' || !selectedScenario?.enabled" @click="scenarioStore.runTest">{{ scenarioStore.testStatus === 'loading' ? 'Running test...' : 'Run test' }}</button>
       </div>
-      <section class="card result-column">
+      <section class="card result-column" data-voice-section="scenario-results">
         <EmptyState v-if="!scenarioStore.selectedScenarioId" title="How to test your plan">
           <ol class="test-steps">
             <li><span class="step-number">1</span><span><strong>Pick a scenario</strong> from the list, such as your car being unavailable.</span></li>

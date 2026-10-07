@@ -8,10 +8,10 @@ const { VOICE_NOTHING_TO_REPEAT, VOICE_UNAVAILABLE } = await import('../src/util
 function makeDeps(overrides = {}) {
   const log = []
   const router = {
-    currentRoute: { value: { name: 'plan-builder' } },
+    currentRoute: { value: { name: 'plan-builder', path: '/plan' } },
     async push(path) {
       log.push(['push', path])
-      this.currentRoute.value = { name: path.slice(1) }
+      this.currentRoute.value = { name: path.slice(1), path }
     },
     back() {
       log.push(['back'])
@@ -96,6 +96,7 @@ test('every action except none has a handler', () => {
       'check_travel_disruptions',
       'go_back',
       'open_fire_map',
+      'open_home',
       'open_overview',
       'open_plan',
       'open_scenarios',
@@ -104,8 +105,24 @@ test('every action except none has a handler', () => {
       'read_plan_completion',
       'read_weather',
       'repeat_last',
+      'scroll_down',
+      'scroll_to_bottom',
+      'scroll_to_top',
+      'scroll_up',
+      'section_fire_history',
+      'section_household_address',
+      'section_current_conditions',
+      'section_plan_completion',
+      'section_plan_summary',
+      'section_preparation_status',
+      'section_rendezvous',
+      'section_safety_guidance',
+      'section_scenario_results',
+      'section_scenarios',
+      'section_travel_disruptions',
+      'section_travel_map',
       'show_fire_history',
-    ],
+    ].sort(),
   )
 })
 
@@ -346,4 +363,161 @@ test('after navigating, ask_safety_question loads the guidance last so the panel
 
 test('the unavailable sentence always carries the 000 instruction', () => {
   assert.match(VOICE_UNAVAILABLE, /If you are in danger, call 000\./)
+})
+
+
+// A stand-in for the page's scroll container (main#main-content).
+function makeBox(overrides = {}) {
+  const box = {
+    scrollTop: 0,
+    scrollHeight: 2000,
+    clientHeight: 500,
+    calls: [],
+    scrollBy(options) {
+      this.calls.push(['by', options.top, options.behavior])
+      this.scrollTop += options.top
+    },
+    scrollTo(options) {
+      this.calls.push(['to', options.top, options.behavior])
+      this.scrollTop = options.top
+    },
+    ...overrides,
+  }
+  return box
+}
+
+function scrollDeps(box) {
+  return makeDeps({ getScroller: () => box, behavior: () => 'smooth' })
+}
+
+test('open_home goes to the home page', async () => {
+  const deps = makeDeps()
+
+  assert.deepEqual(await createHandlers(deps).open_home({}), { spoken: 'Opening the home page.' })
+  assert.deepEqual(deps.log, [['push', '/']])
+})
+
+test('scroll_down moves about four fifths of the visible height and says so', async () => {
+  const box = makeBox()
+
+  const result = await createHandlers(scrollDeps(box)).scroll_down({})
+
+  assert.deepEqual(box.calls, [['by', 400, 'smooth']])
+  assert.deepEqual(result, { spoken: 'Scrolling down.' })
+})
+
+test('scroll_down at the bottom says so instead of scrolling', async () => {
+  const box = makeBox({ scrollTop: 1500 })
+
+  const result = await createHandlers(scrollDeps(box)).scroll_down({})
+
+  assert.deepEqual(box.calls, [])
+  assert.deepEqual(result, { spoken: "You're already at the bottom of the page." })
+})
+
+test('scroll_up moves back up, and at the top says so', async () => {
+  const lower = makeBox({ scrollTop: 900 })
+  const top = makeBox()
+
+  assert.deepEqual(await createHandlers(scrollDeps(lower)).scroll_up({}), { spoken: 'Scrolling up.' })
+  assert.deepEqual(lower.calls, [['by', -400, 'smooth']])
+  assert.deepEqual(await createHandlers(scrollDeps(top)).scroll_up({}), {
+    spoken: "You're already at the top of the page.",
+  })
+  assert.deepEqual(top.calls, [])
+})
+
+test('scroll_to_top and scroll_to_bottom go to the ends', async () => {
+  const box = makeBox({ scrollTop: 700 })
+  const handlers = createHandlers(scrollDeps(box))
+
+  assert.deepEqual(await handlers.scroll_to_top({}), { spoken: 'Going to the top of the page.' })
+  assert.deepEqual(await handlers.scroll_to_bottom({}), { spoken: 'Going to the bottom of the page.' })
+
+  assert.deepEqual(box.calls, [['to', 0, 'smooth'], ['to', 2000, 'smooth']])
+})
+
+test('a page that does not scroll, or has no scroll container, says so', async () => {
+  const short = makeBox({ scrollHeight: 400 })
+  const nothing = createHandlers(makeDeps({ getScroller: () => null }))
+
+  for (const action of ['scroll_down', 'scroll_up', 'scroll_to_top', 'scroll_to_bottom']) {
+    const result = await createHandlers(scrollDeps(short))[action]({})
+    assert.deepEqual(result, { spoken: 'There is nothing more to scroll on this page.' }, action)
+    assert.deepEqual((await nothing[action]({})), { spoken: 'There is nothing more to scroll on this page.' }, action)
+  }
+  assert.deepEqual(short.calls, [])
+})
+
+test('scrolling is not a read-out, so it never becomes the thing to repeat', async () => {
+  const box = makeBox()
+
+  const result = await createHandlers(scrollDeps(box)).scroll_down({})
+
+  assert.equal('label' in result, false)
+})
+
+function sectionDeps({ present = {}, currentPath = '/overview', missesBeforeFound = 0 } = {}) {
+  const calls = []
+  let misses = 0
+  const deps = makeDeps({
+    behavior: () => 'smooth',
+    sleep: async () => {
+      calls.push(['sleep'])
+    },
+    findSection: (key) => {
+      calls.push(['find', key])
+      if (misses < missesBeforeFound) {
+        misses += 1
+        return null
+      }
+      return present[key] ?? null
+    },
+  })
+  deps.router.currentRoute.value = { name: currentPath.slice(1), path: currentPath }
+  deps.calls = calls
+  return deps
+}
+
+const anElement = (scrolls) => ({ scrollIntoView: (options) => scrolls.push(options) })
+
+test('a section on the current page is scrolled to without navigating', async () => {
+  const scrolls = []
+  const deps = sectionDeps({ present: { 'safety-guidance': anElement(scrolls) } })
+
+  const result = await createHandlers(deps).section_safety_guidance({})
+
+  assert.deepEqual(result, { spoken: 'Here is the safety guidance.' })
+  assert.deepEqual(scrolls, [{ block: 'start', behavior: 'smooth' }])
+  assert.equal(deps.log.some(([kind]) => kind === 'push'), false)
+})
+
+test('a section on another page opens that page first, then scrolls', async () => {
+  const scrolls = []
+  const deps = sectionDeps({ currentPath: '/plan', present: { 'fire-history': anElement(scrolls) } })
+
+  const result = await createHandlers(deps).section_fire_history({})
+
+  assert.deepEqual(deps.log, [['push', '/map']])
+  assert.deepEqual(result, { spoken: 'Here is the fire history.' })
+  assert.equal(scrolls.length, 1)
+})
+
+test('a section that appears a moment after the page opens is still found', async () => {
+  const scrolls = []
+  const deps = sectionDeps({ missesBeforeFound: 3, present: { 'plan-summary': anElement(scrolls) } })
+
+  const result = await createHandlers(deps).section_plan_summary({})
+
+  assert.deepEqual(result, { spoken: 'Here is the household plan summary.' })
+  assert.equal(deps.calls.filter(([kind]) => kind === 'sleep').length, 3)
+})
+
+test('a section that never appears is reported as not on the page, never guessed', async () => {
+  const deps = sectionDeps({ currentPath: '/scenarios' })
+
+  const result = await createHandlers(deps).section_scenario_results({})
+
+  assert.deepEqual(result, { spoken: "That part isn't on the page right now." })
+  assert.equal(deps.calls.filter(([kind]) => kind === 'sleep').length, 20)
 })
