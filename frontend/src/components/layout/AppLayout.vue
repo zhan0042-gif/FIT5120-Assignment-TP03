@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue'
+import VoiceDock from './VoiceDock.vue'
 
 const main = ref(null)
 
@@ -28,6 +29,7 @@ function focusMain() {
       </nav>
     </header>
     <main id="main-content" ref="main" class="content" tabindex="-1"><router-view /></main>
+    <VoiceDock />
   </div>
 </template>
 
