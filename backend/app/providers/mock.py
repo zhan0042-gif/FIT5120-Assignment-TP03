@@ -16,7 +16,7 @@ from app.schemas.households import (
     HouseholdLocation,
     Weather,
 )
-from app.schemas.live import ActionDecision
+from app.schemas.live import ActionDecision, LiveSessionRef, LiveSessionResponse, LiveTransport
 from app.services.voice_actions import NONE_ACTION, normalise
 
 
@@ -312,3 +312,13 @@ class MockActionDecisionClient:
             if keyword in text:
                 return normalise(action, 0.9)
         return normalise(NONE_ACTION, 0.0)
+
+
+class MockLiveSessionClient:
+    """Returns a fixed fake answer so tests and APP_DATA_MODE=mock never reach OpenAI."""
+
+    def create(self, sdp: str) -> LiveSessionResponse:
+        return LiveSessionResponse(
+            session=LiveSessionRef(id="live_mock"),
+            transport=LiveTransport(sdp="v=0\r\no=mock-answer\r\n"),
+        )

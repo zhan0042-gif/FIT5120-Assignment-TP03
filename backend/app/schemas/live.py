@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 MAX_SDP_LENGTH = 65536
 MAX_UTTERANCE_LENGTH = 300
@@ -26,7 +26,8 @@ class LiveSessionRef(BaseModel):
 
 class LiveTransport(BaseModel):
     type: Literal["webrtc"] = "webrtc"
-    sdp: str
+    # An empty answer cannot be applied by the browser, so it is never a valid result.
+    sdp: str = Field(min_length=1)
 
 
 class LiveSessionResponse(BaseModel):
