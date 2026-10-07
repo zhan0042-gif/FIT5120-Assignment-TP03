@@ -3,6 +3,7 @@
 // figures, so what is spoken is also on screen. Handlers return the sentence to say
 // and, for read-outs, a label the server is told so "say that again" can be understood.
 
+import { nextTick } from 'vue'
 import { EMERGENCY_MESSAGE, NO_MATCH_MESSAGE } from '../utils/safetyGuidanceCopy.js'
 import { VOICE_NOTHING_TO_REPEAT, VOICE_UNAVAILABLE } from '../utils/voiceCopy.js'
 import {
@@ -134,8 +135,14 @@ export function createHandlers({
 
   handlers.ask_safety_question = async ({ utterance }) => {
     // The reviewed text and its CFA source appear in the safety chat on the overview.
-    if (router.currentRoute.value.name !== 'overview') await router.push('/overview')
-    if (safetyStore.status !== 'success') {
+    if (router.currentRoute.value.name !== 'overview') {
+      await router.push('/overview')
+      // Mounting the panel starts its own load, which clears the store and bumps its
+      // revision; a question asked in that window is discarded. Wait for the mount, then
+      // load last, so this load is the final revision and the question below survives.
+      await nextTick()
+      await safetyStore.loadFor(() => householdStore.ensureHousehold())
+    } else if (safetyStore.status !== 'success') {
       await safetyStore.loadFor(() => householdStore.ensureHousehold())
     }
     const before = safetyStore.messages.length

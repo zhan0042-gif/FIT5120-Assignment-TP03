@@ -273,7 +273,7 @@ test('ask_safety_question opens the overview and speaks the matched reviewed ans
 
   const result = await createHandlers(deps).ask_safety_question({ utterance: 'When should we leave?' })
 
-  assert.deepEqual(deps.log, [['push', '/overview'], ['ask', 'hh_1', 'When should we leave?']])
+  assert.deepEqual(deps.log, [['push', '/overview'], ['loadSafety'], ['ask', 'hh_1', 'When should we leave?']])
   assert.deepEqual(result, {
     label: 'safety answer',
     spoken: 'Leave early, before any fire starts. Plan for your pets too.',
@@ -328,4 +328,22 @@ test('ask_safety_question is unavailable when no reply was recorded', async () =
   const result = await createHandlers(deps).ask_safety_question({ utterance: 'hi' })
 
   assert.equal(result.spoken, VOICE_UNAVAILABLE)
+})
+
+test('after navigating, ask_safety_question loads the guidance last so the panel mounting cannot wipe the answer', async () => {
+  // Opening the overview mounts the safety panel, whose own load clears the store's
+  // messages and bumps its revision. A question asked in that window is discarded and the
+  // person would hear "unavailable" instead of the 000 notice. So after a navigation the
+  // handler waits for the mount, loads the guidance itself, and only then asks.
+  const deps = safetyDeps((messages) => messages.push({ id: 2, role: 'assistant', kind: 'emergency' }))
+  deps.safetyStore.status = 'success' // loaded on an earlier visit, as it would be
+
+  const result = await createHandlers(deps).ask_safety_question({ utterance: 'The fire is coming, help me!' })
+
+  assert.deepEqual(deps.log.map(([kind]) => kind), ['push', 'loadSafety', 'ask'])
+  assert.equal(result.spoken, EMERGENCY_MESSAGE)
+})
+
+test('the unavailable sentence always carries the 000 instruction', () => {
+  assert.match(VOICE_UNAVAILABLE, /If you are in danger, call 000\./)
 })

@@ -2,7 +2,10 @@
 // wording a person hears for "I could not do that" never depends on a model.
 
 // Spoken when the action service fails, is rate limited, or a handler throws.
-export const VOICE_UNAVAILABLE = "I couldn't do that just now. The buttons on the page still work."
+// It ends with the 000 instruction because every failure path speaks it, and a person in
+// danger must never hear a bare "I couldn't do that".
+export const VOICE_UNAVAILABLE =
+  "I couldn't do that just now. The buttons on the page still work. If you are in danger, call 000."
 
 // Spoken when no action matched, the request was too unclear, or nothing was heard.
 export const VOICE_NOT_UNDERSTOOD =
