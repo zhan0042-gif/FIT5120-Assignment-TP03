@@ -207,3 +207,19 @@ test('a failed answer request stops the microphone and rethrows', async () => {
   assert.equal(track.stopped, true)
   assert.equal(peer.closed, true)
 })
+
+test('close stops the microphone straight away, before the session confirms it has closed', async () => {
+  mock.timers.enable({ apis: ['setTimeout'] })
+  const { peer, track, env } = makeEnv()
+  const closed = []
+  const connection = await openLiveConnection(
+    { requestAnswer: async () => 'a', onEvent() {}, onClosed: (event) => closed.push(event) },
+    env,
+  )
+
+  connection.close()
+
+  assert.equal(track.stopped, true)
+  assert.deepEqual(closed, [])
+  assert.deepEqual(peer.channel.sent, [{ type: 'session.close' }])
+})

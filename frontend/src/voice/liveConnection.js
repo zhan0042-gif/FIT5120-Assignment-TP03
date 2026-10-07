@@ -111,6 +111,9 @@ export async function openLiveConnection({ requestAnswer, onEvent, onClosed }, e
     },
     close() {
       if (finished) return
+      // Stop is a promise that the microphone is off, so do not wait for the session to
+      // confirm it has closed (up to CLOSE_TIMEOUT_MS) before releasing it.
+      microphone?.getTracks().forEach((track) => track.stop())
       if (channel?.readyState !== 'open') {
         finish(null)
         return

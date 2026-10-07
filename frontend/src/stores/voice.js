@@ -14,6 +14,9 @@ import { useTravelDisruptionsStore } from './travelDisruptions.js'
 
 // GPT-Live has no maximum-duration or idle setting, so the browser ends the session.
 export const IDLE_TIMEOUT_MS = 60_000
+// If GPT-Live never reports `session.started` the microphone is live but nothing would
+// end the session, so give up after this long.
+export const CONNECT_TIMEOUT_MS = 15_000
 export const MAX_SESSION_MS = 10 * 60_000
 // A number can arrive split across transcript fragments, so check once speech pauses.
 export const NUMBER_CHECK_DELAY_MS = 1500
@@ -48,6 +51,10 @@ export const useVoiceStore = defineStore('voice', () => {
   let handlers = {}
   let active = false
   let utterance = ''
+  // True once a delegation has taken what was heard. While false, speech heard so far
+  // has not been handed to the server, so an assistant reply of its own (a clarifying
+  // question, a greeting) means that speech belongs to a finished turn.
+  let delegatedSinceHeard = false
   let spoken = ''
   let sentTexts = []
   let latestDelegation = null
@@ -57,14 +64,17 @@ export const useVoiceStore = defineStore('voice', () => {
   let idleTimer = null
   let maxTimer = null
   let checkTimer = null
+  let connectTimer = null
 
   function clearTimers() {
     clearTimeout(idleTimer)
     clearTimeout(maxTimer)
     clearTimeout(checkTimer)
+    clearTimeout(connectTimer)
     idleTimer = null
     maxTimer = null
     checkTimer = null
+    connectTimer = null
   }
 
   function resetSession() {
@@ -72,6 +82,7 @@ export const useVoiceStore = defineStore('voice', () => {
     connection = null
     active = false
     utterance = ''
+    delegatedSinceHeard = false
     spoken = ''
     sentTexts = []
     latestDelegation = null
@@ -111,6 +122,7 @@ export const useVoiceStore = defineStore('voice', () => {
     latestDelegation = id
     const text = utterance.trim().slice(-MAX_QUESTION_LENGTH)
     utterance = ''
+    delegatedSinceHeard = true
     notice.value = null
     status.value = 'checking'
 
@@ -153,15 +165,21 @@ export const useVoiceStore = defineStore('voice', () => {
   function handleEvent(event) {
     switch (event?.type) {
       case 'session.started':
+        clearTimeout(connectTimer)
+        connectTimer = null
         status.value = 'listening'
         maxTimer = setTimeout(stop, MAX_SESSION_MS)
         touch()
         break
       case 'session.input_transcript.delta':
         utterance += event.delta ?? ''
+        delegatedSinceHeard = false
         touch()
         break
       case 'session.output_transcript.delta':
+        // The assistant is answering on its own, so what was heard is a finished turn:
+        // do not let it run into the next request.
+        if (!delegatedSinceHeard && utterance) utterance = ''
         spoken += event.delta ?? ''
         touch()
         scheduleNumberCheck()
@@ -205,6 +223,8 @@ export const useVoiceStore = defineStore('voice', () => {
         onEvent: handleEvent,
         onClosed: handleClosed,
       })
+      // `session.started` normally clears this well within the time allowed.
+      if (status.value === 'connecting') connectTimer = setTimeout(stop, CONNECT_TIMEOUT_MS)
     } catch (failure) {
       resetSession()
       status.value = 'error'

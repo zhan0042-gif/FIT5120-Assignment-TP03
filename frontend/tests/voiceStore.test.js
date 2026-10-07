@@ -33,7 +33,7 @@ const { liveTransport } = await import('../src/voice/liveConnection.js')
 const { MicrophoneDenied } = await import('../src/voice/liveConnection.js')
 const { useHouseholdStore } = await import('../src/stores/household.js')
 const { useLocalContextStore } = await import('../src/stores/localContext.js')
-const { useVoiceStore, IDLE_TIMEOUT_MS, MAX_SESSION_MS, NUMBER_CHECK_DELAY_MS } = await import(
+const { useVoiceStore, CONNECT_TIMEOUT_MS, IDLE_TIMEOUT_MS, MAX_SESSION_MS, NUMBER_CHECK_DELAY_MS } = await import(
   '../src/stores/voice.js'
 )
 const { VOICE_CHECK_FIGURES, VOICE_NOT_UNDERSTOOD, VOICE_UNAVAILABLE } = await import(
@@ -438,4 +438,68 @@ test('a closed session resets state and a new session starts clean', async () =>
   delegate(ctx, 'd9')
   await flush()
   assert.equal(ctx.decisions.at(-1).body.lastReadout, '')
+})
+
+test('what was heard before the assistant answered by itself is not carried into the next request', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  // GPT-Live asks a clarifying question without delegating, as its prompt allows.
+  say(ctx, 'Read me the fire history')
+  ctx.fake.emit({ type: 'session.output_transcript.delta', delta: 'Which area do you mean?' })
+  say(ctx, 'No, never mind, what should we pack?')
+  delegate(ctx)
+  await flush()
+
+  assert.equal(ctx.decisions[0].body.utterance, 'No, never mind, what should we pack?')
+})
+
+test('the assistant acknowledging a delegation does not discard the next request', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+  say(ctx, 'weather')
+  delegate(ctx, 'd1')
+  await flush()
+
+  ctx.fake.emit({ type: 'session.output_transcript.delta', delta: 'Let me check that.' })
+  say(ctx, 'and the fire danger')
+  delegate(ctx, 'd2')
+  await flush()
+
+  assert.equal(ctx.decisions[1].body.utterance, 'and the fire danger')
+})
+
+test('several fragments of one request are joined and still reach the server whole', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  say(ctx, 'Show me ')
+  say(ctx, 'the weather')
+  delegate(ctx)
+  await flush()
+
+  assert.equal(ctx.decisions[0].body.utterance, 'Show me the weather')
+})
+
+test('a session that never reports started is ended after fifteen seconds', async () => {
+  const ctx = setup()
+  await ctx.store.start({ router: ctx.router })
+  assert.equal(CONNECT_TIMEOUT_MS, 15_000)
+
+  mock.timers.tick(CONNECT_TIMEOUT_MS - 1)
+  assert.equal(ctx.fake.closeCalls, 0)
+  mock.timers.tick(1)
+
+  assert.equal(ctx.fake.closeCalls, 1)
+  assert.equal(ctx.store.status, 'closing')
+})
+
+test('a session that does start is not ended by the connect timeout', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  mock.timers.tick(CONNECT_TIMEOUT_MS)
+
+  assert.equal(ctx.fake.closeCalls, 0)
+  assert.equal(ctx.store.status, 'listening')
 })
