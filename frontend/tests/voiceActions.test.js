@@ -248,14 +248,14 @@ test('show_fire_history opens the fire map, loads the points and reads them', as
   assert.match(result.spoken, /^There are 3 recorded fires within 10\.0 kilometres/)
 })
 
-test('check_travel_disruptions opens Test My Plan, runs the check for the household and reads it', async () => {
+test('check_travel_disruptions opens Travel Readiness (where the disruptions are shown), runs the check and reads it', async () => {
   const deps = makeDeps()
   deps.travelStore.status = 'success'
   deps.travelStore.result = { status: 'not_applicable' }
 
   const result = await createHandlers(deps).check_travel_disruptions({})
 
-  assert.deepEqual(deps.log, [['push', '/scenarios'], ['loadDisruptions', 'hh_1']])
+  assert.deepEqual(deps.log, [['push', '/travel-readiness'], ['loadDisruptions', 'hh_1']])
   assert.equal(result.label, 'road disruptions')
   assert.match(result.spoken, /verified evacuation destination/)
 })

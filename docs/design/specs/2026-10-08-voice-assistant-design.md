@@ -145,7 +145,7 @@ Browser --POST /api/v1/households/{id}/safety-guidance/ask--> existing pipeline 
 | `read_weather` | Go to the overview and read current observations |
 | `read_fire_danger` | Go to the overview and read today's official Fire Danger Rating |
 | `read_plan_completion` | Go to the overview and read how complete the saved plan is |
-| `check_travel_disruptions` | Go to Test My Plan, run the road disruption check and read the outcome |
+| `check_travel_disruptions` | Go to Travel Readiness (where the disruptions panel is), run the road disruption check and read the outcome |
 | `ask_safety_question` | Go to the overview and run the safety Q&A pipeline |
 
 Every read action first navigates to the page that displays the same figures, so

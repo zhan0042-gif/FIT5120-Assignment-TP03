@@ -197,7 +197,8 @@ export function createHandlers({
   }
 
   handlers.check_travel_disruptions = async () => {
-    await router.push('/scenarios')
+    // The disruptions panel is on Travel Readiness, so open that page to show what is read.
+    await router.push('/travel-readiness')
     await travelStore.load(await householdStore.ensureHousehold())
     return {
       label: 'road disruptions',
