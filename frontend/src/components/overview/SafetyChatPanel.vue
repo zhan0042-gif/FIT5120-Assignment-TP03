@@ -16,6 +16,7 @@ import {
 import { locationNote } from '../../utils/safetyGuidanceNote'
 import ErrorState from '../common/ErrorState.vue'
 import LoadingState from '../common/LoadingState.vue'
+import VoiceControl from './VoiceControl.vue'
 
 const householdStore = useHouseholdStore()
 const localContextStore = useLocalContextStore()
@@ -168,6 +169,8 @@ onMounted(load)
               </div>
             </template>
           </div>
+
+          <VoiceControl />
 
           <form class="ask-form" @submit.prevent="send">
             <label class="sr-only" for="safety-question">Type your own question</label>
