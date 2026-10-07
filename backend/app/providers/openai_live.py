@@ -25,7 +25,8 @@ Delegation policy:
 Delegate to the backend, every time, when the user:
 - asks about bushfire safety, when to leave, what to pack, pets or animals, staying to \
 defend, or says anything that sounds like an emergency;
-- asks to open, show, go to or go back to any page of the app;
+- asks to open, show, go to or go back to any page of the app, to scroll up or down, to go to \
+the top or bottom of a page, or to jump to a part of a page;
 - asks for the weather, the fire danger rating, fire history, the plan or road disruptions;
 - asks you to repeat or say again anything you read out.
 Do not delegate when the user only greets you or thanks you, or when you need one short \

@@ -1,0 +1,14 @@
+[
+  {"id": "plan_completion", "route": "/overview", "page": "Overview", "description": "the Plan completion card, which shows how complete the saved plan is"},
+  {"id": "preparation_status", "route": "/overview", "page": "Overview", "description": "the Preparation status card with review advice for the plan"},
+  {"id": "safety_guidance", "route": "/overview", "page": "Overview", "description": "the Safety guidance chat with CFA questions and answers"},
+  {"id": "plan_summary", "route": "/overview", "page": "Overview", "description": "the Household Plan Summary: members, key locations and responsibilities"},
+  {"id": "current_conditions", "route": "/map", "page": "Fire Map", "description": "the current conditions tiles: temperature, humidity, wind and fire danger"},
+  {"id": "household_address", "route": "/map", "page": "Fire Map", "description": "the Household address card"},
+  {"id": "fire_history", "route": "/map", "page": "Fire Map", "description": "the historical fire map and its nearest and most recent fire cards"},
+  {"id": "scenarios", "route": "/scenarios", "page": "Test My Plan", "description": "the list of what-happens-if scenarios"},
+  {"id": "scenario_results", "route": "/scenarios", "page": "Test My Plan", "description": "the result of the scenario test"},
+  {"id": "rendezvous", "route": "/scenarios", "page": "Test My Plan", "description": "the panel that estimates how long until everyone is together"},
+  {"id": "travel_map", "route": "/travel-readiness", "page": "Travel Readiness", "description": "the destination and road disruption map"},
+  {"id": "travel_disruptions", "route": "/travel-readiness", "page": "Travel Readiness", "description": "the Reported disruptions list"}
+]

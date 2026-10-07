@@ -101,3 +101,11 @@ def test_the_prompt_forces_delegation_and_forbids_own_figures() -> None:
     assert "emergency" in LIVE_INSTRUCTIONS
     assert "repeat" in LIVE_INSTRUCTIONS
     assert "never read out or invent any number" in LIVE_INSTRUCTIONS.lower()
+
+
+def test_the_prompt_sends_scrolling_and_jumping_to_a_part_of_a_page_to_the_backend() -> None:
+    delegation_part = LIVE_INSTRUCTIONS.split("Do not delegate")[0]
+
+    assert "scroll" in delegation_part
+    assert "top or bottom" in delegation_part
+    assert "part of a page" in delegation_part

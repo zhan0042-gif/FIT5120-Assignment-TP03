@@ -1,9 +1,13 @@
+import json
 import math
+from pathlib import Path
 
 from app.services.voice_actions import (
     ACTIONS,
+    DECISION_INSTRUCTIONS,
     MIN_CONFIDENCE,
     NONE_ACTION,
+    SECTIONS,
     decision_input,
     normalise,
 )
@@ -22,6 +26,23 @@ EXPECTED_ACTIONS = {
     "ask_safety_question",
     "repeat_last",
     "go_back",
+    "open_home",
+    "scroll_down",
+    "scroll_up",
+    "scroll_to_top",
+    "scroll_to_bottom",
+    "section_plan_completion",
+    "section_preparation_status",
+    "section_safety_guidance",
+    "section_plan_summary",
+    "section_current_conditions",
+    "section_household_address",
+    "section_fire_history",
+    "section_scenarios",
+    "section_scenario_results",
+    "section_rendezvous",
+    "section_travel_map",
+    "section_travel_disruptions",
     "none",
 }
 
@@ -91,3 +112,34 @@ def test_a_long_utterance_is_cut_to_the_server_limit() -> None:
 
     assert "a" * 300 in text
     assert "a" * 301 not in text
+
+
+SECTIONS_FILE = Path(__file__).resolve().parent.parent / "app" / "content" / "voice_sections.json"
+
+
+def test_every_section_is_a_closed_list_action_with_its_page_in_the_description() -> None:
+    sections = json.loads(SECTIONS_FILE.read_text())
+
+    assert len(sections) == 12
+    assert [section["id"] for section in sections] == [section.id for section in SECTIONS]
+    for section in SECTIONS:
+        action = f"section_{section.id}"
+        assert action in ACTIONS
+        assert section.page in ACTIONS[action]
+        assert section.route.startswith("/")
+
+
+def test_section_ids_are_unique_slugs() -> None:
+    ids = [section.id for section in SECTIONS]
+
+    assert len(set(ids)) == len(ids)
+    assert all(section_id.replace("_", "").isalnum() and section_id.islower() for section_id in ids)
+
+
+def test_none_stays_the_last_action() -> None:
+    assert list(ACTIONS)[-1] == NONE_ACTION
+
+
+def test_the_instructions_send_a_request_that_names_nothing_to_none() -> None:
+    assert "does not say what to open" in DECISION_INSTRUCTIONS
+    assert "'none'" in DECISION_INSTRUCTIONS

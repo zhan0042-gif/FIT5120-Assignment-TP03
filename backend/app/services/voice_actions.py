@@ -7,7 +7,10 @@ Nothing here logs the utterance, because it can contain a name or an address.
 
 import math
 import re
+from pathlib import Path
 from typing import Final
+
+from pydantic import BaseModel, TypeAdapter
 
 from app.schemas.live import MAX_LABEL_LENGTH, MAX_UTTERANCE_LENGTH, ActionDecision
 
@@ -29,13 +32,45 @@ ACTIONS: Final[dict[str, str]] = {
     "ask_safety_question": "Answer a question about bushfire safety guidance, such as when to leave, what to pack, pets, or staying to defend.",
     "repeat_last": "Repeat the last thing that was read out.",
     "go_back": "Go back to the previous page.",
-    NONE_ACTION: "The request is not clearly one of these actions, is missing needed information, is small talk, or asks for something the app cannot do (including saving, editing or deleting data, or predicting a fire).",
+    "open_home": "Go to the home page, the welcome page that explains how to use FIREBREAK.",
+    "scroll_down": "Scroll the current page down a little to see more.",
+    "scroll_up": "Scroll the current page up a little.",
+    "scroll_to_top": "Go to the very top of the current page.",
+    "scroll_to_bottom": "Go to the very bottom of the current page.",
 }
+
+
+class VoiceSection(BaseModel):
+    """A named part of a page the assistant can jump to. The browser finds it on screen
+    by the same id, in a `data-voice-section` attribute."""
+
+    id: str
+    route: str
+    page: str
+    description: str
+
+
+SECTIONS_PATH: Final = Path(__file__).resolve().parent.parent / "content" / "voice_sections.json"
+SECTIONS: Final[list[VoiceSection]] = TypeAdapter(list[VoiceSection]).validate_json(
+    SECTIONS_PATH.read_text()
+)
+
+# One closed-list action per section, so a section can never be an invented value.
+for _section in SECTIONS:
+    ACTIONS[f"section_{_section.id}"] = f"Jump to {_section.description} (on the {_section.page} page)."
+
+ACTIONS[NONE_ACTION] = (
+    "The request is not clearly one of these actions, is missing needed information, is small talk, "
+    "or asks for something the app cannot do (including saving, editing, deleting or clicking buttons, "
+    "or predicting a fire)."
+)
 
 DECISION_INSTRUCTIONS: Final = (
     "Which single app action best matches the user's last request? "
     "Choose 'none' if the request is not clearly one of these actions, needs "
-    "information that is missing, or asks for something the app cannot do."
+    "information that is missing, or asks for something the app cannot do. "
+    "If the request does not say what to open, go to or scroll to (for example "
+    "\"open it\" or \"take me there\"), choose 'none'."
 )
 
 _WHITESPACE = re.compile(r"\s+")

@@ -28,6 +28,7 @@ PAGE_LABELS = {
     "plan": "my plan",
     "scenarios": "test my plan",
     "fire_history": "fire map",
+    "map": "fire map",
 }
 THRESHOLDS = (0.3, 0.5, 0.7)
 
