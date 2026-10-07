@@ -81,6 +81,18 @@ def test_a_session_is_created_and_the_answer_is_returned(api) -> None:
     assert sessions.calls == ["browser-offer"]
 
 
+def test_the_offer_reaches_the_provider_exactly_as_sent_including_its_final_line_break(api) -> None:
+    client, sessions, _, household_id = api
+    # Every SDP line, the last one included, must end with CRLF or OpenAI rejects the
+    # offer with invalid_offer. A real browser offer always ends this way.
+    offer = "v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\ns=-\r\n"
+
+    response = client.post(_sessions_url(household_id), json={"sdp": offer})
+
+    assert response.status_code == 201
+    assert sessions.calls == [offer]
+
+
 def test_a_session_for_an_unknown_household_is_404_and_calls_nothing(api) -> None:
     client, sessions, _, _ = api
 

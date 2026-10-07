@@ -2,7 +2,7 @@
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 MAX_SDP_LENGTH = 65536
 MAX_UTTERANCE_LENGTH = 300
@@ -14,10 +14,16 @@ class LiveSessionRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    sdp: Annotated[
-        str,
-        StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_SDP_LENGTH),
-    ]
+    # Deliberately not stripped: every SDP line, the last one included, must end with
+    # CRLF, and OpenAI rejects an offer whose final line break was removed.
+    sdp: Annotated[str, StringConstraints(min_length=1, max_length=MAX_SDP_LENGTH)]
+
+    @field_validator("sdp")
+    @classmethod
+    def _not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("The offer must not be blank.")
+        return value
 
 
 class LiveSessionRef(BaseModel):
