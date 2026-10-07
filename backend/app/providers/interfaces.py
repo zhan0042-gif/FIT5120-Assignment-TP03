@@ -11,6 +11,7 @@ from app.schemas.households import (
     HouseholdLocation,
     Weather,
 )
+from app.schemas.live import ActionDecision, LiveSessionResponse
 from app.schemas.rendezvous import RendezvousResult
 from app.schemas.safety_guidance import GuidanceCatalogueItem
 from app.schemas.travel_disruptions import RoadDisruption
@@ -167,3 +168,31 @@ class GuidanceRouter(Protocol):
         question: str,
         catalogue: Sequence[GuidanceCatalogueItem],
     ) -> list[str]: ...
+
+
+class ActionDecisionClient(Protocol):
+    """Choose one voice action from the closed list for what a person said.
+
+    The implementation returns an action id and a confidence only. Nothing it says
+    is shown or spoken: the browser runs the handler for the id it returns. It must
+    raise ExternalDataUnavailable when it cannot be reached.
+    """
+
+    def decide(
+        self,
+        utterance: str,
+        page: str,
+        last_readout: str,
+    ) -> ActionDecision: ...
+
+
+class LiveSessionClient(Protocol):
+    """Create a GPT-Live voice session from a browser's WebRTC offer.
+
+    It must raise ExternalDataUnavailable when the session cannot be created.
+    """
+
+    def create(
+        self,
+        sdp: str,
+    ) -> LiveSessionResponse: ...

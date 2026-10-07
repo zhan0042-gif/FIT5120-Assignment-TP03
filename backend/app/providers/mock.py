@@ -16,6 +16,8 @@ from app.schemas.households import (
     HouseholdLocation,
     Weather,
 )
+from app.schemas.live import ActionDecision
+from app.services.voice_actions import NONE_ACTION, normalise
 
 
 @dataclass(frozen=True)
@@ -273,3 +275,40 @@ class MockGuidanceRouter:
         scored.sort(key=lambda pair: -pair[0])  # stable: catalogue order breaks ties
         return [entry_id for _, entry_id in scored[:2]]
 
+
+
+class MockActionDecisionClient:
+    """Deterministic keyword matching for tests and APP_DATA_MODE=mock.
+
+    The first keyword found in the request wins, so order matters. It exists so tests
+    exercise our code rather than a hosted model, and is not meant to be good.
+    """
+
+    _KEYWORDS: tuple[tuple[str, str], ...] = (
+        ("history", "show_fire_history"),
+        ("weather", "read_weather"),
+        ("danger", "read_fire_danger"),
+        ("complete", "read_plan_completion"),
+        ("disruption", "check_travel_disruptions"),
+        ("map", "open_fire_map"),
+        ("overview", "open_overview"),
+        ("travel readiness", "open_travel_readiness"),
+        ("test my plan", "open_scenarios"),
+        ("my plan", "open_plan"),
+        ("again", "repeat_last"),
+        ("back", "go_back"),
+        ("leave", "ask_safety_question"),
+        ("pack", "ask_safety_question"),
+        ("kit", "ask_safety_question"),
+        ("dog", "ask_safety_question"),
+        ("cat", "ask_safety_question"),
+        ("pet", "ask_safety_question"),
+        ("stay", "ask_safety_question"),
+    )
+
+    def decide(self, utterance: str, page: str, last_readout: str) -> ActionDecision:
+        text = utterance.lower()
+        for keyword, action in self._KEYWORDS:
+            if keyword in text:
+                return normalise(action, 0.9)
+        return normalise(NONE_ACTION, 0.0)
