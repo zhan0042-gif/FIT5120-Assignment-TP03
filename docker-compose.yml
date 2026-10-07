@@ -33,6 +33,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-fit5120_app}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-change_me}
       AI_API_KEY: ${AI_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
