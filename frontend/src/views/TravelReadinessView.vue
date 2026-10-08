@@ -5,6 +5,7 @@ import { useTravelRoutesStore } from '../stores/travelRoutes'
 import { useTravelDisruptionsStore } from '../stores/travelDisruptions'
 import TravelDisruptionMap from '../components/scenario/TravelDisruptionMap.vue'
 import TravelDisruptionPanel from '../components/scenario/TravelDisruptionPanel.vue'
+import TravelRouteSummary from '../components/scenario/TravelRouteSummary.vue'
 import { api } from '../api/client.js'
 import { buildTravelMapData, hasMapCoordinates } from '../utils/travelMapData'
 
@@ -59,6 +60,7 @@ onMounted(async () => {
         <p v-if="routeStore.status === 'loading'" class="route-note" role="status">Loading road routes...</p>
         <p v-else-if="routeStore.status === 'partial'" class="route-note" role="status">Some road routes are unavailable. Available routes are shown.</p>
         <p v-else-if="routeStore.status === 'unavailable'" class="route-note" role="status">{{ routeStore.result?.unavailable_reason || routeStore.error || 'Road routes are currently unavailable.' }}</p>
+        <TravelRouteSummary :routes="routeStore.result?.routes ?? []" />
       </section>
 
       <aside class="results-column" aria-label="Reported disruptions">

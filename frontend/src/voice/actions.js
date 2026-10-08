@@ -7,11 +7,17 @@ import { nextTick } from 'vue'
 import { EMERGENCY_MESSAGE, NO_MATCH_MESSAGE } from '../utils/safetyGuidanceCopy.js'
 import { VOICE_NOTHING_TO_REPEAT, VOICE_UNAVAILABLE } from '../utils/voiceCopy.js'
 import {
+  fireDangerPatternReadout,
   fireDangerReadout,
   fireHistoryReadout,
+  humidityReadout,
   planCompletionReadout,
+  simulationReadout,
+  temperatureReadout,
   travelDisruptionsReadout,
+  travelRoutesReadout,
   weatherReadout,
+  windReadout,
 } from './readouts.js'
 import { SECTIONS, sectionKey } from './sections.js'
 
@@ -69,6 +75,9 @@ export function createHandlers({
   localContextStore,
   fireMapStore,
   travelStore,
+  fdrStore,
+  routeStore,
+  rendezvousStore,
   safetyStore,
   getLastText,
   getScroller = defaultScroller,
@@ -161,6 +170,23 @@ export function createHandlers({
     }
   }
 
+  // The same context and gate as read_weather, one figure at a time.
+  function weatherFigureHandler(label, readout) {
+    return async () => {
+      await loadMapContext()
+      return {
+        label,
+        spoken: readout({
+          status: localContextStore.contextStatus,
+          weather: localContextStore.context?.weather ?? null,
+        }),
+      }
+    }
+  }
+  handlers.read_temperature = weatherFigureHandler('temperature', temperatureReadout)
+  handlers.read_humidity = weatherFigureHandler('humidity', humidityReadout)
+  handlers.read_wind = weatherFigureHandler('wind', windReadout)
+
   handlers.read_fire_danger = async () => {
     await loadMapContext()
     return {
@@ -207,6 +233,49 @@ export function createHandlers({
     return {
       label: 'road disruptions',
       spoken: travelDisruptionsReadout({ status: travelStore.status, result: travelStore.result }),
+    }
+  }
+
+  // Reads the pattern the panel is already showing. The panel needs a district and a date,
+  // so voice never runs it; with nothing on screen it says so.
+  handlers.read_fire_danger_pattern = async () => {
+    await router.push('/safety-insights')
+    return {
+      label: 'fire danger pattern',
+      spoken: fireDangerPatternReadout({ status: fdrStore.status, result: fdrStore.result }),
+    }
+  }
+
+  handlers.read_travel_routes = async () => {
+    if (router.currentRoute.value.path !== '/travel-readiness') {
+      await router.push('/travel-readiness')
+      // The page loads its own routes on mount, and a newer load makes an older one stale.
+      // Wait for the mount, then load, so this load is the one that fills the store.
+      await nextTick()
+    }
+    await routeStore.load(await householdStore.ensureHousehold())
+    return {
+      label: 'travel routes',
+      spoken: travelRoutesReadout({ status: routeStore.status, result: routeStore.result }),
+    }
+  }
+
+  handlers.read_simulation = async () => {
+    await router.push('/scenarios')
+    return {
+      label: 'simulation',
+      spoken: simulationReadout({ status: rendezvousStore.status, result: rendezvousStore.result }),
+    }
+  }
+
+  // The only handler that does work: it runs the simulation for the saved plan, which needs no
+  // spoken parameters, changes nothing and keeps nothing. The AI summary is never requested.
+  handlers.run_simulation = async () => {
+    await router.push('/scenarios')
+    await rendezvousStore.runSimulation(await householdStore.ensureHousehold())
+    return {
+      label: 'simulation',
+      spoken: simulationReadout({ status: rendezvousStore.status, result: rendezvousStore.result }),
     }
   }
 

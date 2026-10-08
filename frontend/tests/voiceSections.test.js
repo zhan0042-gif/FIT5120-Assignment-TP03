@@ -12,7 +12,6 @@ const backend = JSON.parse(
 const ANCHOR_FILES = {
   safety_guidance: '../src/components/overview/SafetyChatPanel.vue',
   fire_danger_patterns: '../src/components/overview/FdrPredictionPanel.vue',
-  plan_summary: '../src/views/OverviewView.vue',
   current_conditions: '../src/views/MapView.vue',
   household_address: '../src/components/localContext/LocalContextCard.vue',
   fire_history: '../src/views/MapView.vue',

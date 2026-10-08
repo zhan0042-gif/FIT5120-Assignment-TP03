@@ -15,7 +15,7 @@ export const VOICE_NOTHING_TO_REPEAT = 'There is nothing to repeat yet.'
 
 // Shown beside the microphone button: the audio leaves the site, so say so.
 export const VOICE_PRIVACY_NOTE =
-  'Voice sends your microphone audio to OpenAI so it can understand and answer you. Please do not say names or addresses.'
+  'Voice sends your microphone audio to OpenAI so it can understand and answer you. What the assistant reads aloud can include your household members\' and destinations\' names, and is also sent to OpenAI. Please do not say street addresses.'
 
 // Shown when the assistant said a number that was not in what the app sent it.
 export const VOICE_CHECK_FIGURES =

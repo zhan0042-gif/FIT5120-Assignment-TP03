@@ -15,6 +15,18 @@ const {
   planCompletionReadout,
   travelDisruptionsReadout,
   weatherReadout,
+  FDR_PATTERN_NONE,
+  FDR_PATTERN_UNAVAILABLE,
+  ROUTES_NEED_DESTINATION,
+  ROUTES_UNAVAILABLE,
+  SIMULATION_NOT_RUN,
+  SIMULATION_UNAVAILABLE,
+  fireDangerPatternReadout,
+  humidityReadout,
+  simulationReadout,
+  temperatureReadout,
+  travelRoutesReadout,
+  windReadout,
 } = await import('../src/voice/readouts.js')
 
 const WEATHER = {
@@ -158,4 +170,140 @@ test('road disruptions say when there is no verified destination or no data', ()
     }),
     NO_VERIFIED_DESTINATION,
   )
+})
+
+
+test('each weather figure can be read on its own, exactly as the combined read-out says it', () => {
+  assert.equal(temperatureReadout({ status: 'success', weather: WEATHER }), 'The temperature is 21.5 degrees Celsius.')
+  assert.equal(humidityReadout({ status: 'success', weather: WEATHER }), 'The humidity is 40 percent.')
+  assert.equal(
+    windReadout({ status: 'success', weather: WEATHER }),
+    'The wind is 18 kilometres per hour from the NW.',
+  )
+})
+
+test('a single weather figure says what is missing instead of guessing', () => {
+  for (const readout of [temperatureReadout, humidityReadout, windReadout]) {
+    assert.equal(readout({ status: 'unverified', weather: null }), NEEDS_VERIFIED_ADDRESS)
+    assert.equal(readout({ status: 'error', weather: null }), WEATHER_UNAVAILABLE)
+    assert.equal(readout({ status: 'success', weather: null }), WEATHER_UNAVAILABLE)
+  }
+})
+
+const PATTERN = {
+  district: 'Central',
+  date: '2026-01-15',
+  prediction_label: 'Elevated',
+  elevated_probability: 0.8123,
+  disclaimer: 'This is a machine-learning estimate. It is not an official Fire Danger Rating forecast.',
+}
+
+test('the fire danger pattern is read as a historical pattern, with its probability and its own warning', () => {
+  assert.equal(
+    fireDangerPatternReadout({ status: 'success', result: PATTERN }),
+    'For Central on 2026-01-15, the historical pattern is Elevated. The estimated probability of an elevated rating is 81.2 percent. This is a machine-learning estimate. It is not an official Fire Danger Rating forecast.',
+  )
+})
+
+test('the fire danger pattern still reads without a probability, and always carries a warning', () => {
+  const text = fireDangerPatternReadout({
+    status: 'success',
+    result: { ...PATTERN, elevated_probability: null, disclaimer: undefined },
+  })
+
+  assert.doesNotMatch(text, /probability/)
+  assert.match(text, /not an official Fire Danger Rating forecast/)
+})
+
+test('the fire danger pattern says when nothing has been generated, and never runs it', () => {
+  assert.equal(fireDangerPatternReadout({ status: 'idle', result: null }), FDR_PATTERN_NONE)
+  assert.match(FDR_PATTERN_NONE, /Choose a fire district and a date/)
+  assert.equal(fireDangerPatternReadout({ status: 'error', result: null }), FDR_PATTERN_UNAVAILABLE)
+  assert.match(fireDangerPatternReadout({ status: 'loading', result: null }), /still being generated/)
+})
+
+const ROUTES = {
+  status: 'available',
+  routes: [
+    { status: 'available', destination_type: 'primary', destination_id: 'd1', destination_name: "Relative's House", distance_m: 22_400, travel_time_seconds: 1_860 },
+    { status: 'available', destination_type: 'backup', destination_id: 'd2', destination_name: 'Community Centre', distance_m: 9_000, travel_time_seconds: 600 },
+  ],
+}
+
+test('road routes are read per destination by name, with distance and driving time only', () => {
+  assert.equal(
+    travelRoutesReadout({ status: 'available', result: ROUTES }),
+    "Your primary destination, Relative's House: 22.4 kilometres, about 31 minutes by road. A backup destination, Community Centre: 9.0 kilometres, about 10 minutes by road. These are road distances and driving times only; they do not say whether a route is safe.",
+  )
+})
+
+test('a destination without a route is reported as having none, not skipped or guessed', () => {
+  const partial = {
+    status: 'partial',
+    routes: [
+      ROUTES.routes[0],
+      { status: 'unavailable', destination_type: 'backup', destination_id: 'd2', destination_name: 'Community Centre', distance_m: null, travel_time_seconds: null },
+    ],
+  }
+
+  const text = travelRoutesReadout({ status: 'partial', result: partial })
+
+  assert.match(text, /Community Centre: no road route is available\./)
+  assert.match(text, /22\.4 kilometres/)
+})
+
+test('road routes say what is missing instead of guessing', () => {
+  assert.equal(travelRoutesReadout({ status: 'unavailable', result: null }), ROUTES_UNAVAILABLE)
+  assert.equal(
+    travelRoutesReadout({ status: 'unavailable', result: { status: 'not_applicable', routes: [] } }),
+    ROUTES_NEED_DESTINATION,
+  )
+  assert.equal(travelRoutesReadout({ status: 'available', result: { status: 'available', routes: [] } }), ROUTES_NEED_DESTINATION)
+  assert.match(travelRoutesReadout({ status: 'loading', result: null }), /still loading/)
+})
+
+const READY = {
+  status: 'ready',
+  destination_name: "Relative's House",
+  everyone_together_seconds: 2_820,
+  member_etas: [
+    { member_id: 'm1', display_name: 'Maya', origin_kind: 'home', travel_seconds: 720 },
+    { member_id: 'm2', display_name: '', origin_kind: 'work', travel_seconds: 2_820 },
+  ],
+  warnings: ['Traffic is heavier than usual.'],
+}
+
+test('the simulation is read like the panel shows it: headline, each person by name, then warnings', () => {
+  assert.equal(
+    simulationReadout({ status: 'success', result: READY }),
+    "Everyone is together after 47 minutes at Relative's House. Maya, from home, 12 minutes. An unnamed member, from work, 47 minutes. Warning: Traffic is heavier than usual.",
+  )
+})
+
+test('the simulation does not read the AI summary or the explanation', () => {
+  const text = simulationReadout({ status: 'success', result: { ...READY, explanation: 'Generated text' } })
+
+  assert.doesNotMatch(text, /Generated text/)
+})
+
+test('the simulation says when it has not run, cannot run yet, or is unavailable', () => {
+  assert.equal(simulationReadout({ status: 'idle', result: null }), SIMULATION_NOT_RUN)
+  assert.equal(simulationReadout({ status: 'error', result: null }), SIMULATION_UNAVAILABLE)
+  assert.equal(simulationReadout({ status: 'success', result: { status: 'unavailable' } }), SIMULATION_UNAVAILABLE)
+  assert.match(simulationReadout({ status: 'loading', result: null }), /still running/)
+  assert.equal(
+    simulationReadout({ status: 'success', result: { status: 'not_applicable', missing_sections: ['transport', 'primary_destination'] } }),
+    'The simulation needs more of your plan first: Transport, Primary destination.',
+  )
+  assert.match(simulationReadout({ status: 'success', result: { status: 'not_applicable', missing_sections: [] } }), /not complete enough/)
+})
+
+test('one minute is spoken in the singular', () => {
+  const text = simulationReadout({
+    status: 'success',
+    result: { ...READY, everyone_together_seconds: 60, member_etas: [{ member_id: 'm1', display_name: 'Maya', origin_kind: 'home', travel_seconds: 60 }], warnings: [] },
+  })
+
+  assert.match(text, /after 1 minute at/)
+  assert.match(text, /Maya, from home, 1 minute\./)
 })

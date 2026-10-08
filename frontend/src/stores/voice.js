@@ -6,11 +6,14 @@ import { VOICE_CHECK_FIGURES, VOICE_NOT_UNDERSTOOD, VOICE_UNAVAILABLE } from '..
 import { createHandlers, pageLabel } from '../voice/actions.js'
 import { liveTransport } from '../voice/liveConnection.js'
 import { unexpectedNumbers } from '../voice/numberCheck.js'
+import { useFdrPredictionStore } from './fdrPrediction.js'
 import { useFireMapStore } from './fireMap.js'
 import { useHouseholdStore } from './household.js'
 import { useLocalContextStore } from './localContext.js'
+import { useRendezvousStore } from './rendezvous.js'
 import { useSafetyGuidanceStore } from './safetyGuidance.js'
 import { useTravelDisruptionsStore } from './travelDisruptions.js'
+import { useTravelRoutesStore } from './travelRoutes.js'
 
 // GPT-Live has no maximum-duration or idle setting, so the browser ends the session.
 export const IDLE_TIMEOUT_MS = 60_000
@@ -43,6 +46,9 @@ export const useVoiceStore = defineStore('voice', () => {
   const localContextStore = useLocalContextStore()
   const fireMapStore = useFireMapStore()
   const travelStore = useTravelDisruptionsStore()
+  const fdrStore = useFdrPredictionStore()
+  const routeStore = useTravelRoutesStore()
+  const rendezvousStore = useRendezvousStore()
   const safetyStore = useSafetyGuidanceStore()
 
   // idle | connecting | listening | checking | closing | error
@@ -252,6 +258,9 @@ export const useVoiceStore = defineStore('voice', () => {
       localContextStore,
       fireMapStore,
       travelStore,
+      fdrStore,
+      routeStore,
+      rendezvousStore,
       safetyStore,
       getLastText: () => lastText,
     })

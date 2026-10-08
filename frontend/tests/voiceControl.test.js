@@ -60,7 +60,8 @@ test('an idle control offers to start and says the audio goes to OpenAI', async 
   assert.match(html, /Talk to the assistant/)
   assert.match(html, /aria-pressed="false"/)
   assert.match(html, /Voice is off\./)
-  assert.ok(html.includes(VOICE_PRIVACY_NOTE))
+  // The page escapes apostrophes, so compare with the same escaping.
+  assert.ok(html.includes(VOICE_PRIVACY_NOTE.replaceAll("'", '&#39;')))
   assert.doesNotMatch(html, /disabled/)
 })
 
@@ -119,4 +120,12 @@ test('the safety chat panel shows the voice control above the typed question for
 
   assert.match(panel, /import VoiceControl from '\.\/VoiceControl\.vue'/)
   assert.match(panel, /<VoiceControl \/>\s*<form class="ask-form"/)
+})
+
+test('the privacy note says what leaves the site: the audio and what the assistant reads aloud, names included', () => {
+  assert.match(VOICE_PRIVACY_NOTE, /microphone audio/)
+  assert.match(VOICE_PRIVACY_NOTE, /OpenAI/)
+  assert.match(VOICE_PRIVACY_NOTE, /reads aloud/)
+  assert.match(VOICE_PRIVACY_NOTE, /names/)
+  assert.match(VOICE_PRIVACY_NOTE, /street addresses/)
 })

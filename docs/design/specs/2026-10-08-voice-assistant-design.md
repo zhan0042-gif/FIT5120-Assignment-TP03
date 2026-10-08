@@ -40,7 +40,7 @@ from a fixed list; the app runs it and hands the result back to be spoken.
 | Actions | Navigate and read only | Any action that saves, edits or deletes |
 | Language | English only | Vietnamese or bilingual |
 | Placement | Mic button in the existing safety chat | Separate voice page; replacing the chat |
-| Household data to OpenAI | None (utterance, page name, action names only) | Plan, address, member names |
+| Household data to OpenAI | The action chooser gets the utterance, a page name and a read-out label only. What the assistant reads aloud may include member names and destination names, because the product owner chose to read them as shown on screen; never street addresses | Names withheld from read-outs ("the slowest person") |
 | Retention | Transcripts in the browser for the visit; nothing stored server-side | Saved conversations |
 
 **Why not Jev.** The spike (below) found both providers equally accurate on a
@@ -143,9 +143,14 @@ Browser --POST /api/v1/households/{id}/safety-guidance/ask--> existing pipeline 
 | `open_overview`, `open_safety_insights`, `open_plan`, `open_fire_map`, `open_scenarios`, `open_travel_readiness` | Navigate to that page |
 | `show_fire_history` | Go to the fire map and read the historical fire counts held by the fire map store |
 | `read_weather` | Go to the fire map (where the conditions tiles are) and read current observations |
+| `read_temperature`, `read_humidity`, `read_wind` | Go to the fire map and read that one figure |
 | `read_fire_danger` | Go to the fire map and read today's official Fire Danger Rating |
 | `read_plan_completion` | Go to My Plan (whose progress bar shows "N of M sections complete") and read the same words |
 | `check_travel_disruptions` | Go to Travel Readiness (where the disruptions panel is), run the road disruption check and read the outcome |
+| `read_fire_danger_pattern` | Go to Safety Insights and read the historical fire danger pattern result already on screen (district, date, label, probability, the panel's own warning); never runs the panel, and says so when there is no result |
+| `read_travel_routes` | Go to Travel Readiness, load the routes and read each destination's road distance and driving time by name; says nothing about safety. The page shows the same figures as a text list |
+| `read_simulation` | Go to Test My Plan and read the meet-up simulation result on screen: headline, each person by name, warnings. Never the AI summary |
+| `run_simulation` | Go to Test My Plan, run the simulation for the saved plan (no parameters, nothing changed or stored) and read the result |
 | `ask_safety_question` | Go to Safety Insights (where the safety chat now lives) and run the safety Q&A pipeline |
 
 Every read action first navigates to the page that displays the same figures, so
@@ -212,8 +217,12 @@ content itself; how reliably it complies is an open risk (see Risks).
 - Audio travels from the browser to OpenAI. The first time the mic is used the app
   says so.
 - The backend never logs utterances; they can contain names or addresses.
-- Decisions input is the utterance, a page name and a read-out label. No plan,
-  address or member data is sent.
+- The Decisions input is the utterance, a page name and a read-out label. No plan,
+  address or member data is sent to it.
+- What the assistant is asked to read aloud goes to GPT-Live, and the simulation and
+  road-route read-outs include member display names and destination names exactly as
+  shown on screen. Street addresses are never read. The note beside the microphone
+  says so.
 - Zero Data Retention is not assumed.
 
 ## Testing

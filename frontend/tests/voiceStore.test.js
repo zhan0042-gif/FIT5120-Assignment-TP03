@@ -279,6 +279,19 @@ test('a very long utterance is cut to the last 300 characters', async () => {
   assert.equal(ctx.decisions[0].body.utterance, 'a'.repeat(50) + 'b'.repeat(250))
 })
 
+test('a request to read the simulation is answered from the real simulation store', async () => {
+  const ctx = setup()
+  api.decideVoiceAction = async () => ({ action: 'read_simulation', confidence: 0.9 })
+  await startSession(ctx)
+
+  say(ctx, 'What did the simulation say?')
+  delegate(ctx)
+  await flush()
+
+  assert.deepEqual(ctx.router.pushed, ['/scenarios'])
+  assert.match(commentary(ctx)[0].content, /has not been run yet/)
+})
+
 test('a failing decision service gets the fixed unavailable sentence', async () => {
   const ctx = setup()
   api.decideVoiceAction = async () => {

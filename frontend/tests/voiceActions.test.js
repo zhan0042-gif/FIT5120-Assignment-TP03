@@ -59,6 +59,21 @@ function makeDeps(overrides = {}) {
         log.push(['loadDisruptions', householdId])
       },
     },
+    fdrStore: { status: 'idle', result: null },
+    routeStore: {
+      status: 'idle',
+      result: null,
+      async load(householdId) {
+        log.push(['loadRoutes', householdId])
+      },
+    },
+    rendezvousStore: {
+      status: 'idle',
+      result: null,
+      async runSimulation(householdId) {
+        log.push(['runSimulation', householdId])
+      },
+    },
     safetyStore: {
       status: 'success',
       messages: [],
@@ -104,9 +119,16 @@ test('every action except none has a handler', () => {
       'open_scenarios',
       'open_travel_readiness',
       'read_fire_danger',
+      'read_fire_danger_pattern',
+      'read_humidity',
       'read_plan_completion',
+      'read_simulation',
+      'read_temperature',
+      'read_travel_routes',
       'read_weather',
+      'read_wind',
       'repeat_last',
+      'run_simulation',
       'scroll_down',
       'scroll_to_bottom',
       'scroll_to_top',
@@ -115,7 +137,6 @@ test('every action except none has a handler', () => {
       'section_fire_danger_patterns',
       'section_fire_history',
       'section_household_address',
-      'section_plan_summary',
       'section_rendezvous',
       'section_safety_guidance',
       'section_travel_disruptions',
@@ -505,11 +526,11 @@ test('a section on another page opens that page first, then scrolls', async () =
 
 test('a section that appears a moment after the page opens is still found', async () => {
   const scrolls = []
-  const deps = sectionDeps({ missesBeforeFound: 3, present: { 'plan-summary': anElement(scrolls) } })
+  const deps = sectionDeps({ currentPath: '/map', missesBeforeFound: 3, present: { 'current-conditions': anElement(scrolls) } })
 
-  const result = await createHandlers(deps).section_plan_summary({})
+  const result = await createHandlers(deps).section_current_conditions({})
 
-  assert.deepEqual(result, { spoken: 'Here is the household plan summary.' })
+  assert.deepEqual(result, { spoken: 'Here is the current conditions.' })
   assert.equal(deps.calls.filter(([kind]) => kind === 'sleep').length, 3)
 })
 
@@ -520,4 +541,162 @@ test('a section that never appears is reported as not on the page, never guessed
 
   assert.deepEqual(result, { spoken: "That part isn't on the page right now." })
   assert.equal(deps.calls.filter(([kind]) => kind === 'sleep').length, 20)
+})
+
+
+const WEATHER_NOW = {
+  temperature_c: 21.5,
+  relative_humidity: 40,
+  wind_speed_kmh: 18,
+  wind_direction: 'NW',
+  station_name: 'Melbourne Airport',
+}
+
+function weatherDeps() {
+  const deps = makeDeps()
+  deps.localContextStore.location = { verification_status: 'verified' }
+  deps.localContextStore.contextStatus = 'success'
+  deps.localContextStore.context = { weather: WEATHER_NOW }
+  return deps
+}
+
+test('each weather figure opens the fire map and reads only that figure', async () => {
+  const cases = [
+    ['read_temperature', 'temperature', 'The temperature is 21.5 degrees Celsius.'],
+    ['read_humidity', 'humidity', 'The humidity is 40 percent.'],
+    ['read_wind', 'wind', 'The wind is 18 kilometres per hour from the NW.'],
+  ]
+  for (const [action, label, spoken] of cases) {
+    const deps = weatherDeps()
+
+    const result = await createHandlers(deps)[action]({})
+
+    assert.deepEqual(deps.log, [['push', '/map'], ['loadContext']], action)
+    assert.deepEqual(result, { label, spoken }, action)
+  }
+})
+
+test('a single weather figure does not guess when the address is not verified', async () => {
+  const deps = makeDeps()
+  deps.localContextStore.location = { verification_status: 'unverified' }
+  deps.localContextStore.contextStatus = 'unverified'
+
+  const result = await createHandlers(deps).read_temperature({})
+
+  assert.match(result.spoken, /verified household address/)
+})
+
+test('read_fire_danger_pattern opens Safety Insights and reads the result already on screen, never running it', async () => {
+  const deps = makeDeps()
+  deps.fdrStore.status = 'success'
+  deps.fdrStore.result = {
+    district: 'Central',
+    date: '2026-01-15',
+    prediction_label: 'Elevated',
+    elevated_probability: 0.5,
+    disclaimer: 'Not an official forecast.',
+  }
+
+  const result = await createHandlers(deps).read_fire_danger_pattern({})
+
+  assert.deepEqual(deps.log, [['push', '/safety-insights']])
+  assert.equal(result.label, 'fire danger pattern')
+  assert.match(result.spoken, /^For Central on 2026-01-15, the historical pattern is Elevated\./)
+  assert.equal(deps.fdrStore.predict, undefined)
+})
+
+test('read_fire_danger_pattern says when nothing has been generated', async () => {
+  const deps = makeDeps()
+
+  const result = await createHandlers(deps).read_fire_danger_pattern({})
+
+  assert.match(result.spoken, /No historical fire danger pattern has been generated yet/)
+})
+
+test('read_travel_routes opens Travel Readiness, loads the routes last and reads them by name', async () => {
+  // The page loads its own routes when it mounts, and a newer load makes the older one
+  // stale. Load after the mount, so this load is the one that fills the store.
+  const deps = makeDeps()
+  deps.routeStore.status = 'available'
+  deps.routeStore.result = {
+    status: 'available',
+    routes: [
+      { status: 'available', destination_type: 'primary', destination_id: 'd1', destination_name: "Relative's House", distance_m: 22_400, travel_time_seconds: 1_860 },
+    ],
+  }
+
+  const result = await createHandlers(deps).read_travel_routes({})
+
+  assert.deepEqual(deps.log, [['push', '/travel-readiness'], ['loadRoutes', 'hh_1']])
+  assert.equal(result.label, 'travel routes')
+  assert.match(result.spoken, /^Your primary destination, Relative's House: 22\.4 kilometres, about 31 minutes by road\./)
+})
+
+test('read_travel_routes does not navigate when already on Travel Readiness', async () => {
+  const deps = makeDeps()
+  deps.router.currentRoute.value = { name: 'travel-readiness', path: '/travel-readiness' }
+  deps.routeStore.status = 'unavailable'
+
+  await createHandlers(deps).read_travel_routes({})
+
+  assert.deepEqual(deps.log, [['loadRoutes', 'hh_1']])
+})
+
+test('read_simulation opens Test My Plan and reads the result on screen without running anything', async () => {
+  const deps = makeDeps()
+  deps.rendezvousStore.status = 'success'
+  deps.rendezvousStore.result = {
+    status: 'ready',
+    destination_name: "Relative's House",
+    everyone_together_seconds: 2_820,
+    member_etas: [{ member_id: 'm1', display_name: 'Maya', origin_kind: 'home', travel_seconds: 720 }],
+    warnings: [],
+  }
+
+  const result = await createHandlers(deps).read_simulation({})
+
+  assert.deepEqual(deps.log, [['push', '/scenarios']])
+  assert.equal(result.label, 'simulation')
+  assert.match(result.spoken, /^Everyone is together after 47 minutes at Relative's House\. Maya, from home, 12 minutes\.$/)
+})
+
+test('read_simulation says when it has not been run', async () => {
+  const deps = makeDeps()
+
+  const result = await createHandlers(deps).read_simulation({})
+
+  assert.match(result.spoken, /has not been run yet/)
+})
+
+test('run_simulation opens Test My Plan, runs it for the household with the saved plan and reads the result', async () => {
+  const deps = makeDeps()
+  deps.rendezvousStore.runSimulation = async (householdId) => {
+    deps.log.push(['runSimulation', householdId])
+    deps.rendezvousStore.status = 'success'
+    deps.rendezvousStore.result = {
+      status: 'ready',
+      destination_name: 'Safe Place',
+      everyone_together_seconds: 600,
+      member_etas: [{ member_id: 'm1', display_name: 'Maya', origin_kind: 'work', travel_seconds: 600 }],
+      warnings: [],
+    }
+  }
+
+  const result = await createHandlers(deps).run_simulation({})
+
+  assert.deepEqual(deps.log, [['push', '/scenarios'], ['runSimulation', 'hh_1']])
+  assert.match(result.spoken, /^Everyone is together after 10 minutes at Safe Place\./)
+  assert.equal(result.label, 'simulation')
+})
+
+test('run_simulation reports a failed run plainly', async () => {
+  const deps = makeDeps()
+  deps.rendezvousStore.runSimulation = async () => {
+    deps.rendezvousStore.status = 'error'
+    deps.rendezvousStore.result = null
+  }
+
+  const result = await createHandlers(deps).run_simulation({})
+
+  assert.match(result.spoken, /not available right now/)
 })
