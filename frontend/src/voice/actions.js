@@ -136,7 +136,7 @@ export function createHandlers({
       if (router.currentRoute.value.path !== section.route) await router.push(section.route)
       const element = await waitForSection(sectionKey(section.id))
       // Not on screen (no saved plan, not run yet, still loading): say so, never guess.
-      if (!element) return { spoken: SECTION_MISSING }
+      if (!element) return { spoken: SECTION_MISSING, failed: true }
       element.scrollIntoView({ block: 'start', behavior: behavior() })
       return { spoken: `Here is ${section.spoken}.` }
     }
@@ -293,7 +293,7 @@ export function createHandlers({
     }
     const before = safetyStore.messages.length
     const sent = await safetyStore.askTyped(householdStore.householdId, utterance)
-    if (!sent) return { spoken: VOICE_UNAVAILABLE }
+    if (!sent) return { spoken: VOICE_UNAVAILABLE, failed: true }
 
     const replies = safetyStore.messages.slice(before).filter((message) => message.role === 'assistant')
     const spoken = replies
@@ -302,7 +302,12 @@ export function createHandlers({
       )
       .filter(Boolean)
       .join(' ')
-    return spoken ? { label: 'safety answer', spoken } : { spoken: VOICE_UNAVAILABLE }
+    if (!spoken) return { spoken: VOICE_UNAVAILABLE, failed: true }
+    const kinds = replies.map((reply) => reply.kind)
+    const result = { label: 'safety answer', spoken }
+    if (kinds.includes('emergency')) result.emergency = true
+    else if (kinds.includes('no_match') || kinds.includes('unavailable')) result.failed = true
+    return result
   }
 
   return handlers

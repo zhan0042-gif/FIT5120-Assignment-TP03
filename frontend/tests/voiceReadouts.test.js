@@ -27,6 +27,7 @@ const {
   temperatureReadout,
   travelRoutesReadout,
   windReadout,
+  isShortfall,
 } = await import('../src/voice/readouts.js')
 
 const WEATHER = {
@@ -306,4 +307,37 @@ test('one minute is spoken in the singular', () => {
 
   assert.match(text, /after 1 minute at/)
   assert.match(text, /Maya, from home, 1 minute\./)
+})
+
+
+test('a sentence that says "I cannot tell you that" is recognised as a shortfall', () => {
+  for (const text of [
+    NEEDS_VERIFIED_ADDRESS,
+    WEATHER_UNAVAILABLE,
+    FIRE_DANGER_UNAVAILABLE,
+    FIRE_HISTORY_UNAVAILABLE,
+    COMPLETION_UNAVAILABLE,
+    NO_SAVED_PLAN,
+    DISRUPTIONS_UNAVAILABLE,
+    NO_VERIFIED_DESTINATION,
+    FDR_PATTERN_NONE,
+    FDR_PATTERN_UNAVAILABLE,
+    ROUTES_UNAVAILABLE,
+    ROUTES_NEED_DESTINATION,
+    SIMULATION_NOT_RUN,
+    SIMULATION_UNAVAILABLE,
+    'The simulation needs more of your plan first: Transport.',
+    'The simulation cannot run yet because your plan is not complete enough.',
+    'Road routes are still loading.',
+  ]) {
+    assert.equal(isShortfall(text), true, text)
+  }
+})
+
+test('a real answer is not a shortfall', () => {
+  assert.equal(isShortfall('The temperature is 21.5 degrees Celsius.'), false)
+  assert.equal(isShortfall("Today's fire danger rating is High, from the official source."), false)
+  assert.equal(isShortfall('Your plan is complete.'), false)
+  assert.equal(isShortfall(''), false)
+  assert.equal(isShortfall(undefined), false)
 })

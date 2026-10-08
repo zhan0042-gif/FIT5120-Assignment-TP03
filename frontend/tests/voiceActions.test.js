@@ -539,7 +539,7 @@ test('a section that never appears is reported as not on the page, never guessed
 
   const result = await createHandlers(deps).section_rendezvous({})
 
-  assert.deepEqual(result, { spoken: "That part isn't on the page right now." })
+  assert.deepEqual(result, { spoken: "That part isn't on the page right now.", failed: true })
   assert.equal(deps.calls.filter(([kind]) => kind === 'sleep').length, 20)
 })
 
@@ -699,4 +699,55 @@ test('run_simulation reports a failed run plainly', async () => {
   const result = await createHandlers(deps).run_simulation({})
 
   assert.match(result.spoken, /not available right now/)
+})
+
+
+test('a section that is not on the page is reported as a failure', async () => {
+  const deps = sectionDeps({ currentPath: '/scenarios' })
+
+  const result = await createHandlers(deps).section_rendezvous({})
+
+  assert.equal(result.failed, true)
+})
+
+test('a section that is reached is not a failure', async () => {
+  const scrolls = []
+  const deps = sectionDeps({ currentPath: '/map', present: { 'fire-history': anElement(scrolls) } })
+
+  const result = await createHandlers(deps).section_fire_history({})
+
+  assert.equal(result.failed, undefined)
+})
+
+test('the safety handler marks the emergency message as an emergency, and no-match and unavailable as failures', async () => {
+  const cases = [
+    ['emergency', { emergency: true }],
+    ['no_match', { failed: true }],
+    ['unavailable', { failed: true }],
+  ]
+  for (const [kind, expected] of cases) {
+    const deps = safetyDeps((messages) => messages.push({ id: 2, role: 'assistant', kind }))
+
+    const result = await createHandlers(deps).ask_safety_question({ utterance: 'help' })
+
+    for (const [key, value] of Object.entries(expected)) assert.equal(result[key], value, `${kind} ${key}`)
+  }
+})
+
+test('a matched reviewed answer is neither a failure nor an emergency', async () => {
+  const deps = safetyDeps((messages) => messages.push({ id: 2, role: 'assistant', entryId: 'a' }))
+
+  const result = await createHandlers(deps).ask_safety_question({ utterance: 'When should we leave?' })
+
+  assert.equal(result.failed, undefined)
+  assert.equal(result.emergency, undefined)
+})
+
+test('a refused safety question is a failure', async () => {
+  const deps = makeDeps()
+  deps.safetyStore.askTyped = async () => false
+
+  const result = await createHandlers(deps).ask_safety_question({ utterance: 'hi' })
+
+  assert.equal(result.failed, true)
 })

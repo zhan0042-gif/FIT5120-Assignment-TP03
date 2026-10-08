@@ -174,3 +174,34 @@ export function simulationReadout({ status, result }) {
     ...warnings,
   ].join(' ')
 }
+
+// The sentences that say "I can't give you that". The koala looks sorry when it speaks one.
+// Dynamic wording is matched by its fixed opening.
+const SHORTFALLS = new Set([
+  NEEDS_VERIFIED_ADDRESS,
+  WEATHER_UNAVAILABLE,
+  FIRE_DANGER_UNAVAILABLE,
+  FIRE_HISTORY_UNAVAILABLE,
+  COMPLETION_UNAVAILABLE,
+  NO_SAVED_PLAN,
+  DISRUPTIONS_UNAVAILABLE,
+  NO_VERIFIED_DESTINATION,
+  FDR_PATTERN_NONE,
+  FDR_PATTERN_UNAVAILABLE,
+  ROUTES_UNAVAILABLE,
+  ROUTES_NEED_DESTINATION,
+  SIMULATION_NOT_RUN,
+  SIMULATION_UNAVAILABLE,
+])
+const SHORTFALL_OPENINGS = [
+  'The simulation needs more of your plan first',
+  'The simulation cannot run yet',
+  'Road routes are still loading',
+  'The historical fire danger pattern is still being generated',
+  'The meet-up simulation is still running',
+]
+
+export function isShortfall(text) {
+  if (typeof text !== 'string' || !text) return false
+  return SHORTFALLS.has(text) || SHORTFALL_OPENINGS.some((opening) => text.startsWith(opening))
+}
