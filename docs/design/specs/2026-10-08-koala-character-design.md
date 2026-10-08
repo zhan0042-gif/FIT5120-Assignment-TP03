@@ -1,6 +1,6 @@
 # Koala Character — Design
 
-**Status:** Draft for review. Not implemented.
+**Status:** Implemented on the local branch; the drawing and the motion await the owner's review.
 **Branch:** `feature/voice-assistant` (local, not pushed).
 **Date:** 2026-10-08
 **Builds on:** `2026-10-08-voice-assistant-design.md`
