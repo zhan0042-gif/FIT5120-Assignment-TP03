@@ -30,17 +30,18 @@ class Sessions:
 
 
 class Decider:
-    def __init__(self, action: str = "read_weather", confidence: float = 0.9, error: Exception | None = None) -> None:
+    def __init__(self, action: str = "read_weather", confidence: float = 0.9, error: Exception | None = None, emotion: str = "calm") -> None:
         self.action = action
         self.confidence = confidence
         self.error = error
+        self.emotion = emotion
         self.calls: list[tuple[str, str, str]] = []
 
     def decide(self, utterance: str, page: str, last_readout: str) -> ActionDecision:
         self.calls.append((utterance, page, last_readout))
         if self.error:
             raise self.error
-        return ActionDecision(action=self.action, confidence=self.confidence)
+        return ActionDecision(action=self.action, confidence=self.confidence, emotion=self.emotion)
 
 
 @pytest.fixture
@@ -183,7 +184,7 @@ def test_decide_answers_an_emergency_without_calling_the_provider(api) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"action": "ask_safety_question", "confidence": 1.0, "emotion": "calm"}
+    assert response.json() == {"action": "ask_safety_question", "confidence": 1.0, "emotion": "urgent"}
     assert [call[0] for call in decider.calls] == ["hello"]
 
 
@@ -220,3 +221,22 @@ def test_decide_is_rate_limited_per_household(api) -> None:
     assert client.post(_decide_url(household_id), json={"utterance": "weather"}).status_code == 200
     assert client.post(_decide_url(household_id), json={"utterance": "weather"}).status_code == 429
     assert len(decider.calls) == 1
+
+
+def test_decide_passes_the_speakers_emotion_through(api) -> None:
+    client, _, decider, household_id = api
+    decider.emotion = "worried"
+
+    response = client.post(_decide_url(household_id), json={"utterance": "When should we leave?"})
+
+    assert response.json()["emotion"] == "worried"
+
+
+def test_an_unknown_action_keeps_the_emotion(api) -> None:
+    client, _, decider, household_id = api
+    decider.action = "delete_plan"
+    decider.emotion = "frustrated"
+
+    response = client.post(_decide_url(household_id), json={"utterance": "delete my plan"})
+
+    assert response.json() == {"action": "none", "confidence": 0.9, "emotion": "frustrated"}

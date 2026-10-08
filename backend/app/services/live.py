@@ -30,13 +30,16 @@ class VoiceDecisionService:
     def decide(self, household_id: str, request: DecideRequest) -> ActionDecision:
         # An emergency goes to the safety pipeline, which answers it with the fixed
         # "call 000" notice. It is decided before the limit and before the provider,
-        # so an outage, a limit or a "not understood" answer can never lose it.
+        # so an outage, a limit or a "not understood" answer can never lose it. The
+        # character's face for it is set by rule, not read from a model.
         if is_emergency(request.utterance):
-            return ActionDecision(action="ask_safety_question", confidence=1.0)
+            return ActionDecision(action="ask_safety_question", confidence=1.0, emotion="urgent")
 
         if not self.rate_limit.allow(household_id):
             raise RateLimited("Too many voice requests. Please wait a minute.")
 
         decision = self.client.decide(request.utterance, request.page, request.last_readout)
         # Defence in depth: whatever the client returned, only a known action leaves here.
-        return normalise(decision.action, decision.confidence)
+        return normalise(decision.action, decision.confidence).model_copy(
+            update={"emotion": decision.emotion}
+        )
