@@ -363,6 +363,14 @@ export const api = {
       },
     ),
 
+  getFdrPrediction: (
+      district,
+      date,
+    ) =>
+      request(
+        `/fdr/prediction?district=${encodeURIComponent(district)}&date=${encodeURIComponent(date)}`,
+      ),
+
   getTestResult: (
     householdId,
     testRunId,

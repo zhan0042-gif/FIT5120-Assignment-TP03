@@ -23,6 +23,7 @@ function focusMain() {
         <!-- Edit, review, explore maps and travel conditions, then test the saved plan. -->
         <router-link to="/plan">My Plan</router-link>
         <router-link to="/overview">Overview</router-link>
+        <router-link to="/safety-insights">Safety Insights</router-link>
         <router-link to="/map">Fire Map</router-link>
         <router-link to="/travel-readiness">Travel Readiness</router-link>
         <router-link to="/scenarios">Test My Plan</router-link>

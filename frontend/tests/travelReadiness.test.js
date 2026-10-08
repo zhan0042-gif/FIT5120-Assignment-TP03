@@ -87,7 +87,9 @@ test('results and unavailable states stay in the moved panel, outside the map', 
   assert.match(panel, /Check again/)
   assert.doesNotMatch(scenarios, /TravelDisruptionPanel|useTravelDisruptionsStore/)
   assert.match(scenarios, /<RendezvousPanel/)
-  assert.match(scenarios, /<TestResultPanel/)
+  // The page keeps only the meet-up simulation; the scenario picker and its
+  // result panel were removed.
+  assert.doesNotMatch(scenarios, /ScenarioList|TestResultPanel|useScenarioStore|tester-grid|Run test/)
 })
 
 test('desktop uses a map-led two-column layout and mobile stacks results', async () => {

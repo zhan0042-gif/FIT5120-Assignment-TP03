@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { api } from '../api/client.js'
 import { MAX_QUESTION_LENGTH } from '../utils/safetyGuidanceCopy.js'
 
-const LOAD_ERROR = 'Safety guidance could not be loaded. The rest of your overview is unaffected.'
+const LOAD_ERROR = 'Safety guidance could not be loaded. Other FIREBREAK features are unaffected.'
 
 export const useSafetyGuidanceStore = defineStore('safetyGuidance', () => {
   const entries = ref([])
