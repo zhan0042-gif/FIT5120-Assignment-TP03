@@ -11,21 +11,30 @@ from app.providers.openai_decisions import (
     DisabledActionDecisionClient,
     OpenAIDecisionsClient,
 )
-from app.services.voice_actions import ACTIONS
+from app.services.voice_actions import ACTIONS, EMOTIONS
 
 
-def _answer(choice, confidence) -> dict:
-    return {
-        "answers": [
+def _answer(choice, confidence, emotion=None, emotion_confidence=0.9) -> dict:
+    answers = [
+        {
+            "type": "choice",
+            "name": "action",
+            "choice": choice,
+            "probabilities": [],
+            "confidence": confidence,
+        }
+    ]
+    if emotion is not None:
+        answers.append(
             {
                 "type": "choice",
-                "name": "action",
-                "choice": choice,
+                "name": "emotion",
+                "choice": emotion,
                 "probabilities": [],
-                "confidence": confidence,
+                "confidence": emotion_confidence,
             }
-        ]
-    }
+        )
+    return {"answers": answers}
 
 
 def _client(handler) -> OpenAIDecisionsClient:
@@ -42,7 +51,7 @@ def test_an_api_key_is_required() -> None:
         OpenAIDecisionsClient(api_key="   ")
 
 
-def test_the_request_asks_one_choice_question_over_the_closed_list() -> None:
+def test_the_request_asks_the_action_and_the_emotion_in_one_call() -> None:
     seen: dict = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -58,11 +67,15 @@ def test_the_request_asks_one_choice_question_over_the_closed_list() -> None:
     assert seen["auth"] == "Bearer test-key"
     assert body["model"] == DECISIONS_MODEL == "gpt-6-luna"
     assert "Show me the weather" in body["input"]
-    (question,) = body["questions"]
-    assert question["type"] == "choice"
-    assert question["name"] == "action"
-    assert [choice["value"] for choice in question["choices"]] == list(ACTIONS)
-    assert all(choice["description"] for choice in question["choices"])
+    action, emotion = body["questions"]
+    assert action["type"] == "choice"
+    assert action["name"] == "action"
+    assert [choice["value"] for choice in action["choices"]] == list(ACTIONS)
+    assert all(choice["description"] for choice in action["choices"])
+    assert emotion["type"] == "choice"
+    assert emotion["name"] == "emotion"
+    assert [choice["value"] for choice in emotion["choices"]] == list(EMOTIONS)
+    assert all(choice["description"] for choice in emotion["choices"])
 
 
 def test_a_confident_known_action_is_returned() -> None:
@@ -153,3 +166,65 @@ def test_the_mock_answers_none_for_everything_else() -> None:
     decision = MockActionDecisionClient().decide("Hello there", "overview", "")
 
     assert decision.action == "none"
+
+
+def _decide(payload, text="x"):
+    return _client(lambda r: httpx.Response(200, json=payload)).decide(text, "overview", "")
+
+
+def test_the_emotion_is_returned_with_the_action() -> None:
+    decision = _decide(_answer("read_weather", 0.9, "worried", 0.8))
+
+    assert decision.action == "read_weather"
+    assert decision.emotion == "worried"
+
+
+def test_no_emotion_answer_is_calm() -> None:
+    assert _decide(_answer("read_weather", 0.9)).emotion == "calm"
+
+
+def test_a_low_confidence_emotion_is_calm() -> None:
+    assert _decide(_answer("read_weather", 0.9, "urgent", 0.3)).emotion == "calm"
+
+
+def test_an_emotion_outside_the_list_is_calm() -> None:
+    assert _decide(_answer("read_weather", 0.9, "furious", 0.99)).emotion == "calm"
+
+
+def test_a_refused_or_wrong_type_emotion_is_calm() -> None:
+    refused = {
+        "answers": [
+            {"type": "choice", "name": "action", "choice": "read_weather", "confidence": 0.9},
+            {"type": "refusal", "name": "emotion"},
+        ]
+    }
+    wrong_type = {
+        "answers": [
+            {"type": "choice", "name": "action", "choice": "read_weather", "confidence": 0.9},
+            {"type": "predicate", "name": "emotion", "probability": 0.9},
+        ]
+    }
+
+    assert _decide(refused).emotion == "calm"
+    assert _decide(wrong_type).emotion == "calm"
+
+
+def test_the_emotion_survives_when_the_action_is_not_understood() -> None:
+    decision = _decide(_answer("read_weather", 0.2, "frustrated", 0.9))
+
+    assert decision.action == "none"
+    assert decision.emotion == "frustrated"
+
+
+@pytest.mark.parametrize(
+    ("text", "emotion"),
+    [
+        ("I'm really scared, should we leave?", "worried"),
+        ("Hurry, I need the fire danger now", "urgent"),
+        ("Ugh, this is not working", "frustrated"),
+        ("Haha, take me home koala", "playful"),
+        ("Show me the weather", "calm"),
+    ],
+)
+def test_the_mock_reads_obvious_feelings(text: str, emotion: str) -> None:
+    assert MockActionDecisionClient().decide(text, "overview", "").emotion == emotion

@@ -14,32 +14,45 @@ from app.schemas.live import ActionDecision
 from app.services.voice_actions import (
     ACTIONS,
     DECISION_INSTRUCTIONS,
+    EMOTION_INSTRUCTIONS,
+    EMOTIONS,
     NONE_ACTION,
     decision_input,
     normalise,
+    normalise_emotion,
 )
 
 DECISIONS_URL = "https://api.openai.com/v1/decisions"
 DECISIONS_MODEL = "gpt-6-luna"
 ACTION_QUESTION = "action"
+EMOTION_QUESTION = "emotion"
+
+
+def _answer_named(answers: list, name: str) -> dict | None:
+    return next(
+        (item for item in answers if isinstance(item, dict) and item.get("name") == name),
+        None,
+    )
 
 
 def _parse(data: Any) -> ActionDecision:
     answers = data.get("answers") if isinstance(data, dict) else None
     if not isinstance(answers, list):
         raise ExternalDataUnavailable("The voice action response could not be read.")
-    answer = next(
-        (
-            item
-            for item in answers
-            if isinstance(item, dict) and item.get("name") == ACTION_QUESTION
-        ),
-        None,
-    )
-    if answer is None or answer.get("type") != "choice":
+
+    action = _answer_named(answers, ACTION_QUESTION)
+    if action is None or action.get("type") != "choice":
         # A refusal or a missing answer means the request was not understood.
-        return normalise(NONE_ACTION, 0.0)
-    return normalise(answer.get("choice"), answer.get("confidence"))
+        decision = normalise(NONE_ACTION, 0.0)
+    else:
+        decision = normalise(action.get("choice"), action.get("confidence"))
+
+    # The feeling is independent of the action: it only moves the character's face.
+    emotion = "calm"
+    feeling = _answer_named(answers, EMOTION_QUESTION)
+    if feeling is not None and feeling.get("type") == "choice":
+        emotion = normalise_emotion(feeling.get("choice"), feeling.get("confidence"))
+    return decision.model_copy(update={"emotion": emotion})
 
 
 class OpenAIDecisionsClient:
@@ -73,7 +86,16 @@ class OpenAIDecisionsClient:
                         {"value": action, "description": description}
                         for action, description in ACTIONS.items()
                     ],
-                }
+                },
+                {
+                    "type": "choice",
+                    "name": EMOTION_QUESTION,
+                    "instructions": EMOTION_INSTRUCTIONS,
+                    "choices": [
+                        {"value": emotion, "description": description}
+                        for emotion, description in EMOTIONS.items()
+                    ],
+                },
             ],
         }
         try:

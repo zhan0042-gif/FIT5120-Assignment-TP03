@@ -306,12 +306,29 @@ class MockActionDecisionClient:
         ("stay", "ask_safety_question"),
     )
 
+    _FEELINGS: tuple[tuple[str, str], ...] = (
+        ("hurry", "urgent"),
+        ("right now", "urgent"),
+        ("quick", "urgent"),
+        ("scared", "worried"),
+        ("worried", "worried"),
+        ("afraid", "worried"),
+        ("nervous", "worried"),
+        ("not working", "frustrated"),
+        ("ugh", "frustrated"),
+        ("annoying", "frustrated"),
+        ("haha", "playful"),
+        ("lol", "playful"),
+        ("funny", "playful"),
+    )
+
     def decide(self, utterance: str, page: str, last_readout: str) -> ActionDecision:
         text = utterance.lower()
+        emotion = next((feeling for word, feeling in self._FEELINGS if word in text), "calm")
         for keyword, action in self._KEYWORDS:
             if keyword in text:
-                return normalise(action, 0.9)
-        return normalise(NONE_ACTION, 0.0)
+                return normalise(action, 0.9).model_copy(update={"emotion": emotion})
+        return normalise(NONE_ACTION, 0.0).model_copy(update={"emotion": emotion})
 
 
 class MockLiveSessionClient:
