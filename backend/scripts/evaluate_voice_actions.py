@@ -82,6 +82,20 @@ def main() -> int:
         if decision.action not in acceptable(case):
             print(f"  #{case['id']:<2d} expected={case['expected']:<24s} got={decision.action:<24s} conf={decision.confidence:.2f}")
 
+    labelled = [row for row in rows if "emotion" in row[0]]
+    if labelled:
+        right = [row for row in labelled if row[1].emotion == row[0]["emotion"]]
+        print(f"\nemotion: {len(right)}/{len(labelled)} = {len(right) / len(labelled):.0%}")
+        for case, decision, _ in labelled:
+            if decision.emotion != case["emotion"]:
+                print(f"  #{case['id']:<2d} expected={case['emotion']:<10s} got={decision.emotion:<10s} {case['text'][:48]}")
+        smiling = [row for row in rows if row[0].get("distress") and row[1].emotion == "playful"]
+        if smiling:
+            print("\nFAIL: a distressed request was read as playful:")
+            for case, _, _ in smiling:
+                print(f"  #{case['id']} {case['text']}")
+            return 1
+
     times = sorted(row[2] for row in rows)
     print(f"\nlatency ms: p50={statistics.median(times):.0f} max={times[-1]:.0f} (n={len(times)})")
     return 0

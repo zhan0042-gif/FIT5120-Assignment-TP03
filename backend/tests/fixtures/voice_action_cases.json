@@ -6,7 +6,8 @@
       "page": "overview",
       "last": "none",
       "text": "Open the fire history",
-      "expected": "show_fire_history"
+      "expected": "show_fire_history",
+      "emotion": "calm"
     },
     {
       "id": 2,
@@ -14,7 +15,8 @@
       "page": "overview",
       "last": "none",
       "text": "Show me the weather",
-      "expected": "read_weather"
+      "expected": "read_weather",
+      "emotion": "calm"
     },
     {
       "id": 3,
@@ -22,7 +24,8 @@
       "page": "overview",
       "last": "none",
       "text": "What's the fire danger rating today?",
-      "expected": "read_fire_danger"
+      "expected": "read_fire_danger",
+      "emotion": "calm"
     },
     {
       "id": 4,
@@ -30,7 +33,8 @@
       "page": "overview",
       "last": "none",
       "text": "Take me to the map",
-      "expected": "open_fire_map"
+      "expected": "open_fire_map",
+      "emotion": "calm"
     },
     {
       "id": 5,
@@ -38,7 +42,8 @@
       "page": "overview",
       "last": "none",
       "text": "Go to my plan",
-      "expected": "open_plan"
+      "expected": "open_plan",
+      "emotion": "calm"
     },
     {
       "id": 6,
@@ -318,7 +323,8 @@
       "page": "overview",
       "last": "none",
       "text": "Scroll down a bit",
-      "expected": "scroll_down"
+      "expected": "scroll_down",
+      "emotion": "calm"
     },
     {
       "id": 41,
@@ -669,6 +675,81 @@
       "last": "none",
       "text": "Change the destination to my aunt's house",
       "expected": "none"
+    },
+    {
+      "id": 84,
+      "cat": "safety",
+      "page": "overview",
+      "last": "none",
+      "text": "I'm really scared, is it safe to stay here?",
+      "expected": "ask_safety_question",
+      "emotion": "worried",
+      "distress": true
+    },
+    {
+      "id": 85,
+      "cat": "safety",
+      "page": "overview",
+      "last": "none",
+      "text": "I'm so worried about my kids, when should we leave?",
+      "expected": "ask_safety_question",
+      "emotion": "worried",
+      "distress": true
+    },
+    {
+      "id": 86,
+      "cat": "safety",
+      "page": "overview",
+      "last": "none",
+      "text": "Please hurry, tell me when to leave right now",
+      "expected": "ask_safety_question",
+      "emotion": "urgent",
+      "distress": true
+    },
+    {
+      "id": 87,
+      "cat": "direct",
+      "page": "overview",
+      "last": "none",
+      "text": "Hurry, I need the fire danger rating right now",
+      "expected": "read_fire_danger",
+      "emotion": "urgent"
+    },
+    {
+      "id": 88,
+      "cat": "direct",
+      "page": "overview",
+      "last": "none",
+      "text": "Ugh, this isn't working, just open the map",
+      "expected": "open_fire_map",
+      "emotion": "frustrated"
+    },
+    {
+      "id": 89,
+      "cat": "direct",
+      "page": "overview",
+      "last": "none",
+      "text": "Why can't you just show me the weather already",
+      "expected": "read_weather",
+      "emotion": "frustrated"
+    },
+    {
+      "id": 90,
+      "cat": "direct",
+      "page": "overview",
+      "last": "none",
+      "text": "Haha okay koala, take me to the home page",
+      "expected": "open_home",
+      "emotion": "playful"
+    },
+    {
+      "id": 91,
+      "cat": "direct",
+      "page": "overview",
+      "last": "none",
+      "text": "Ha, go on then, scroll down for me",
+      "expected": "scroll_down",
+      "emotion": "playful"
     }
   ]
 }
