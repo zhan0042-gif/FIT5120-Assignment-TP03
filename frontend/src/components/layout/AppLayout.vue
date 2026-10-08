@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import VoiceDock from './VoiceDock.vue'
+import KoalaAssistant from './KoalaAssistant.vue'
 
 const main = ref(null)
 
@@ -30,7 +30,7 @@ function focusMain() {
       </nav>
     </header>
     <main id="main-content" ref="main" class="content" tabindex="-1"><router-view /></main>
-    <VoiceDock />
+    <KoalaAssistant />
   </div>
 </template>
 
@@ -47,11 +47,11 @@ function focusMain() {
 .skip-link { background: var(--color-accent); border: 2.5px solid var(--color-border-strong); border-radius: var(--radius); color: var(--color-on-accent); font-weight: 800; left: 1rem; padding: 0.6rem 1rem; position: absolute; top: 0; transform: translateY(-120%); z-index: 10; }
 .skip-link:focus-visible { transform: translateY(0.5rem); }
 .content:focus { outline: none; }
-.content { position: relative; z-index: 1; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 2rem 3rem 2.5rem; }
+.content { position: relative; z-index: 1; min-width: 0; min-height: 0; overflow-x: hidden; overflow-y: auto; padding: 2rem 3rem 2.5rem; padding-bottom: calc(2.5rem + 7.5rem); }
 @media (max-width: 880px) {
   .app-header { gap: 1rem; margin: 0.75rem clamp(0.75rem, 3vw, 1.25rem) 0.5rem; padding: 0.55rem 0.7rem; }
   .app-brand { font-size: 1.1875rem; }
-  .content { padding: clamp(1rem, 4vw, 1.5rem); }
+  .content { padding: clamp(1rem, 4vw, 1.5rem); padding-bottom: calc(1.5rem + 6rem); }
 }
 @media (max-width: 600px) {
   .app-header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.5rem; }
