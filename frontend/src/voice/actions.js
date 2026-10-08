@@ -18,6 +18,7 @@ import { SECTIONS, sectionKey } from './sections.js'
 const PAGE_LABELS = {
   welcome: 'welcome',
   overview: 'overview',
+  'safety-insights': 'safety insights',
   'plan-builder': 'my plan',
   'fire-map': 'fire map',
   'travel-readiness': 'travel readiness',
@@ -30,6 +31,7 @@ export function pageLabel(routeName) {
 
 const NAVIGATION = {
   open_overview: ['/overview', 'Opening the overview.'],
+  open_safety_insights: ['/safety-insights', 'Opening safety insights.'],
   open_plan: ['/plan', 'Opening your plan.'],
   open_fire_map: ['/map', 'Opening the fire map.'],
   open_scenarios: ['/scenarios', 'Opening Test My Plan.'],
@@ -138,17 +140,18 @@ export function createHandlers({
 
   handlers.repeat_last = async () => ({ spoken: getLastText() || VOICE_NOTHING_TO_REPEAT })
 
-  // The overview page loads the saved location itself when it mounts; do the same if
-  // that has not happened yet. Only load the context once a location exists, so a
-  // failed or empty location load keeps its own status instead of being overwritten.
-  async function loadOverviewContext() {
-    await router.push('/overview')
+  // The weather and fire danger tiles are on the fire map, which loads the saved location
+  // itself when it mounts; do the same if that has not happened yet. Only load the context
+  // once a location exists, so a failed or empty location load keeps its own status
+  // instead of being overwritten.
+  async function loadMapContext() {
+    await router.push('/map')
     if (!localContextStore.location) await localContextStore.init()
     if (localContextStore.location) await localContextStore.loadContext()
   }
 
   handlers.read_weather = async () => {
-    await loadOverviewContext()
+    await loadMapContext()
     return {
       label: 'weather',
       spoken: weatherReadout({
@@ -159,7 +162,7 @@ export function createHandlers({
   }
 
   handlers.read_fire_danger = async () => {
-    await loadOverviewContext()
+    await loadMapContext()
     return {
       label: 'fire danger',
       spoken: fireDangerReadout({
@@ -170,7 +173,8 @@ export function createHandlers({
   }
 
   handlers.read_plan_completion = async () => {
-    await router.push('/overview')
+    // My Plan's progress bar shows "N of M sections complete"; the overview no longer does.
+    await router.push('/plan')
     await householdStore.loadCompletion()
     return {
       label: 'plan completion',
@@ -207,9 +211,9 @@ export function createHandlers({
   }
 
   handlers.ask_safety_question = async ({ utterance }) => {
-    // The reviewed text and its CFA source appear in the safety chat on the overview.
-    if (router.currentRoute.value.name !== 'overview') {
-      await router.push('/overview')
+    // The reviewed text and its CFA source appear in the safety chat on Safety Insights.
+    if (router.currentRoute.value.name !== 'safety-insights') {
+      await router.push('/safety-insights')
       // Mounting the panel starts its own load, which clears the store and bumps its
       // revision; a question asked in that window is discarded. Wait for the mount, then
       // load last, so this load is the final revision and the question below survives.

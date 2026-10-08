@@ -78,6 +78,7 @@ function makeDeps(overrides = {}) {
 
 test('pageLabel maps route names to the labels the server is told', () => {
   assert.equal(pageLabel('overview'), 'overview')
+  assert.equal(pageLabel('safety-insights'), 'safety insights')
   assert.equal(pageLabel('plan-builder'), 'my plan')
   assert.equal(pageLabel('fire-map'), 'fire map')
   assert.equal(pageLabel('scenario-tester'), 'test my plan')
@@ -99,6 +100,7 @@ test('every action except none has a handler', () => {
       'open_home',
       'open_overview',
       'open_plan',
+      'open_safety_insights',
       'open_scenarios',
       'open_travel_readiness',
       'read_fire_danger',
@@ -109,16 +111,13 @@ test('every action except none has a handler', () => {
       'scroll_to_bottom',
       'scroll_to_top',
       'scroll_up',
+      'section_current_conditions',
+      'section_fire_danger_patterns',
       'section_fire_history',
       'section_household_address',
-      'section_current_conditions',
-      'section_plan_completion',
       'section_plan_summary',
-      'section_preparation_status',
       'section_rendezvous',
       'section_safety_guidance',
-      'section_scenario_results',
-      'section_scenarios',
       'section_travel_disruptions',
       'section_travel_map',
       'show_fire_history',
@@ -135,10 +134,11 @@ test('navigation actions go to their page and say so', async () => {
   await handlers.open_fire_map({})
   await handlers.open_scenarios({})
   await handlers.open_travel_readiness({})
+  await handlers.open_safety_insights({})
 
   assert.deepEqual(
     deps.log.filter(([kind]) => kind === 'push').map(([, path]) => path),
-    ['/overview', '/plan', '/map', '/scenarios', '/travel-readiness'],
+    ['/overview', '/plan', '/map', '/scenarios', '/travel-readiness', '/safety-insights'],
   )
 })
 
@@ -149,7 +149,7 @@ test('go_back goes back', async () => {
   assert.deepEqual(deps.log, [['back']])
 })
 
-test('read_weather opens the overview, loads the context and reads the weather', async () => {
+test('read_weather opens the fire map (where the weather is shown), loads the context and reads it', async () => {
   const deps = makeDeps()
   deps.localContextStore.location = { verification_status: 'verified' }
   deps.localContextStore.contextStatus = 'success'
@@ -165,7 +165,7 @@ test('read_weather opens the overview, loads the context and reads the weather',
 
   const result = await createHandlers(deps).read_weather({})
 
-  assert.deepEqual(deps.log, [['push', '/overview'], ['loadContext']])
+  assert.deepEqual(deps.log, [['push', '/map'], ['loadContext']])
   assert.equal(result.label, 'weather')
   assert.match(result.spoken, /^The temperature is 21\.5 degrees Celsius/)
 })
@@ -181,7 +181,7 @@ test('read_weather loads the saved location first when none is loaded yet', asyn
 
   const result = await createHandlers(deps).read_weather({})
 
-  assert.deepEqual(deps.log, [['push', '/overview'], ['init'], ['loadContext']])
+  assert.deepEqual(deps.log, [['push', '/map'], ['init'], ['loadContext']])
   assert.match(result.spoken, /not available right now/)
 })
 
@@ -194,7 +194,7 @@ test('read_weather keeps the failure status when no location could be loaded', a
 
   const result = await createHandlers(deps).read_weather({})
 
-  assert.deepEqual(deps.log, [['push', '/overview'], ['init']])
+  assert.deepEqual(deps.log, [['push', '/map'], ['init']])
   assert.match(result.spoken, /not available right now/)
 })
 
@@ -208,7 +208,7 @@ test('read_weather does not guess when the address is not verified', async () =>
   assert.match(result.spoken, /verified household address/)
 })
 
-test('read_fire_danger reads today from the overview context', async () => {
+test('read_fire_danger reads today from the fire map context', async () => {
   const deps = makeDeps()
   deps.localContextStore.location = { verification_status: 'verified' }
   deps.localContextStore.contextStatus = 'success'
@@ -220,14 +220,14 @@ test('read_fire_danger reads today from the overview context', async () => {
   assert.equal(result.spoken, "Today's fire danger rating is High, from the official source.")
 })
 
-test('read_plan_completion opens the overview and reads the completion store', async () => {
+test('read_plan_completion opens My Plan (whose progress bar shows it) and reads the completion store', async () => {
   const deps = makeDeps()
   deps.householdStore.completionStatus = 'success'
   deps.householdStore.completion = { overall_status: 'complete', sections: [] }
 
   const result = await createHandlers(deps).read_plan_completion({})
 
-  assert.deepEqual(deps.log, [['push', '/overview'], ['loadCompletion']])
+  assert.deepEqual(deps.log, [['push', '/plan'], ['loadCompletion']])
   assert.deepEqual(result, { label: 'plan completion', spoken: 'Your plan is complete.' })
 })
 
@@ -283,14 +283,14 @@ function safetyDeps(afterAsk) {
   return deps
 }
 
-test('ask_safety_question opens the overview and speaks the matched reviewed answers', async () => {
+test('ask_safety_question opens Safety Insights and speaks the matched reviewed answers', async () => {
   const deps = safetyDeps((messages) => {
     messages.push({ id: 2, role: 'assistant', entryId: 'a' }, { id: 3, role: 'assistant', entryId: 'b' })
   })
 
   const result = await createHandlers(deps).ask_safety_question({ utterance: 'When should we leave?' })
 
-  assert.deepEqual(deps.log, [['push', '/overview'], ['loadSafety'], ['ask', 'hh_1', 'When should we leave?']])
+  assert.deepEqual(deps.log, [['push', '/safety-insights'], ['loadSafety'], ['ask', 'hh_1', 'When should we leave?']])
   assert.deepEqual(result, {
     label: 'safety answer',
     spoken: 'Leave early, before any fire starts. Plan for your pets too.',
@@ -321,9 +321,9 @@ test('ask_safety_question loads the guidance first when the panel has not', asyn
   assert.deepEqual(deps.log.map(([kind]) => kind), ['push', 'loadSafety', 'ask'])
 })
 
-test('ask_safety_question does not push the overview when already there', async () => {
+test('ask_safety_question does not navigate when already on Safety Insights', async () => {
   const deps = safetyDeps((messages) => messages.push({ id: 2, role: 'assistant', kind: 'no_match' }))
-  deps.router.currentRoute.value = { name: 'overview' }
+  deps.router.currentRoute.value = { name: 'safety-insights', path: '/safety-insights' }
 
   await createHandlers(deps).ask_safety_question({ utterance: 'hi' })
 
@@ -483,7 +483,7 @@ const anElement = (scrolls) => ({ scrollIntoView: (options) => scrolls.push(opti
 
 test('a section on the current page is scrolled to without navigating', async () => {
   const scrolls = []
-  const deps = sectionDeps({ present: { 'safety-guidance': anElement(scrolls) } })
+  const deps = sectionDeps({ currentPath: '/safety-insights', present: { 'safety-guidance': anElement(scrolls) } })
 
   const result = await createHandlers(deps).section_safety_guidance({})
 
@@ -516,7 +516,7 @@ test('a section that appears a moment after the page opens is still found', asyn
 test('a section that never appears is reported as not on the page, never guessed', async () => {
   const deps = sectionDeps({ currentPath: '/scenarios' })
 
-  const result = await createHandlers(deps).section_scenario_results({})
+  const result = await createHandlers(deps).section_rendezvous({})
 
   assert.deepEqual(result, { spoken: "That part isn't on the page right now." })
   assert.equal(deps.calls.filter(([kind]) => kind === 'sleep').length, 20)

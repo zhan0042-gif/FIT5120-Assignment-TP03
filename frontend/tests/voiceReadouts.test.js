@@ -57,7 +57,7 @@ test('fire danger says so when the official source has nothing', () => {
   assert.equal(fireDangerReadout({ status: 'unverified', fireDanger: null }), NEEDS_VERIFIED_ADDRESS)
 })
 
-test('plan completion counts the sections that still need information', () => {
+test('plan completion says how many sections are complete, as the progress bar does', () => {
   const completion = {
     overall_status: 'needs_information',
     sections: [
@@ -69,7 +69,7 @@ test('plan completion counts the sections that still need information', () => {
 
   assert.equal(
     planCompletionReadout({ status: 'success', completion }),
-    'Your plan still needs information in 2 of 3 sections.',
+    'Your plan has 1 of 3 sections complete.',
   )
 })
 

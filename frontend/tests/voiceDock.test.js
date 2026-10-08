@@ -24,6 +24,7 @@ async function render({ route = '/map', status = 'idle', notice = null }) {
     history: createMemoryHistory(),
     routes: [
       { path: '/overview', name: 'overview', component: Page },
+      { path: '/safety-insights', name: 'safety-insights', component: Page },
       { path: '/map', name: 'fire-map', component: Page },
       { path: '/scenarios', name: 'scenario-tester', component: Page },
     ],
@@ -47,8 +48,8 @@ test('a live session shows its status and a stop button on a page without the ch
   assert.match(html, /Stop voice/)
 })
 
-test('the dock stays out of the way on the overview, where the chat has its own control', async () => {
-  const html = await render({ route: '/overview', status: 'listening' })
+test('the dock stays out of the way on Safety Insights, where the chat has its own control', async () => {
+  const html = await render({ route: '/safety-insights', status: 'listening' })
 
   assert.doesNotMatch(html, /Stop voice/)
 })

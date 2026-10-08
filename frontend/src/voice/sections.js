@@ -3,16 +3,13 @@
 // by a `data-voice-section="<id with hyphens>"` attribute on its element.
 
 export const SECTIONS = [
-  { id: 'plan_completion', route: '/overview', spoken: 'the plan completion' },
-  { id: 'preparation_status', route: '/overview', spoken: 'the preparation status' },
-  { id: 'safety_guidance', route: '/overview', spoken: 'the safety guidance' },
+  { id: 'safety_guidance', route: '/safety-insights', spoken: 'the safety guidance' },
+  { id: 'fire_danger_patterns', route: '/safety-insights', spoken: 'the historical fire danger pattern' },
   { id: 'plan_summary', route: '/overview', spoken: 'the household plan summary' },
   { id: 'current_conditions', route: '/map', spoken: 'the current conditions' },
   { id: 'household_address', route: '/map', spoken: 'the household address' },
   { id: 'fire_history', route: '/map', spoken: 'the fire history' },
-  { id: 'scenarios', route: '/scenarios', spoken: 'the list of scenarios' },
-  { id: 'scenario_results', route: '/scenarios', spoken: 'the test result' },
-  { id: 'rendezvous', route: '/scenarios', spoken: 'the estimate of how long until everyone is together' },
+  { id: 'rendezvous', route: '/scenarios', spoken: 'the meet-up simulation' },
   { id: 'travel_map', route: '/travel-readiness', spoken: 'the travel map' },
   { id: 'travel_disruptions', route: '/travel-readiness', spoken: 'the reported disruptions' },
 ]

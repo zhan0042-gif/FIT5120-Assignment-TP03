@@ -35,8 +35,9 @@ export function planCompletionReadout({ status, completion }) {
   if (!completion) return NO_SAVED_PLAN
   if (completion.overall_status === 'complete') return 'Your plan is complete.'
   const sections = completion.sections ?? []
-  const needing = sections.filter((section) => section.status === 'needs_information').length
-  return `Your plan still needs information in ${needing} of ${sections.length} sections.`
+  const done = sections.filter((section) => section.status === 'complete').length
+  // The same words as the progress bar on My Plan.
+  return `Your plan has ${done} of ${sections.length} sections complete.`
 }
 
 export function fireHistoryReadout({ status, totalCount, searchRadiusKm, mostRecentFire, nearestFire }) {

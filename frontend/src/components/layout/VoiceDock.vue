@@ -8,10 +8,10 @@ const store = useVoiceStore()
 
 // Most voice actions move the person to another page. The microphone must never be
 // live without a visible way to stop it, so while a session is on, every page except
-// the overview (whose safety chat has its own control) shows a small stop bar and the
+// Safety Insights (whose safety chat has its own control) shows a small stop bar and the
 // "check the figures" notice.
 const active = computed(() => ['connecting', 'listening', 'checking', 'closing'].includes(store.status))
-const visible = computed(() => active.value && route.name !== 'overview')
+const visible = computed(() => active.value && route.name !== 'safety-insights')
 const stopping = computed(() => store.status === 'connecting' || store.status === 'closing')
 </script>
 

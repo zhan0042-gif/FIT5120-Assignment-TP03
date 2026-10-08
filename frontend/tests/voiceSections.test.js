@@ -10,15 +10,12 @@ const backend = JSON.parse(
 
 // Where each section's anchor must be, so a section named in the list always exists.
 const ANCHOR_FILES = {
-  plan_completion: '../src/components/completion/CompletionOverview.vue',
-  preparation_status: '../src/components/localContext/PreparationSupportBanner.vue',
   safety_guidance: '../src/components/overview/SafetyChatPanel.vue',
+  fire_danger_patterns: '../src/components/overview/FdrPredictionPanel.vue',
   plan_summary: '../src/views/OverviewView.vue',
   current_conditions: '../src/views/MapView.vue',
   household_address: '../src/components/localContext/LocalContextCard.vue',
   fire_history: '../src/views/MapView.vue',
-  scenarios: '../src/views/ScenarioTesterView.vue',
-  scenario_results: '../src/views/ScenarioTesterView.vue',
   rendezvous: '../src/components/scenario/RendezvousPanel.vue',
   travel_map: '../src/views/TravelReadinessView.vue',
   travel_disruptions: '../src/components/scenario/TravelDisruptionPanel.vue',

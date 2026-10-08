@@ -140,13 +140,13 @@ Browser --POST /api/v1/households/{id}/safety-guidance/ask--> existing pipeline 
 
 | Action | Effect |
 |---|---|
-| `open_overview`, `open_plan`, `open_fire_map`, `open_scenarios`, `open_travel_readiness` | Navigate to that page |
+| `open_overview`, `open_safety_insights`, `open_plan`, `open_fire_map`, `open_scenarios`, `open_travel_readiness` | Navigate to that page |
 | `show_fire_history` | Go to the fire map and read the historical fire counts held by the fire map store |
-| `read_weather` | Go to the overview and read current observations |
-| `read_fire_danger` | Go to the overview and read today's official Fire Danger Rating |
-| `read_plan_completion` | Go to the overview and read how complete the saved plan is |
+| `read_weather` | Go to the fire map (where the conditions tiles are) and read current observations |
+| `read_fire_danger` | Go to the fire map and read today's official Fire Danger Rating |
+| `read_plan_completion` | Go to My Plan (whose progress bar shows "N of M sections complete") and read the same words |
 | `check_travel_disruptions` | Go to Travel Readiness (where the disruptions panel is), run the road disruption check and read the outcome |
-| `ask_safety_question` | Go to the overview and run the safety Q&A pipeline |
+| `ask_safety_question` | Go to Safety Insights (where the safety chat now lives) and run the safety Q&A pipeline |
 
 Every read action first navigates to the page that displays the same figures, so
 what is spoken is also on screen.
@@ -155,7 +155,7 @@ what is spoken is also on screen.
 | `open_home` | Open the home page |
 | `scroll_down`, `scroll_up` | Scroll the page by about four fifths of what is visible; say so at either end |
 | `scroll_to_top`, `scroll_to_bottom` | Go to either end of the page |
-| `section_<id>` (12) | Open the section's page and scroll to its named part (`backend/app/content/voice_sections.json`); say so if it is not on screen |
+| `section_<id>` (9) | Open the section's page and scroll to its named part (`backend/app/content/voice_sections.json`); say so if it is not on screen |
 | `none` | Do nothing; GPT-Live asks the person to rephrase |
 
 ## Reading figures aloud

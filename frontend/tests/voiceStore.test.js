@@ -48,6 +48,13 @@ const { VOICE_CHECK_FIGURES, VOICE_NOT_UNDERSTOOD, VOICE_UNAVAILABLE } = await i
   '../src/utils/voiceCopy.js'
 )
 
+// The real route names, so the page label the store sends matches what the app shows.
+const ROUTE_NAMES = {
+  '/map': 'fire-map',
+  '/plan': 'plan-builder',
+  '/safety-insights': 'safety-insights',
+}
+
 const originals = {
   open: liveTransport.open,
   decide: api.decideVoiceAction,
@@ -123,7 +130,7 @@ function setup() {
     pushed: [],
     async push(path) {
       this.pushed.push(path)
-      this.currentRoute.value = { name: path.slice(1) }
+      this.currentRoute.value = { name: ROUTE_NAMES[path] ?? path.slice(1), path }
     },
     back() {
       this.pushed.push('back')
@@ -189,7 +196,7 @@ test('a delegation chooses an action, runs it and sends the read-out as commenta
     page: 'my plan',
     lastReadout: '',
   })
-  assert.deepEqual(ctx.router.pushed, ['/overview'])
+  assert.deepEqual(ctx.router.pushed, ['/map'])
   const [sent] = commentary(ctx)
   assert.equal(sent.delegation_id, 'd1')
   assert.match(sent.content, /^The temperature is 21\.5 degrees Celsius/)
@@ -208,7 +215,7 @@ test('the next request is told what was last read out', async () => {
   await flush()
 
   assert.equal(ctx.decisions[1].body.lastReadout, 'weather')
-  assert.equal(ctx.decisions[1].body.page, 'overview')
+  assert.equal(ctx.decisions[1].body.page, 'fire map')
 })
 
 test('an action the app has no handler for is not understood', async () => {
