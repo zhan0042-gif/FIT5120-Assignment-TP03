@@ -21,7 +21,14 @@ EXPECTED_ACTIONS = {
     "open_travel_readiness",
     "show_fire_history",
     "read_weather",
+    "read_temperature",
+    "read_humidity",
+    "read_wind",
     "read_fire_danger",
+    "read_fire_danger_pattern",
+    "read_travel_routes",
+    "read_simulation",
+    "run_simulation",
     "read_plan_completion",
     "check_travel_disruptions",
     "ask_safety_question",
@@ -34,7 +41,6 @@ EXPECTED_ACTIONS = {
     "scroll_to_bottom",
     "section_safety_guidance",
     "section_fire_danger_patterns",
-    "section_plan_summary",
     "section_current_conditions",
     "section_household_address",
     "section_fire_history",
@@ -118,7 +124,7 @@ SECTIONS_FILE = Path(__file__).resolve().parent.parent / "app" / "content" / "vo
 def test_every_section_is_a_closed_list_action_with_its_page_in_the_description() -> None:
     sections = json.loads(SECTIONS_FILE.read_text())
 
-    assert len(sections) == 9
+    assert len(sections) == 8
     assert [section["id"] for section in sections] == [section.id for section in SECTIONS]
     for section in SECTIONS:
         action = f"section_{section.id}"
@@ -151,3 +157,21 @@ def test_the_sections_match_what_the_pages_show_today() -> None:
     assert by_id["safety_guidance"].route == "/safety-insights"
     assert by_id["fire_danger_patterns"].route == "/safety-insights"
     assert not {"plan_completion", "preparation_status", "scenarios", "scenario_results"} & set(by_id)
+    # The Overview page is the household plan summary, so a separate section would only compete with open_overview.
+    assert "plan_summary" not in by_id
+
+
+def test_the_new_read_and_run_actions_say_where_their_figures_are_shown() -> None:
+    for action in ("read_temperature", "read_humidity", "read_wind"):
+        assert "Fire Map" in ACTIONS[action]
+    assert "Safety Insights" in ACTIONS["read_fire_danger_pattern"]
+    assert "Travel Readiness" in ACTIONS["read_travel_routes"]
+    assert "Test My Plan" in ACTIONS["read_simulation"]
+    assert "Test My Plan" in ACTIONS["run_simulation"]
+    # Running is the only one that does work; it uses the saved plan and nothing spoken.
+    assert "saved plan" in ACTIONS["run_simulation"]
+
+
+def test_reading_the_simulation_does_not_claim_to_read_the_ai_summary() -> None:
+    assert "AI" in ACTIONS["read_simulation"]
+    assert "cannot" in ACTIONS["read_simulation"]

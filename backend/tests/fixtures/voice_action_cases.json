@@ -374,7 +374,10 @@
       "page": "overview",
       "last": "none",
       "text": "Take me to the safety guidance",
-      "expected": "section_safety_guidance"
+      "expected": "section_safety_guidance",
+      "also_ok": [
+        "open_safety_insights"
+      ]
     },
     {
       "id": 48,
@@ -382,7 +385,7 @@
       "page": "overview",
       "last": "none",
       "text": "Show me the household plan summary",
-      "expected": "section_plan_summary"
+      "expected": "open_overview"
     },
     {
       "id": 49,
@@ -406,7 +409,10 @@
       "page": "fire_history",
       "last": "none",
       "text": "Jump to the fire history section",
-      "expected": "section_fire_history"
+      "expected": "section_fire_history",
+      "also_ok": [
+        "open_fire_map"
+      ]
     },
     {
       "id": 52,
@@ -503,6 +509,166 @@
       "text": "How many sections of my plan are complete?",
       "expected": "read_plan_completion",
       "id": 63
+    },
+    {
+      "id": 64,
+      "cat": "weather",
+      "page": "fire_history",
+      "last": "none",
+      "text": "What's the temperature?",
+      "expected": "read_temperature"
+    },
+    {
+      "id": 65,
+      "cat": "weather",
+      "page": "fire_history",
+      "last": "none",
+      "text": "How hot is it right now?",
+      "expected": "read_temperature"
+    },
+    {
+      "id": 66,
+      "cat": "weather",
+      "page": "fire_history",
+      "last": "none",
+      "text": "What's the humidity?",
+      "expected": "read_humidity"
+    },
+    {
+      "id": 67,
+      "cat": "weather",
+      "page": "fire_history",
+      "last": "none",
+      "text": "How humid is it out there?",
+      "expected": "read_humidity"
+    },
+    {
+      "id": 68,
+      "cat": "weather",
+      "page": "fire_history",
+      "last": "none",
+      "text": "How windy is it?",
+      "expected": "read_wind"
+    },
+    {
+      "id": 69,
+      "cat": "weather",
+      "page": "fire_history",
+      "last": "none",
+      "text": "Which direction is the wind blowing?",
+      "expected": "read_wind"
+    },
+    {
+      "id": 70,
+      "cat": "pattern",
+      "page": "safety_insights",
+      "last": "none",
+      "text": "Read me the historical fire danger pattern result",
+      "expected": "read_fire_danger_pattern"
+    },
+    {
+      "id": 71,
+      "cat": "pattern",
+      "page": "safety_insights",
+      "last": "none",
+      "text": "What did the fire danger pattern say?",
+      "expected": "read_fire_danger_pattern"
+    },
+    {
+      "id": 72,
+      "cat": "pattern",
+      "page": "overview",
+      "last": "none",
+      "text": "What does the pattern panel say about elevated fire danger?",
+      "expected": "read_fire_danger_pattern"
+    },
+    {
+      "id": 73,
+      "cat": "routes",
+      "page": "travel",
+      "last": "none",
+      "text": "How far is my evacuation destination?",
+      "expected": "read_travel_routes"
+    },
+    {
+      "id": 74,
+      "cat": "routes",
+      "page": "travel",
+      "last": "none",
+      "text": "How long does it take to drive to the primary destination?",
+      "expected": "read_travel_routes"
+    },
+    {
+      "id": 75,
+      "cat": "routes",
+      "page": "overview",
+      "last": "none",
+      "text": "Read me the road routes",
+      "expected": "read_travel_routes"
+    },
+    {
+      "id": 76,
+      "cat": "simulation",
+      "page": "scenarios",
+      "last": "none",
+      "text": "Read me the simulation result",
+      "expected": "read_simulation"
+    },
+    {
+      "id": 77,
+      "cat": "simulation",
+      "page": "scenarios",
+      "last": "none",
+      "text": "What did the simulation say?",
+      "expected": "read_simulation"
+    },
+    {
+      "id": 78,
+      "cat": "simulation",
+      "page": "scenarios",
+      "last": "none",
+      "text": "Run the simulation",
+      "expected": "run_simulation"
+    },
+    {
+      "id": 79,
+      "cat": "simulation",
+      "page": "overview",
+      "last": "none",
+      "text": "Run the meet-up simulation for me",
+      "expected": "run_simulation"
+    },
+    {
+      "id": 80,
+      "cat": "simulation",
+      "page": "scenarios",
+      "last": "none",
+      "text": "Simulate how long it takes for everyone to meet up",
+      "expected": "run_simulation"
+    },
+    {
+      "id": 81,
+      "cat": "must_refuse",
+      "page": "safety_insights",
+      "last": "none",
+      "text": "Run the fire danger pattern for Central on the fifteenth of January",
+      "expected": "none"
+    },
+    {
+      "id": 82,
+      "cat": "must_refuse",
+      "page": "scenarios",
+      "last": "none",
+      "text": "Give me the AI summary of the simulation",
+      "expected": "none"
+    },
+    {
+      "id": 83,
+      "cat": "must_refuse",
+      "page": "travel",
+      "last": "none",
+      "text": "Change the destination to my aunt's house",
+      "expected": "none"
     }
   ]
 }

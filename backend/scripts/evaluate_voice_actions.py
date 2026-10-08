@@ -30,6 +30,7 @@ PAGE_LABELS = {
     "fire_history": "fire map",
     "map": "fire map",
     "safety_insights": "safety insights",
+    "travel": "travel readiness",
 }
 THRESHOLDS = (0.3, 0.5, 0.7)
 
@@ -56,24 +57,29 @@ def main() -> int:
         print("No case could be answered.")
         return 1
 
-    correct = [row for row in rows if row[1].action == row[0]["expected"]]
+    # A request such as "go to the safety guidance" names both a page and a part of it; for
+    # those cases the fixture lists the page-opening action as also acceptable.
+    def acceptable(case):
+        return {case["expected"], *case.get("also_ok", [])}
+
+    correct = [row for row in rows if row[1].action in acceptable(row[0])]
     print(f"accuracy: {len(correct)}/{len(rows)} = {len(correct) / len(rows):.0%}")
     by_category: dict[str, list[int]] = defaultdict(lambda: [0, 0])
     for case, decision, _ in rows:
         by_category[case["cat"]][1] += 1
-        by_category[case["cat"]][0] += decision.action == case["expected"]
+        by_category[case["cat"]][0] += decision.action in acceptable(case)
     for category, (hit, total) in by_category.items():
         print(f"  {category:12s} {hit}/{total}")
 
     print("\nthreshold  executed  wrong_executions")
     for threshold in THRESHOLDS:
         executed = [row for row in rows if row[1].action != "none" and row[1].confidence >= threshold]
-        wrong = [row for row in executed if row[1].action != row[0]["expected"]]
+        wrong = [row for row in executed if row[1].action not in acceptable(row[0])]
         print(f"  {threshold:.1f}      {len(executed):4d}      {len(wrong):4d}")
 
     print("\nwrong answers:")
     for case, decision, _ in rows:
-        if decision.action != case["expected"]:
+        if decision.action not in acceptable(case):
             print(f"  #{case['id']:<2d} expected={case['expected']:<24s} got={decision.action:<24s} conf={decision.confidence:.2f}")
 
     times = sorted(row[2] for row in rows)

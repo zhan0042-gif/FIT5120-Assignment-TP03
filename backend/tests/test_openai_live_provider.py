@@ -109,3 +109,10 @@ def test_the_prompt_sends_scrolling_and_jumping_to_a_part_of_a_page_to_the_backe
     assert "scroll" in delegation_part
     assert "top or bottom" in delegation_part
     assert "part of a page" in delegation_part
+
+
+def test_the_prompt_sends_the_new_read_requests_to_the_backend() -> None:
+    delegation_part = LIVE_INSTRUCTIONS.split("Do not delegate")[0]
+
+    for phrase in ("temperature, humidity", "fire danger pattern", "road routes", "simulation"):
+        assert phrase in delegation_part, phrase

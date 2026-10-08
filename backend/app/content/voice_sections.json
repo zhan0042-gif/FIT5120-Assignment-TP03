@@ -1,7 +1,6 @@
 [
   {"id": "safety_guidance", "route": "/safety-insights", "page": "Safety Insights", "description": "the Safety guidance chat with CFA questions and answers"},
   {"id": "fire_danger_patterns", "route": "/safety-insights", "page": "Safety Insights", "description": "the Historical Fire Danger Pattern panel"},
-  {"id": "plan_summary", "route": "/overview", "page": "Overview", "description": "the Household Plan Summary: members, key locations and responsibilities"},
   {"id": "current_conditions", "route": "/map", "page": "Fire Map", "description": "the current conditions tiles: temperature, humidity, wind and fire danger"},
   {"id": "household_address", "route": "/map", "page": "Fire Map", "description": "the Household address card"},
   {"id": "fire_history", "route": "/map", "page": "Fire Map", "description": "the historical fire map and its nearest and most recent fire cards"},
