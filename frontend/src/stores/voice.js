@@ -1,11 +1,13 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ApiError, api } from '../api/client.js'
 import { MAX_QUESTION_LENGTH } from '../utils/safetyGuidanceCopy.js'
 import { VOICE_CHECK_FIGURES, VOICE_NOT_UNDERSTOOD, VOICE_UNAVAILABLE } from '../utils/voiceCopy.js'
 import { createHandlers, pageLabel } from '../voice/actions.js'
 import { liveTransport } from '../voice/liveConnection.js'
 import { unexpectedNumbers } from '../voice/numberCheck.js'
+import { outcomeFor, reactionFace, resolveFace } from '../voice/expression.js'
+import { isShortfall } from '../voice/readouts.js'
 import { useFdrPredictionStore } from './fdrPrediction.js'
 import { useFireMapStore } from './fireMap.js'
 import { useHouseholdStore } from './household.js'
@@ -28,6 +30,16 @@ export const NUMBER_CHECK_DELAY_MS = 1500
 // this long with nothing new, and never longer than the maximum.
 export const TRANSCRIPT_SETTLE_MS = 400
 export const TRANSCRIPT_MAX_WAIT_MS = 3000
+// How long the koala's face lingers. A reaction to how the speaker sounds shows from the
+// moment the decision arrives until the reply starts (or this long); a finished request's
+// smile or apology lasts while the reply is spoken and a little after; the mouth keeps moving
+// a moment past the last words; an emergency pin is released shortly after its answer ends.
+export const REACTION_MS = 2000
+export const OUTCOME_HOLD_MS = 4000
+export const OUTCOME_FAILSAFE_MS = 10_000
+export const TALK_HOLD_MS = 600
+export const EMERGENCY_RELEASE_MS = 1500
+export const EMERGENCY_FAILSAFE_MS = 15_000
 
 function describeStartError(error) {
   if (error?.name === 'MicrophoneDenied') return 'Microphone access was blocked. You can still use the chat.'
@@ -56,6 +68,20 @@ export const useVoiceStore = defineStore('voice', () => {
   const error = ref(null)
   const notice = ref(null)
 
+  // What the koala shows. Only the face and the talking flag leave the store.
+  const reaction = ref(null) // a face for how the speaker sounds, or null
+  const outcome = ref(null) // 'sorry' | 'happy' | null
+  const emergencyPinned = ref(false)
+  const talking = ref(false)
+  const face = computed(() =>
+    resolveFace({
+      status: status.value,
+      emergencyPinned: emergencyPinned.value,
+      outcome: outcome.value,
+      reaction: reaction.value,
+    }),
+  )
+
   // None of this is shown, so none of it is reactive. It all belongs to one session.
   let connection = null
   let activeRouter = null
@@ -78,6 +104,11 @@ export const useVoiceStore = defineStore('voice', () => {
   let connectTimer = null
   // A delegation that is waiting for its transcript to settle: { resolve, quietTimer, capTimer }.
   let transcriptWait = null
+  let reactionTimer = null
+  let outcomeTimer = null
+  let talkTimer = null
+  let pinTimer = null
+  let pinFailsafeTimer = null
 
   function clearTimers() {
     clearTimeout(idleTimer)
@@ -113,7 +144,80 @@ export const useVoiceStore = defineStore('voice', () => {
     })
   }
 
+  function setReaction(next) {
+    clearTimeout(reactionTimer)
+    reactionTimer = null
+    reaction.value = next
+    if (next) {
+      reactionTimer = setTimeout(() => {
+        reaction.value = null
+      }, REACTION_MS)
+    }
+  }
+
+  function clearOutcome() {
+    clearTimeout(outcomeTimer)
+    outcomeTimer = null
+    outcome.value = null
+  }
+
+  function setOutcome(next) {
+    clearOutcome()
+    outcome.value = next
+    if (next) outcomeTimer = setTimeout(clearOutcome, OUTCOME_FAILSAFE_MS)
+  }
+
+  function releasePin() {
+    clearTimeout(pinTimer)
+    clearTimeout(pinFailsafeTimer)
+    pinTimer = null
+    pinFailsafeTimer = null
+    emergencyPinned.value = false
+  }
+
+  function pinEmergency() {
+    clearTimeout(pinTimer)
+    clearTimeout(pinFailsafeTimer)
+    emergencyPinned.value = true
+    pinFailsafeTimer = setTimeout(releasePin, EMERGENCY_FAILSAFE_MS)
+  }
+
+  // The assistant is speaking: move the mouth, keep a finished request's face a while longer,
+  // and once an emergency answer is being heard, release the pin when it goes quiet.
+  function noteSpeech() {
+    talking.value = true
+    clearTimeout(talkTimer)
+    talkTimer = setTimeout(() => {
+      talking.value = false
+    }, TALK_HOLD_MS)
+    if (outcome.value) {
+      clearTimeout(outcomeTimer)
+      outcomeTimer = setTimeout(clearOutcome, OUTCOME_HOLD_MS)
+    }
+    if (emergencyPinned.value) {
+      clearTimeout(pinTimer)
+      pinTimer = setTimeout(releasePin, EMERGENCY_RELEASE_MS)
+    }
+  }
+
+  // The person spoke again: a finished request's face is over, unless an emergency is pinned.
+  function noteHeard() {
+    if (!emergencyPinned.value) clearOutcome()
+  }
+
+  function resetFace() {
+    clearTimeout(reactionTimer)
+    clearTimeout(talkTimer)
+    reactionTimer = null
+    talkTimer = null
+    clearOutcome()
+    releasePin()
+    reaction.value = null
+    talking.value = false
+  }
+
   function resetSession() {
+    resetFace()
     finishTranscriptWait()
     clearTimers()
     connection = null
@@ -159,10 +263,15 @@ export const useVoiceStore = defineStore('voice', () => {
     latestDelegation = id
     notice.value = null
     status.value = 'checking'
+    // A newer request starts clean: the previous reaction and outcome are over.
+    setReaction(null)
+    clearOutcome()
 
-    const say = (content) => {
+    const say = (content, nextOutcome = null) => {
       // A newer delegation, or a closed session, makes this result stale.
       if (latestDelegation !== id || !connection) return
+      setReaction(null)
+      setOutcome(nextOutcome)
       sendCommentary(id, content)
       status.value = 'listening'
     }
@@ -175,7 +284,7 @@ export const useVoiceStore = defineStore('voice', () => {
       utterance = ''
       delegatedSinceHeard = true
       if (!text) {
-        say(VOICE_NOT_UNDERSTOOD)
+        say(VOICE_NOT_UNDERSTOOD, 'sorry')
         return
       }
       const householdId = await householdStore.ensureHousehold()
@@ -185,9 +294,16 @@ export const useVoiceStore = defineStore('voice', () => {
         lastReadout: lastLabel,
       })
       if (latestDelegation !== id) return
+      // How the speaker sounds shows at once, before the reply is ready. An emergency answer
+      // from the server (urgent, certain) pins the serious face; the model cannot lift it.
+      const emotion = decision.emotion ?? 'calm'
+      setReaction(reactionFace(emotion, decision.action))
+      if (decision.action === 'ask_safety_question' && emotion === 'urgent' && decision.confidence === 1) {
+        pinEmergency()
+      }
       const handler = decision.action === 'none' ? null : handlers[decision.action]
       if (!handler) {
-        say(VOICE_NOT_UNDERSTOOD)
+        say(VOICE_NOT_UNDERSTOOD, 'sorry')
         return
       }
       const result = await handler({ utterance: text })
@@ -196,9 +312,11 @@ export const useVoiceStore = defineStore('voice', () => {
         lastLabel = result.label
         lastText = result.spoken
       }
-      say(result.spoken)
+      if (result.emergency) pinEmergency()
+      const failed = result.failed === true || isShortfall(result.spoken)
+      say(result.spoken, outcomeFor({ action: decision.action, failed }))
     } catch {
-      say(VOICE_UNAVAILABLE)
+      say(VOICE_UNAVAILABLE, 'sorry')
     }
   }
 
@@ -212,6 +330,7 @@ export const useVoiceStore = defineStore('voice', () => {
         touch()
         break
       case 'session.input_transcript.delta':
+        noteHeard()
         utterance += event.delta ?? ''
         if (transcriptWait) {
           // The words of a request already signalled: keep waiting until they settle.
@@ -223,6 +342,7 @@ export const useVoiceStore = defineStore('voice', () => {
         touch()
         break
       case 'session.output_transcript.delta':
+        noteSpeech()
         // The assistant is answering on its own, so what was heard is a finished turn:
         // do not let it run into the next request.
         if (!delegatedSinceHeard && utterance && !transcriptWait) utterance = ''
@@ -292,5 +412,5 @@ export const useVoiceStore = defineStore('voice', () => {
     connection.close()
   }
 
-  return { status, error, notice, start, stop }
+  return { status, error, notice, face, talking, start, stop }
 })

@@ -39,6 +39,12 @@ const {
   IDLE_TIMEOUT_MS,
   MAX_SESSION_MS,
   NUMBER_CHECK_DELAY_MS,
+  EMERGENCY_FAILSAFE_MS,
+  EMERGENCY_RELEASE_MS,
+  OUTCOME_FAILSAFE_MS,
+  OUTCOME_HOLD_MS,
+  REACTION_MS,
+  TALK_HOLD_MS,
   TRANSCRIPT_MAX_WAIT_MS,
   TRANSCRIPT_SETTLE_MS,
 } = await import(
@@ -632,4 +638,321 @@ test('closing the session while a delegation waits lets it end quietly', async (
   assert.equal(commentary(ctx).length, 0)
   assert.equal(ctx.decisions.length, 0)
   assert.equal(ctx.store.status, 'idle')
+})
+
+
+function speak(ctx, text = 'Okay.') {
+  ctx.fake.emit({ type: 'session.output_transcript.delta', delta: text })
+}
+
+test('the face follows the conversation: thinking while connecting, listening, thinking while working, neutral when closed', async () => {
+  const ctx = setup()
+
+  const starting = ctx.store.start({ router: ctx.router })
+  assert.equal(ctx.store.face, 'thinking')
+  await starting
+  ctx.fake.emit({ type: 'session.started', session: { id: 'live_1' } })
+  assert.equal(ctx.store.face, 'listening')
+
+  say(ctx, 'Show me the weather')
+  delegate(ctx)
+  assert.equal(ctx.store.face, 'thinking')
+  await flush()
+  assert.equal(ctx.store.face, 'listening')
+
+  ctx.fake.onClosed(null)
+  assert.equal(ctx.store.face, 'neutral')
+})
+
+test('a weather answer does not make the koala smile', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+
+  say(ctx, 'Show me the weather')
+  delegate(ctx)
+  await flush()
+  speak(ctx)
+
+  assert.equal(ctx.store.face, 'listening')
+})
+
+test('opening a page makes the koala smile while it speaks, then the smile fades', async () => {
+  const ctx = setup()
+  api.decideVoiceAction = async () => ({ action: 'open_fire_map', confidence: 0.95, emotion: 'calm' })
+  await startSession(ctx)
+
+  say(ctx, 'Take me to the map')
+  delegate(ctx)
+  await flush()
+  assert.equal(ctx.store.face, 'happy')
+  speak(ctx)
+  mock.timers.tick(OUTCOME_HOLD_MS - 1)
+  assert.equal(ctx.store.face, 'happy')
+  mock.timers.tick(1)
+
+  assert.equal(ctx.store.face, 'listening')
+})
+
+test('a smile does not outlast the person speaking again', async () => {
+  const ctx = setup()
+  api.decideVoiceAction = async () => ({ action: 'open_fire_map', confidence: 0.95, emotion: 'calm' })
+  await startSession(ctx)
+  say(ctx, 'Take me to the map')
+  delegate(ctx)
+  await flush()
+  assert.equal(ctx.store.face, 'happy')
+
+  say(ctx, 'And the weather')
+
+  assert.equal(ctx.store.face, 'listening')
+})
+
+test('a smile is dropped after the failsafe even if the assistant never speaks', async () => {
+  const ctx = setup()
+  api.decideVoiceAction = async () => ({ action: 'open_fire_map', confidence: 0.95, emotion: 'calm' })
+  await startSession(ctx)
+  say(ctx, 'Take me to the map')
+  delegate(ctx)
+  await flush()
+
+  mock.timers.tick(OUTCOME_FAILSAFE_MS)
+
+  assert.equal(ctx.store.face, 'listening')
+})
+
+test('a request that was not understood leaves the koala sorry', async () => {
+  const ctx = setup()
+  api.decideVoiceAction = async () => ({ action: 'none', confidence: 0.9, emotion: 'calm' })
+  await startSession(ctx)
+
+  say(ctx, 'hello there')
+  delegate(ctx)
+  await flush()
+
+  assert.equal(ctx.store.face, 'sorry')
+})
+
+test('a failing decision service, an empty request and a thrown handler all leave the koala sorry', async () => {
+  const cases = [
+    async (ctx) => {
+      api.decideVoiceAction = async () => {
+        throw new ApiError(503, 'down')
+      }
+      say(ctx, 'weather')
+    },
+    async () => {},
+    async (ctx) => {
+      ctx.router.push = async () => {
+        throw new Error('navigation failed')
+      }
+      say(ctx, 'weather')
+    },
+  ]
+  for (const arrange of cases) {
+    const ctx = setup()
+    await startSession(ctx)
+    await arrange(ctx)
+
+    delegate(ctx)
+    await flush()
+
+    assert.equal(ctx.store.face, 'sorry')
+  }
+})
+
+test('a start failure leaves the koala neutral, not smiling', async () => {
+  const ctx = setup()
+  liveTransport.open = async () => {
+    throw new MicrophoneDenied()
+  }
+
+  await ctx.store.start({ router: ctx.router })
+
+  assert.equal(ctx.store.status, 'error')
+  assert.equal(ctx.store.face, 'neutral')
+})
+
+test('a handler that reports a shortfall leaves the koala sorry', async () => {
+  const ctx = setup()
+  ctx.localContext.location = { verification_status: 'unverified' }
+  api.decideVoiceAction = async () => ({ action: 'read_weather', confidence: 0.9, emotion: 'calm' })
+  await startSession(ctx)
+
+  say(ctx, 'What is the weather')
+  delegate(ctx)
+  await flush()
+
+  assert.equal(ctx.store.face, 'sorry')
+})
+
+test('how the speaker sounds shows on the koala from the moment the decision arrives until the reply starts', async () => {
+  const ctx = setup()
+  let release
+  api.getLocalContext = () => new Promise((resolve) => { release = () => resolve(WEATHER_CONTEXT) })
+  api.decideVoiceAction = async () => ({ action: 'read_weather', confidence: 0.9, emotion: 'worried' })
+  await startSession(ctx)
+
+  say(ctx, 'What is the weather, I am worried')
+  delegate(ctx)
+  await flush()
+  assert.equal(ctx.store.face, 'concerned')
+  release()
+  await flush()
+
+  assert.equal(ctx.store.face, 'listening')
+})
+
+test('a reaction is dropped after two seconds if the reply is slow', async () => {
+  const ctx = setup()
+  api.getLocalContext = () => new Promise(() => {})
+  api.decideVoiceAction = async () => ({ action: 'read_weather', confidence: 0.9, emotion: 'frustrated' })
+  await startSession(ctx)
+  say(ctx, 'Why is this so slow')
+  delegate(ctx)
+  await flush()
+  assert.equal(ctx.store.face, 'sorry')
+
+  mock.timers.tick(REACTION_MS)
+
+  assert.equal(ctx.store.face, 'thinking')
+})
+
+test('a playful reading on a weather question does not make the koala smile', async () => {
+  const ctx = setup()
+  api.getLocalContext = () => new Promise(() => {})
+  api.decideVoiceAction = async () => ({ action: 'read_weather', confidence: 0.9, emotion: 'playful' })
+  await startSession(ctx)
+
+  say(ctx, 'ha, what is the weather')
+  delegate(ctx)
+  await flush()
+
+  assert.notEqual(ctx.store.face, 'happy')
+})
+
+function arrangeEmergency(emotion = 'urgent', confidence = 1) {
+  api.decideVoiceAction = async () => ({ action: 'ask_safety_question', confidence, emotion })
+  api.getSafetyGuidance = async () => ({ entries: [], suggested_ids: [], location_conditions_applied: false })
+  api.askSafetyGuidance = async () => ({ status: 'emergency', entry_ids: [] })
+}
+
+test('the emergency pin outranks a playful reading', async () => {
+  const ctx = setup()
+  arrangeEmergency()
+  await startSession(ctx)
+
+  say(ctx, 'The fire is coming, help me')
+  delegate(ctx, 'd1')
+  await flush()
+  assert.equal(ctx.store.face, 'serious')
+
+  // A later, playful reading cannot lift the pin while the answer is spoken.
+  api.decideVoiceAction = async () => ({ action: 'open_home', confidence: 0.9, emotion: 'playful' })
+  speak(ctx, 'If you are in danger, call 000 now.')
+  assert.equal(ctx.store.face, 'serious')
+})
+
+test('the pin is released a moment after the emergency answer has been spoken', async () => {
+  const ctx = setup()
+  arrangeEmergency()
+  await startSession(ctx)
+  say(ctx, 'The fire is coming, help me')
+  delegate(ctx)
+  await flush()
+
+  speak(ctx, 'If you are in danger, call 000 now.')
+  mock.timers.tick(EMERGENCY_RELEASE_MS - 1)
+  assert.equal(ctx.store.face, 'serious')
+  mock.timers.tick(1)
+
+  assert.notEqual(ctx.store.face, 'serious')
+})
+
+test('the pin is released by the failsafe even if the assistant never speaks', async () => {
+  const ctx = setup()
+  arrangeEmergency()
+  await startSession(ctx)
+  say(ctx, 'The fire is coming, help me')
+  delegate(ctx)
+  await flush()
+  assert.equal(ctx.store.face, 'serious')
+
+  mock.timers.tick(EMERGENCY_FAILSAFE_MS)
+
+  assert.notEqual(ctx.store.face, 'serious')
+})
+
+test('an emergency reply pins the face even when the model read the speaker as calm', async () => {
+  const ctx = setup()
+  arrangeEmergency('calm', 0.9)
+  await startSession(ctx)
+
+  say(ctx, 'There is smoke and I am trapped')
+  delegate(ctx)
+  await flush()
+
+  assert.equal(ctx.store.face, 'serious')
+})
+
+test('a stale delegation does not change the face', async () => {
+  const ctx = setup()
+  const releases = []
+  api.decideVoiceAction = () => new Promise((resolve) => releases.push((answer) => resolve(answer)))
+  await startSession(ctx)
+
+  say(ctx, 'first')
+  delegate(ctx, 'old')
+  await flush()
+  say(ctx, 'second')
+  delegate(ctx, 'new')
+  await flush()
+  releases[1]({ action: 'read_weather', confidence: 0.9, emotion: 'calm' })
+  await flush()
+  releases[0]({ action: 'ask_safety_question', confidence: 1, emotion: 'urgent' })
+  await flush()
+
+  assert.notEqual(ctx.store.face, 'serious')
+})
+
+test('the talking flag follows the assistant speaking and drops shortly after', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+  assert.equal(ctx.store.talking, false)
+
+  speak(ctx)
+  assert.equal(ctx.store.talking, true)
+  mock.timers.tick(TALK_HOLD_MS - 1)
+  assert.equal(ctx.store.talking, true)
+  mock.timers.tick(1)
+
+  assert.equal(ctx.store.talking, false)
+})
+
+test('closing the session clears the face, the flag and any pin', async () => {
+  const ctx = setup()
+  arrangeEmergency()
+  await startSession(ctx)
+  say(ctx, 'The fire is coming, help me')
+  delegate(ctx)
+  await flush()
+  speak(ctx)
+  assert.equal(ctx.store.face, 'serious')
+  assert.equal(ctx.store.talking, true)
+
+  ctx.fake.onClosed(null)
+
+  assert.equal(ctx.store.face, 'neutral')
+  assert.equal(ctx.store.talking, false)
+})
+
+test('a decision without an emotion is treated as calm', async () => {
+  const ctx = setup()
+  api.decideVoiceAction = async () => ({ action: 'read_weather', confidence: 0.9 })
+  await startSession(ctx)
+
+  say(ctx, 'weather')
+  delegate(ctx)
+  await flush()
+
+  assert.equal(ctx.store.face, 'listening')
 })
