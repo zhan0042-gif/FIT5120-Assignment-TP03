@@ -80,6 +80,7 @@ export function createHandlers({
   rendezvousStore,
   safetyStore,
   getLastText,
+  getLastEmergency = () => false,
   getScroller = defaultScroller,
   findSection = defaultFindSection,
   sleep = defaultSleep,
@@ -147,7 +148,11 @@ export function createHandlers({
     return { spoken: 'Going back.' }
   }
 
-  handlers.repeat_last = async () => ({ spoken: getLastText() || VOICE_NOTHING_TO_REPEAT })
+  handlers.repeat_last = async () => {
+    const text = getLastText()
+    if (!text) return { spoken: VOICE_NOTHING_TO_REPEAT }
+    return getLastEmergency() ? { spoken: text, emergency: true } : { spoken: text }
+  }
 
   // The weather and fire danger tiles are on the fire map, which loads the saved location
   // itself when it mounts; do the same if that has not happened yet. Only load the context

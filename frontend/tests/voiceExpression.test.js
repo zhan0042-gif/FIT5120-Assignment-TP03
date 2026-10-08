@@ -20,7 +20,7 @@ test('the faces and emotions are the closed lists from the spec', () => {
 test('the conversation state picks the resting face', () => {
   assert.equal(conversationFace('idle'), 'neutral')
   assert.equal(conversationFace('closing'), 'neutral')
-  assert.equal(conversationFace('error'), 'neutral')
+  assert.equal(conversationFace('error'), 'sorry')
   assert.equal(conversationFace('connecting'), 'thinking')
   assert.equal(conversationFace('checking'), 'thinking')
   assert.equal(conversationFace('listening'), 'listening')
@@ -104,4 +104,8 @@ test('the faces differ in eyes, eyebrows and mouth, as the spec requires', () =>
 test('an unknown face falls back to neutral', () => {
   assert.equal(poseFor('nonsense'), POSES.neutral)
   assert.equal(poseFor(undefined), POSES.neutral)
+})
+
+test('a failed start is sorry, never the resting smile', () => {
+  assert.equal(resolveFace({ status: 'error', emergencyPinned: false, outcome: null, reaction: null }), 'sorry')
 })

@@ -136,12 +136,18 @@ test('the button is disabled while connecting and while ending', async () => {
   }
 })
 
+test('a start error shows the sorry face', async () => {
+  supportMicrophone()
+
+  assert.match(await render({ status: 'error', error: 'No mic.' }), /data-face="sorry"/)
+})
+
 test('a start error shows in the bubble as an alert and the button can be pressed again', async () => {
   supportMicrophone()
 
   const html = await render({ status: 'error', error: 'Microphone access was blocked. You can still use the chat.' })
 
-  assert.match(html, /role="alert"[^>]*>Microphone access was blocked/)
+  assert.match(html, /role="alert"[^>]*><span>Microphone access was blocked/)
   assert.doesNotMatch(html, /class="koala-button"[^>]*disabled/)
 })
 
@@ -150,7 +156,7 @@ test('the figures notice is an alert in the bubble', async () => {
 
   const html = await render({ status: 'listening', notice: 'Please check the figures on screen.' })
 
-  assert.match(html, /role="alert"[^>]*>Please check the figures on screen\./)
+  assert.match(html, /role="alert"[^>]*><span>Please check the figures on screen\./)
 })
 
 test('without microphone support the button is disabled and says why', async () => {
@@ -203,10 +209,10 @@ test('a minimised koala opens by itself to show an error or the figures notice',
   supportMicrophone()
   const storage = { getItem: () => '1', setItem() {}, removeItem() {} }
 
-  assert.match(await render({ status: 'error', error: 'No mic.', storage }), /role="alert"[^>]*>No mic\./)
+  assert.match(await render({ status: 'error', error: 'No mic.', storage }), /role="alert"[^>]*><span>No mic\./)
   assert.match(
     await render({ status: 'idle', notice: 'Check the figures.', storage }),
-    /role="alert"[^>]*>Check the figures\./,
+    /role="alert"[^>]*><span>Check the figures\./,
   )
 })
 
@@ -243,4 +249,19 @@ test('the layout renders the koala, no longer renders the dock, and leaves room 
   assert.match(layout, /<KoalaAssistant \/>/)
   assert.doesNotMatch(layout, /VoiceDock/)
   assert.match(layout, /padding-bottom: *calc\(/)
+})
+
+test('an alert in the bubble can be dismissed, and a plain status cannot', async () => {
+  supportMicrophone()
+
+  assert.match(await render({ status: 'error', error: 'No mic.' }), /aria-label="Dismiss message"/)
+  assert.match(await render({ status: 'listening', notice: 'Check.' }), /aria-label="Dismiss message"/)
+  assert.doesNotMatch(await render({ status: 'listening' }), /aria-label="Dismiss message"/)
+  assert.doesNotMatch(await render(), /aria-label="Dismiss message"/)
+})
+
+test('the bubble is a new element when it changes between status and alert, so an alert is announced', async () => {
+  const source = await readFile(new URL('../src/components/layout/KoalaAssistant.vue', import.meta.url), 'utf8')
+
+  assert.match(source, /:key="bubble\.role"/)
 })

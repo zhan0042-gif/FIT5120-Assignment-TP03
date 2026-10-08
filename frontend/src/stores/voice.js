@@ -31,15 +31,23 @@ export const NUMBER_CHECK_DELAY_MS = 1500
 export const TRANSCRIPT_SETTLE_MS = 400
 export const TRANSCRIPT_MAX_WAIT_MS = 3000
 // How long the koala's face lingers. A reaction to how the speaker sounds shows from the
-// moment the decision arrives until the reply starts (or this long); a finished request's
+// moment the decision arrives until the reply starts being spoken (REACTION_MS is only a failsafe); a finished request's
 // smile or apology lasts while the reply is spoken and a little after; the mouth keeps moving
 // a moment past the last words; an emergency pin is released shortly after its answer ends.
-export const REACTION_MS = 2000
+export const REACTION_MS = 10_000
 export const OUTCOME_HOLD_MS = 4000
 export const OUTCOME_FAILSAFE_MS = 10_000
 export const TALK_HOLD_MS = 600
 export const EMERGENCY_RELEASE_MS = 1500
 export const EMERGENCY_FAILSAFE_MS = 15_000
+// The emergency face stays while the answer is said, however fast its text arrives: about this
+// long a word, up to a cap, and the failsafe always allows for it.
+export const PIN_WORD_MS = 400
+export const PIN_HOLD_MAX_MS = 20_000
+export const PIN_FAILSAFE_MARGIN_MS = 5000
+
+const pinHoldFor = (text) =>
+  Math.min(String(text).trim().split(/\s+/).filter(Boolean).length * PIN_WORD_MS, PIN_HOLD_MAX_MS)
 
 function describeStartError(error) {
   if (error?.name === 'MicrophoneDenied') return 'Microphone access was blocked. You can still use the chat.'
@@ -97,6 +105,11 @@ export const useVoiceStore = defineStore('voice', () => {
   let latestDelegation = null
   let lastLabel = ''
   let lastText = ''
+  let lastEmergency = false
+  // True once the reply for the current request has been handed to GPT-Live, so speech heard
+  // after that is the reply and speech before it is not.
+  let replyQueued = false
+  let pinHold = EMERGENCY_RELEASE_MS
   let commentaryCount = 0
   let idleTimer = null
   let maxTimer = null
@@ -175,11 +188,16 @@ export const useVoiceStore = defineStore('voice', () => {
     emergencyPinned.value = false
   }
 
+  function armPinFailsafe(ms) {
+    clearTimeout(pinFailsafeTimer)
+    pinFailsafeTimer = setTimeout(releasePin, ms)
+  }
+
   function pinEmergency() {
     clearTimeout(pinTimer)
-    clearTimeout(pinFailsafeTimer)
     emergencyPinned.value = true
-    pinFailsafeTimer = setTimeout(releasePin, EMERGENCY_FAILSAFE_MS)
+    pinHold = EMERGENCY_RELEASE_MS
+    armPinFailsafe(EMERGENCY_FAILSAFE_MS)
   }
 
   // The assistant is speaking: move the mouth, keep a finished request's face a while longer,
@@ -194,9 +212,16 @@ export const useVoiceStore = defineStore('voice', () => {
       clearTimeout(outcomeTimer)
       outcomeTimer = setTimeout(clearOutcome, OUTCOME_HOLD_MS)
     }
+    // Speech before the reply is queued is not the reply, so it ends neither the reaction nor the pin.
+    if (!replyQueued) return
+    if (reaction.value) {
+      clearTimeout(reactionTimer)
+      reactionTimer = null
+      reaction.value = null
+    }
     if (emergencyPinned.value) {
       clearTimeout(pinTimer)
-      pinTimer = setTimeout(releasePin, EMERGENCY_RELEASE_MS)
+      pinTimer = setTimeout(releasePin, pinHold)
     }
   }
 
@@ -229,6 +254,9 @@ export const useVoiceStore = defineStore('voice', () => {
     latestDelegation = null
     lastLabel = ''
     lastText = ''
+    lastEmergency = false
+    replyQueued = false
+    notice.value = null
   }
 
   function touch() {
@@ -263,6 +291,7 @@ export const useVoiceStore = defineStore('voice', () => {
     latestDelegation = id
     notice.value = null
     status.value = 'checking'
+    replyQueued = false
     // A newer request starts clean: the previous reaction and outcome are over.
     setReaction(null)
     clearOutcome()
@@ -270,9 +299,15 @@ export const useVoiceStore = defineStore('voice', () => {
     const say = (content, nextOutcome = null) => {
       // A newer delegation, or a closed session, makes this result stale.
       if (latestDelegation !== id || !connection) return
-      setReaction(null)
+      // The reaction stays until the reply is heard (it only outlasts that by a failsafe).
+      if (reaction.value) setReaction(reaction.value)
       setOutcome(nextOutcome)
       sendCommentary(id, content)
+      replyQueued = true
+      if (emergencyPinned.value) {
+        pinHold = pinHoldFor(content)
+        armPinFailsafe(Math.max(EMERGENCY_FAILSAFE_MS, pinHold + PIN_FAILSAFE_MARGIN_MS))
+      }
       status.value = 'listening'
     }
 
@@ -311,6 +346,7 @@ export const useVoiceStore = defineStore('voice', () => {
       if (result.label) {
         lastLabel = result.label
         lastText = result.spoken
+        lastEmergency = result.emergency === true
       }
       if (result.emergency) pinEmergency()
       const failed = result.failed === true || isShortfall(result.spoken)
@@ -383,6 +419,7 @@ export const useVoiceStore = defineStore('voice', () => {
       rendezvousStore,
       safetyStore,
       getLastText: () => lastText,
+      getLastEmergency: () => lastEmergency,
     })
     active = true
     try {
@@ -412,5 +449,12 @@ export const useVoiceStore = defineStore('voice', () => {
     connection.close()
   }
 
-  return { status, error, notice, face, talking, start, stop }
+  // Close an alert in the koala's bubble. A live session keeps running; a failed start returns to idle.
+  function dismissMessage() {
+    error.value = null
+    notice.value = null
+    if (status.value === 'error') status.value = 'idle'
+  }
+
+  return { status, error, notice, face, talking, start, stop, dismissMessage }
 })

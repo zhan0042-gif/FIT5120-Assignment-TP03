@@ -64,12 +64,10 @@ function restore() {
     </button>
 
     <template v-else>
-      <p
-        v-if="bubble.text"
-        class="koala-bubble"
-        :role="bubble.role"
-        :aria-live="bubble.role === 'status' ? 'polite' : undefined"
-      >{{ bubble.text }}</p>
+      <div v-if="bubble.text" :key="bubble.role" class="koala-bubble" :class="bubble.role" :role="bubble.role" :aria-live="bubble.role === 'status' ? 'polite' : undefined">
+        <span>{{ bubble.text }}</span>
+        <button v-if="bubble.role === 'alert'" class="koala-dismiss" type="button" aria-label="Dismiss message" @click="store.dismissMessage()">×</button>
+      </div>
       <div class="koala-row">
         <button
           v-if="!mustStayOpen"
@@ -105,7 +103,8 @@ function restore() {
 .koala-button:disabled { cursor: not-allowed; opacity: 0.7; }
 .koala-chip { background: var(--color-bg-card); border: var(--border-width) solid var(--color-border-strong); border-radius: 50%; box-shadow: var(--shadow-btn-sm); cursor: pointer; height: 2.75rem; padding: 0.15rem; width: 2.75rem; }
 .koala-min { background: var(--color-bg-card); border: var(--border-width) solid var(--color-border-strong); border-radius: 50%; color: var(--color-text); cursor: pointer; font: inherit; font-weight: 700; height: 1.75rem; line-height: 1; padding: 0; width: 1.75rem; }
-.koala-bubble { background: var(--color-bg-card); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius); box-shadow: var(--shadow-btn-sm); color: var(--color-text); font-size: 0.9375rem; font-weight: 600; margin: 0; padding: 0.45rem 0.8rem; }
+.koala-dismiss { background: transparent; border: 0; color: inherit; cursor: pointer; font: inherit; font-weight: 700; line-height: 1; margin-left: 0.5rem; padding: 0 0.15rem; }
+.koala-bubble { align-items: flex-start; display: flex; background: var(--color-bg-card); border: var(--border-width) solid var(--color-border-strong); border-radius: var(--radius); box-shadow: var(--shadow-btn-sm); color: var(--color-text); font-size: 0.9375rem; font-weight: 600; margin: 0; padding: 0.45rem 0.8rem; }
 .koala-bubble[role='alert'] { border-color: var(--color-accent-ink, #166534); font-weight: 700; }
 
 @media (max-width: 640px) {

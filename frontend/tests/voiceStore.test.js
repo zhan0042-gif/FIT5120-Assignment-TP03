@@ -43,6 +43,9 @@ const {
   EMERGENCY_RELEASE_MS,
   OUTCOME_FAILSAFE_MS,
   OUTCOME_HOLD_MS,
+  PIN_FAILSAFE_MARGIN_MS,
+  PIN_HOLD_MAX_MS,
+  PIN_WORD_MS,
   REACTION_MS,
   TALK_HOLD_MS,
   TRANSCRIPT_MAX_WAIT_MS,
@@ -50,6 +53,7 @@ const {
 } = await import(
   '../src/stores/voice.js'
 )
+const { EMERGENCY_MESSAGE } = await import('../src/utils/safetyGuidanceCopy.js')
 const { VOICE_CHECK_FIGURES, VOICE_NOT_UNDERSTOOD, VOICE_UNAVAILABLE } = await import(
   '../src/utils/voiceCopy.js'
 )
@@ -760,7 +764,7 @@ test('a failing decision service, an empty request and a thrown handler all leav
   }
 })
 
-test('a start failure leaves the koala neutral, not smiling', async () => {
+test('a start failure leaves the koala sorry, not smiling', async () => {
   const ctx = setup()
   liveTransport.open = async () => {
     throw new MicrophoneDenied()
@@ -769,7 +773,7 @@ test('a start failure leaves the koala neutral, not smiling', async () => {
   await ctx.store.start({ router: ctx.router })
 
   assert.equal(ctx.store.status, 'error')
-  assert.equal(ctx.store.face, 'neutral')
+  assert.equal(ctx.store.face, 'sorry')
 })
 
 test('a handler that reports a shortfall leaves the koala sorry', async () => {
@@ -798,8 +802,39 @@ test('how the speaker sounds shows on the koala from the moment the decision arr
   assert.equal(ctx.store.face, 'concerned')
   release()
   await flush()
+  // The reply is queued but not yet being said, so the reaction is still showing.
+  assert.equal(ctx.store.face, 'concerned')
+  speak(ctx)
 
   assert.equal(ctx.store.face, 'listening')
+})
+
+test('a reaction still shows when the reply is ready at once, and ends when it starts being spoken', async () => {
+  const ctx = setup()
+  api.decideVoiceAction = async () => ({ action: 'read_weather', confidence: 0.9, emotion: 'worried' })
+  await startSession(ctx)
+
+  say(ctx, "I'm worried, what is the weather")
+  delegate(ctx)
+  await flush()
+  assert.equal(ctx.store.face, 'concerned')
+  speak(ctx)
+
+  assert.equal(ctx.store.face, 'listening')
+})
+
+test('speech before the reply is queued does not end a reaction', async () => {
+  const ctx = setup()
+  api.getLocalContext = () => new Promise(() => {})
+  api.decideVoiceAction = async () => ({ action: 'read_weather', confidence: 0.9, emotion: 'worried' })
+  await startSession(ctx)
+  say(ctx, "I'm worried, what is the weather")
+  delegate(ctx)
+  await flush()
+
+  speak(ctx, 'Let me check that.')
+
+  assert.equal(ctx.store.face, 'concerned')
 })
 
 test('a reaction is dropped after two seconds if the reply is slow', async () => {
@@ -836,23 +871,51 @@ function arrangeEmergency(emotion = 'urgent', confidence = 1) {
   api.askSafetyGuidance = async () => ({ status: 'emergency', entry_ids: [] })
 }
 
+const holdFor = (text) => Math.min(text.trim().split(/\s+/).length * PIN_WORD_MS, PIN_HOLD_MAX_MS)
+
 test('the emergency pin outranks a playful reading', async () => {
   const ctx = setup()
   arrangeEmergency()
   await startSession(ctx)
-
   say(ctx, 'The fire is coming, help me')
   delegate(ctx, 'd1')
   await flush()
   assert.equal(ctx.store.face, 'serious')
 
-  // A later, playful reading cannot lift the pin while the answer is spoken.
+  // A second, playful request while the answer is still being heard cannot lift the pin.
   api.decideVoiceAction = async () => ({ action: 'open_home', confidence: 0.9, emotion: 'playful' })
-  speak(ctx, 'If you are in danger, call 000 now.')
+  say(ctx, 'Haha, take me home')
+  delegate(ctx, 'd2')
+  await flush()
+
   assert.equal(ctx.store.face, 'serious')
 })
 
-test('the pin is released a moment after the emergency answer has been spoken', async () => {
+test('speech before the emergency reply is queued does not start the pin releasing', async () => {
+  const ctx = setup()
+  let releaseGuidance
+  api.decideVoiceAction = async () => ({ action: 'ask_safety_question', confidence: 1, emotion: 'urgent' })
+  api.getSafetyGuidance = () =>
+    new Promise((resolve) => {
+      releaseGuidance = () => resolve({ entries: [], suggested_ids: [], location_conditions_applied: false })
+    })
+  api.askSafetyGuidance = async () => ({ status: 'emergency', entry_ids: [] })
+  await startSession(ctx)
+  say(ctx, 'The fire is coming, help me')
+  delegate(ctx)
+  await flush()
+  assert.equal(ctx.store.face, 'serious')
+
+  speak(ctx, 'Let me check that.')
+  mock.timers.tick(EMERGENCY_RELEASE_MS * 2)
+  assert.equal(ctx.store.face, 'serious')
+
+  releaseGuidance()
+  await flush()
+  assert.equal(ctx.store.face, 'serious')
+})
+
+test('the pin is held for as long as the answer takes to say, even if its text arrives at once', async () => {
   const ctx = setup()
   arrangeEmergency()
   await startSession(ctx)
@@ -860,8 +923,24 @@ test('the pin is released a moment after the emergency answer has been spoken', 
   delegate(ctx)
   await flush()
 
-  speak(ctx, 'If you are in danger, call 000 now.')
-  mock.timers.tick(EMERGENCY_RELEASE_MS - 1)
+  speak(ctx, EMERGENCY_MESSAGE) // all the text at once; the audio takes longer
+  mock.timers.tick(EMERGENCY_RELEASE_MS + 100) // quiet for longer than the usual release
+  assert.equal(ctx.store.face, 'serious')
+  mock.timers.tick(holdFor(EMERGENCY_MESSAGE))
+
+  assert.notEqual(ctx.store.face, 'serious')
+})
+
+test('the pin is released once the answer has been said and the assistant has gone quiet', async () => {
+  const ctx = setup()
+  arrangeEmergency()
+  await startSession(ctx)
+  say(ctx, 'The fire is coming, help me')
+  delegate(ctx)
+  await flush()
+
+  speak(ctx, EMERGENCY_MESSAGE)
+  mock.timers.tick(holdFor(EMERGENCY_MESSAGE) - 1)
   assert.equal(ctx.store.face, 'serious')
   mock.timers.tick(1)
 
@@ -876,10 +955,33 @@ test('the pin is released by the failsafe even if the assistant never speaks', a
   delegate(ctx)
   await flush()
   assert.equal(ctx.store.face, 'serious')
+  const failsafe = Math.max(EMERGENCY_FAILSAFE_MS, holdFor(EMERGENCY_MESSAGE) + PIN_FAILSAFE_MARGIN_MS)
 
-  mock.timers.tick(EMERGENCY_FAILSAFE_MS)
+  mock.timers.tick(failsafe - 1)
+  assert.equal(ctx.store.face, 'serious')
+  mock.timers.tick(1)
 
   assert.notEqual(ctx.store.face, 'serious')
+})
+
+test('saying that again after an emergency is serious again', async () => {
+  const ctx = setup()
+  arrangeEmergency()
+  await startSession(ctx)
+  say(ctx, 'The fire is coming, help me')
+  delegate(ctx, 'd1')
+  await flush()
+  speak(ctx, EMERGENCY_MESSAGE)
+  mock.timers.tick(holdFor(EMERGENCY_MESSAGE) + EMERGENCY_RELEASE_MS)
+  assert.notEqual(ctx.store.face, 'serious')
+
+  api.decideVoiceAction = async () => ({ action: 'repeat_last', confidence: 0.9, emotion: 'calm' })
+  say(ctx, 'Say that again')
+  delegate(ctx, 'd2')
+  await flush()
+
+  assert.equal(ctx.store.face, 'serious')
+  assert.equal(commentary(ctx).at(-1).content, EMERGENCY_MESSAGE)
 })
 
 test('an emergency reply pins the face even when the model read the speaker as calm', async () => {
@@ -955,4 +1057,44 @@ test('a decision without an emotion is treated as calm', async () => {
   await flush()
 
   assert.equal(ctx.store.face, 'listening')
+})
+
+test('dismissing a start error clears it and returns the store to idle', async () => {
+  const ctx = setup()
+  liveTransport.open = async () => {
+    throw new MicrophoneDenied()
+  }
+  await ctx.store.start({ router: ctx.router })
+  assert.equal(ctx.store.status, 'error')
+
+  ctx.store.dismissMessage()
+
+  assert.equal(ctx.store.status, 'idle')
+  assert.equal(ctx.store.error, null)
+  assert.equal(ctx.store.face, 'neutral')
+})
+
+test('dismissing clears the figures notice and leaves a live session running', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+  speak(ctx, 'It is 25 degrees.')
+  mock.timers.tick(NUMBER_CHECK_DELAY_MS)
+  assert.equal(ctx.store.notice, VOICE_CHECK_FIGURES)
+
+  ctx.store.dismissMessage()
+
+  assert.equal(ctx.store.notice, null)
+  assert.equal(ctx.store.status, 'listening')
+})
+
+test('the figures notice does not outlive the session', async () => {
+  const ctx = setup()
+  await startSession(ctx)
+  speak(ctx, 'It is 25 degrees.')
+  mock.timers.tick(NUMBER_CHECK_DELAY_MS)
+  assert.equal(ctx.store.notice, VOICE_CHECK_FIGURES)
+
+  ctx.fake.onClosed(null)
+
+  assert.equal(ctx.store.notice, null)
 })

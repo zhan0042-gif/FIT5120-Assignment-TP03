@@ -44,6 +44,7 @@ export function outcomeFor({ action, failed }) {
 export function conversationFace(status) {
   if (status === 'connecting' || status === 'checking') return 'thinking'
   if (status === 'listening') return 'listening'
+  if (status === 'error') return 'sorry'
   return 'neutral'
 }
 

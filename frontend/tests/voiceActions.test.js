@@ -751,3 +751,14 @@ test('a refused safety question is a failure', async () => {
 
   assert.equal(result.failed, true)
 })
+
+
+test('repeating an emergency read-out carries the emergency flag, and repeating anything else does not', async () => {
+  const emergency = createHandlers(makeDeps({ getLastText: () => 'Call 000 now.', getLastEmergency: () => true }))
+  const ordinary = createHandlers(makeDeps({ getLastText: () => 'It is 21 degrees.', getLastEmergency: () => false }))
+  const untracked = createHandlers(makeDeps({ getLastText: () => 'It is 21 degrees.' }))
+
+  assert.deepEqual(await emergency.repeat_last({}), { spoken: 'Call 000 now.', emergency: true })
+  assert.deepEqual(await ordinary.repeat_last({}), { spoken: 'It is 21 degrees.' })
+  assert.deepEqual(await untracked.repeat_last({}), { spoken: 'It is 21 degrees.' })
+})

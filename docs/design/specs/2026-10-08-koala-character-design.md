@@ -81,15 +81,18 @@ mouth movement; faces still change, with no transition.
 Highest priority first. The first rule that applies wins.
 
 1. **Emergency pin.** From the moment an emergency is detected until its answer has
-   finished being spoken (no output speech for 1.5 s) or the session closes: `serious`.
+   finished being spoken or the session closes: `serious`. The pin is released only after the
+   reply has been handed to the assistant and then heard; it is held for about 0.4 s a word
+   of the reply (up to 20 s), and a failsafe releases it if the assistant never speaks.
+   Asking the assistant to repeat an emergency answer pins it again.
    An emergency is detected when `/live/decide` answers with the emergency
    short-circuit (emotion `urgent`, confidence 1) or when the safety answer is the fixed
    emergency message. The model cannot change this.
 2. **Outcome `sorry`.** While the reply to a request that could not be understood or
    done is being spoken, and for 4 s after it ends or until the person speaks again:
    `sorry`.
-3. **Reaction.** From the moment `/live/decide` returns until the reply starts or 2 s
-   pass, the face for the speaker's emotion (table below).
+3. **Reaction.** From the moment `/live/decide` returns until the reply starts being spoken
+   (10 s failsafe), the face for the speaker's emotion (table below).
 4. **Outcome `ok`.** While a successful reply is being spoken and for 4 s after:
    `happy` if the request was to open a page, scroll or jump to a part of a page;
    otherwise (anything that reads data or gives safety guidance) the conversation
@@ -147,6 +150,8 @@ emergency short-circuit (no model call).
 - A speech bubble beside it shows, in this order of priority: a start error from the
   voice store (as an alert), the figures notice (as an alert), then a short status line
   ("Talk to me", "Connecting…", "Listening…", "Checking…", "Ending voice…").
+- An alert in the bubble has a dismiss control: it clears the error or notice (a failed start
+  returns to idle; a live session keeps running). A failed start shows the `sorry` face.
 - A small minimise control collapses it to a 44 px circular koala head, still pressable
   to restore. The choice is stored under `firebreak.koala-minimized.v1`.
 - The Fire Map and Travel Readiness maps have zoom and attribution controls in their own
