@@ -138,7 +138,7 @@ def test_decide_returns_the_chosen_action_and_passes_the_labels(api) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"action": "read_weather", "confidence": 0.9}
+    assert response.json() == {"action": "read_weather", "confidence": 0.9, "emotion": "calm"}
     assert decider.calls == [("Show me the weather", "overview", "fire history")]
 
 
@@ -183,7 +183,7 @@ def test_decide_answers_an_emergency_without_calling_the_provider(api) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json() == {"action": "ask_safety_question", "confidence": 1.0}
+    assert response.json() == {"action": "ask_safety_question", "confidence": 1.0, "emotion": "calm"}
     assert [call[0] for call in decider.calls] == ["hello"]
 
 

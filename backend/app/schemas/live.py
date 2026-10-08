@@ -8,6 +8,8 @@ MAX_SDP_LENGTH = 65536
 MAX_UTTERANCE_LENGTH = 300
 MAX_LABEL_LENGTH = 40
 
+Emotion = Literal["calm", "worried", "urgent", "frustrated", "playful"]
+
 
 class LiveSessionRequest(BaseModel):
     """The browser's WebRTC offer. Never logged."""
@@ -61,7 +63,9 @@ class DecideRequest(BaseModel):
 
 
 class ActionDecision(BaseModel):
-    """One action from the closed list and how sure the chooser was."""
+    """One action from the closed list, how sure the chooser was, and how the speaker sounded."""
 
     action: str
     confidence: float
+    # Only ever changes the character's face for a moment; never what the app does.
+    emotion: Emotion = "calm"

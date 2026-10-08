@@ -12,7 +12,7 @@ from typing import Final
 
 from pydantic import BaseModel, TypeAdapter
 
-from app.schemas.live import MAX_LABEL_LENGTH, MAX_UTTERANCE_LENGTH, ActionDecision
+from app.schemas.live import MAX_LABEL_LENGTH, MAX_UTTERANCE_LENGTH, ActionDecision, Emotion
 
 NONE_ACTION: Final = "none"
 # Below this the request is treated as not understood and the person is asked to rephrase.
@@ -81,6 +81,19 @@ DECISION_INSTRUCTIONS: Final = (
     "\"open it\" or \"take me there\"), choose 'none'."
 )
 
+EMOTIONS: Final[dict[str, str]] = {
+    "calm": "The speaker sounds neutral. An ordinary request.",
+    "worried": "The speaker sounds anxious, scared or unsure.",
+    "urgent": "The speaker is in a hurry or sounds like they are in danger.",
+    "frustrated": "The speaker sounds annoyed or impatient, including with the assistant.",
+    "playful": "The speaker is joking or being friendly and light-hearted.",
+}
+
+EMOTION_INSTRUCTIONS: Final = (
+    "How does the speaker sound? Choose 'calm' for an ordinary, neutral request, and "
+    "whenever the wording gives no clear sign of a feeling."
+)
+
 _WHITESPACE = re.compile(r"\s+")
 
 
@@ -116,3 +129,17 @@ def normalise(action: object, confidence: object) -> ActionDecision:
     if not isinstance(action, str) or action not in ACTIONS or value < MIN_CONFIDENCE:
         return ActionDecision(action=NONE_ACTION, confidence=value)
     return ActionDecision(action=action, confidence=value)
+
+
+def normalise_emotion(emotion: object, confidence: object) -> Emotion:
+    """Anything outside the list, or below MIN_CONFIDENCE, is `calm`."""
+
+    try:
+        value = float(confidence)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return "calm"
+    if not math.isfinite(value) or value < MIN_CONFIDENCE:
+        return "calm"
+    if isinstance(emotion, str) and emotion in EMOTIONS:
+        return emotion  # type: ignore[return-value]
+    return "calm"
