@@ -331,6 +331,18 @@ export const api = {
       body: JSON.stringify({ question }),
     }),
 
+  createLiveSession: (householdId, sdp) =>
+    request(`/households/${encodeURIComponent(householdId)}/live/sessions`, {
+      method: 'POST',
+      body: JSON.stringify({ sdp }),
+    }),
+
+  decideVoiceAction: (householdId, { utterance, page, lastReadout }) =>
+    request(`/households/${encodeURIComponent(householdId)}/live/decide`, {
+      method: 'POST',
+      body: JSON.stringify({ utterance, page, last_readout: lastReadout }),
+    }),
+
   getTravelDisruptions: (
     householdId,
     radiusKm = 10,

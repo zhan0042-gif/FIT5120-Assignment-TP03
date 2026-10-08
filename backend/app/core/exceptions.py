@@ -33,6 +33,10 @@ class ExternalDataUnavailable(ApplicationError):
     pass
 
 
+class RateLimited(ApplicationError):
+    pass
+
+
 class DatabaseUnavailable(ApplicationError):
     pass
 

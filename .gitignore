@@ -28,3 +28,6 @@ data/raw/
 
 # Large processed Fire History dataset is stored externally
 data/processed/fire_history.parquet
+
+# Local voice debug logs hold spoken transcripts
+backend/logs/

@@ -25,6 +25,17 @@ EMERGENCY_PATTERNS = [
     r"\b000\b",
     r"\bhelp me\b",
     r"\b(?:evacuate|leave|go|get out) now\b",
+    # A fire, flames or smoke reported right now beside the home. "there is" rather than a bare
+    # "a fire" keeps "is there a fire ban near my house" out.
+    r"\bthere(?: is|['’]s| are) (?:an? )?(?:\w+ )?(?:fire|bushfire|grassfire|flames?|smoke)\b"
+    r"(?! (?:ban|danger|rating|restriction|season|plan|drill|warning))"
+    r"[^.?!]{0,30}\b(?:next to|beside|behind|across|over the road|in front of|outside|nearby|near|close to)\b",
+    r"\bfire(?: is| was|['’]s) (?:right )?(?:next to|beside|behind|across|down the|up the|in front of|in my|in our)\b",
+    r"\b(?:fire|bushfire|grassfire) (?:next to|beside|behind|across from|in front of) (?:my|our) (?:house|home)\b",
+    # What the person is seeing or smelling. "I can see", not "can I see", keeps questions out.
+    r"\bI (?:can (?:see|smell)|smell|saw) (?:\w+ )?(?:flames?|smoke|fire)\b(?! (?:danger|rating|ban|map))",
+    r"\bsmoke (?:is |was )?(?:in|inside|filling|coming into) (?:the|my|our) (?:house|home|room)\b",
+    r"\b(?:a |the )?(?:fire|bushfire|grassfire) (?:just )?(?:started|broke out)\b",
 ]
 
 _COMPILED = [re.compile(pattern, re.IGNORECASE) for pattern in EMERGENCY_PATTERNS]

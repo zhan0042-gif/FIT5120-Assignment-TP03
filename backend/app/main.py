@@ -13,6 +13,7 @@ from app.core.exceptions import (
     LocationNotFound,
     PlanNotFound,
     PlanValidationError,
+    RateLimited,
     ScenarioNotApplicable,
     TestResultNotFound,
     UnsupportedScenario,
@@ -77,4 +78,11 @@ async def service_unavailable_handler(
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": str(exc)},
+    )
+
+
+@app.exception_handler(RateLimited)
+async def rate_limited_handler(request: Request, exc: RateLimited) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS, content={"detail": str(exc)}
     )
