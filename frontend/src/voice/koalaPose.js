@@ -11,11 +11,11 @@
 export const MOUTHS = {
   soft: { d: 'M52 79 Q60 85 68 79', fill: 'none' },
   small: { d: 'M55 80 Q60 83 65 80', fill: 'none' },
-  side: { d: 'M53 82 Q60 79 68 83', fill: 'none' },
+  side: { d: 'M54 82 Q62 83 69 79', fill: 'none' },
   wide: { d: 'M47 77 Q60 96 73 77 Z', fill: '#f08a8a' },
   down: { d: 'M51 84 Q60 76 69 84', fill: 'none' },
   flat: { d: 'M51 81 L69 81', fill: 'none' },
-  smallDown: { d: 'M54 84 Q60 79 66 84', fill: 'none' },
+  smallDown: { d: 'M54 83 Q57 80 60 83 Q63 80 66 83', fill: 'none' },
 }
 
 export const POSES = {
