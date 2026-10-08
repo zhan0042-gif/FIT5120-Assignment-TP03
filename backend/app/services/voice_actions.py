@@ -19,15 +19,16 @@ NONE_ACTION: Final = "none"
 MIN_CONFIDENCE: Final = 0.5
 
 ACTIONS: Final[dict[str, str]] = {
-    "open_overview": "Go to the Overview page: plan completion, local bushfire context, weather and fire danger.",
+    "open_overview": "Go to the Overview page, which shows the household plan summary.",
+    "open_safety_insights": "Go to the Safety Insights page: the historical fire danger pattern and the reviewed bushfire safety guidance chat.",
     "open_plan": "Go to My Plan, where the household builds or edits its evacuation plan.",
     "open_fire_map": "Open the fire map page.",
-    "open_scenarios": "Open Test My Plan, where preparedness scenarios and checks are run.",
+    "open_scenarios": "Open Test My Plan, where the meet-up simulation estimates how long until everyone is together.",
     "open_travel_readiness": "Open the Travel Readiness page with road routes to saved destinations.",
     "show_fire_history": "Open and read the historical fire context for the household's verified location.",
-    "read_weather": "Read the current weather observations (temperature, wind and similar).",
+    "read_weather": "Read the current weather observations (temperature, humidity, wind) shown on the Fire Map page.",
     "read_fire_danger": "Read the official Fire Danger Rating for the household's area today.",
-    "read_plan_completion": "Read how complete the household's saved plan is.",
+    "read_plan_completion": "Read how many sections of the household's saved plan are complete.",
     "check_travel_disruptions": "Check current road disruptions near the saved evacuation destinations.",
     "ask_safety_question": "Answer a question about bushfire safety guidance, such as when to leave, what to pack, pets, or staying to defend.",
     "repeat_last": "Repeat the last thing that was read out.",

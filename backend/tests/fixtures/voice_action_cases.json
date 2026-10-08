@@ -387,29 +387,13 @@
     {
       "id": 49,
       "cat": "section",
-      "page": "overview",
-      "last": "none",
-      "text": "Where's the plan completion card?",
-      "expected": "section_plan_completion"
-    },
-    {
-      "id": 50,
-      "cat": "section",
-      "page": "overview",
-      "last": "none",
-      "text": "Go to the preparation status",
-      "expected": "section_preparation_status"
-    },
-    {
-      "id": 51,
-      "cat": "section",
       "page": "fire_history",
       "last": "none",
       "text": "Jump to the current conditions",
       "expected": "section_current_conditions"
     },
     {
-      "id": 52,
+      "id": 50,
       "cat": "section",
       "page": "overview",
       "last": "none",
@@ -417,7 +401,7 @@
       "expected": "section_household_address"
     },
     {
-      "id": 53,
+      "id": 51,
       "cat": "section",
       "page": "fire_history",
       "last": "none",
@@ -425,23 +409,7 @@
       "expected": "section_fire_history"
     },
     {
-      "id": 54,
-      "cat": "section",
-      "page": "scenarios",
-      "last": "none",
-      "text": "Show me the list of scenarios",
-      "expected": "section_scenarios"
-    },
-    {
-      "id": 55,
-      "cat": "section",
-      "page": "scenarios",
-      "last": "none",
-      "text": "Go to the test result",
-      "expected": "section_scenario_results"
-    },
-    {
-      "id": 56,
+      "id": 52,
       "cat": "section",
       "page": "scenarios",
       "last": "none",
@@ -449,7 +417,7 @@
       "expected": "section_rendezvous"
     },
     {
-      "id": 57,
+      "id": 53,
       "cat": "section",
       "page": "overview",
       "last": "none",
@@ -457,7 +425,7 @@
       "expected": "section_travel_map"
     },
     {
-      "id": 58,
+      "id": 54,
       "cat": "section",
       "page": "scenarios",
       "last": "none",
@@ -465,7 +433,7 @@
       "expected": "section_travel_disruptions"
     },
     {
-      "id": 59,
+      "id": 55,
       "cat": "must_refuse",
       "page": "overview",
       "last": "none",
@@ -473,7 +441,7 @@
       "expected": "none"
     },
     {
-      "id": 60,
+      "id": 56,
       "cat": "must_refuse",
       "page": "overview",
       "last": "none",
@@ -481,12 +449,60 @@
       "expected": "none"
     },
     {
-      "id": 61,
+      "id": 57,
       "cat": "must_refuse",
       "page": "overview",
       "last": "none",
       "text": "Go to the admin page",
       "expected": "none"
+    },
+    {
+      "cat": "home",
+      "page": "overview",
+      "last": "none",
+      "text": "Take me to the safety insights page",
+      "expected": "open_safety_insights",
+      "id": 58
+    },
+    {
+      "cat": "home",
+      "page": "overview",
+      "last": "none",
+      "text": "Open safety insights",
+      "expected": "open_safety_insights",
+      "id": 59
+    },
+    {
+      "cat": "section",
+      "page": "safety_insights",
+      "last": "none",
+      "text": "Go to the historical fire danger pattern",
+      "expected": "section_fire_danger_patterns",
+      "id": 60
+    },
+    {
+      "cat": "section",
+      "page": "safety_insights",
+      "last": "none",
+      "text": "Show me the fire danger pattern panel",
+      "expected": "section_fire_danger_patterns",
+      "id": 61
+    },
+    {
+      "cat": "section",
+      "page": "scenarios",
+      "last": "none",
+      "text": "Jump to the meet-up simulation",
+      "expected": "section_rendezvous",
+      "id": 62
+    },
+    {
+      "cat": "paraphrase",
+      "page": "plan",
+      "last": "none",
+      "text": "How many sections of my plan are complete?",
+      "expected": "read_plan_completion",
+      "id": 63
     }
   ]
 }

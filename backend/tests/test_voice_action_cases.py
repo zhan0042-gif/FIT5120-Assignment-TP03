@@ -17,7 +17,7 @@ def test_every_case_expects_an_action_in_the_closed_list() -> None:
 def test_case_ids_are_unique_and_every_case_is_complete() -> None:
     cases = _cases()
 
-    assert len({case["id"] for case in cases}) == len(cases) == 61
+    assert len({case["id"] for case in cases}) == len(cases) == 63
     assert all({"id", "cat", "page", "last", "text", "expected"} <= set(case) for case in cases)
 
 

@@ -14,6 +14,7 @@ from app.services.voice_actions import (
 
 EXPECTED_ACTIONS = {
     "open_overview",
+    "open_safety_insights",
     "open_plan",
     "open_fire_map",
     "open_scenarios",
@@ -31,15 +32,12 @@ EXPECTED_ACTIONS = {
     "scroll_up",
     "scroll_to_top",
     "scroll_to_bottom",
-    "section_plan_completion",
-    "section_preparation_status",
     "section_safety_guidance",
+    "section_fire_danger_patterns",
     "section_plan_summary",
     "section_current_conditions",
     "section_household_address",
     "section_fire_history",
-    "section_scenarios",
-    "section_scenario_results",
     "section_rendezvous",
     "section_travel_map",
     "section_travel_disruptions",
@@ -120,7 +118,7 @@ SECTIONS_FILE = Path(__file__).resolve().parent.parent / "app" / "content" / "vo
 def test_every_section_is_a_closed_list_action_with_its_page_in_the_description() -> None:
     sections = json.loads(SECTIONS_FILE.read_text())
 
-    assert len(sections) == 12
+    assert len(sections) == 9
     assert [section["id"] for section in sections] == [section.id for section in SECTIONS]
     for section in SECTIONS:
         action = f"section_{section.id}"
@@ -143,3 +141,13 @@ def test_none_stays_the_last_action() -> None:
 def test_the_instructions_send_a_request_that_names_nothing_to_none() -> None:
     assert "does not say what to open" in DECISION_INSTRUCTIONS
     assert "'none'" in DECISION_INSTRUCTIONS
+
+
+def test_the_sections_match_what_the_pages_show_today() -> None:
+    by_id = {section.id: section for section in SECTIONS}
+
+    # The safety chat moved to the Safety Insights page; the cards for plan completion,
+    # preparation status and the scenario list were removed from production.
+    assert by_id["safety_guidance"].route == "/safety-insights"
+    assert by_id["fire_danger_patterns"].route == "/safety-insights"
+    assert not {"plan_completion", "preparation_status", "scenarios", "scenario_results"} & set(by_id)
