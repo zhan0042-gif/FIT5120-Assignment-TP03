@@ -204,3 +204,20 @@ export function removeBackupPlace(plan, index) {
   entry.destination = null
   if (!entry.transport_id) backups.splice(index, 1)
 }
+
+export function backupTransportIds(plan) {
+  return (plan.arrangements?.backup_arrangements ?? []).map((entry) => entry.transport_id).filter(Boolean)
+}
+
+// Backup vehicles and backup places share `backup_arrangements` entries. This
+// rewrites only the vehicle side: ids fill the entries in order, and an entry
+// left with neither a vehicle nor a place is dropped.
+export function setBackupTransports(plan, ids) {
+  plan.arrangements ??= {}
+  const list = (plan.arrangements.backup_arrangements ??= [])
+  for (const entry of list) entry.transport_id = null
+  ids.forEach((id, index) => {
+    itemAt(list, index, newBackupArrangement).transport_id = id
+  })
+  plan.arrangements.backup_arrangements = list.filter((entry) => entry.transport_id || entry.destination)
+}

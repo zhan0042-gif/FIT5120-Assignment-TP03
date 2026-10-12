@@ -4,12 +4,14 @@ import { createEmptyHouseholdPlan } from '../src/domain/householdPlan.js'
 import {
   animalAt,
   backupAt,
+  backupTransportIds,
   backupDestination,
   memberAt,
   primaryDestination,
   responsibilityAt,
   selectDestinationAddress,
   selectUsualAddress,
+  setBackupTransports,
   setDestinationAddress,
   setUsualAddress,
   setUsualKind,
@@ -137,4 +139,34 @@ test('setting the same kind again keeps the address already entered', () => {
   assert.equal(member.usual_location.latitude, -37.8)
   setUsualKind(member, 'home')
   assert.equal(member.usual_location.address, '')
+})
+
+test('backup vehicles fill the backup entries in order and are read back', () => {
+  const plan = createEmptyHouseholdPlan()
+  setBackupTransports(plan, ['t_a', 't_b'])
+  assert.deepEqual(backupTransportIds(plan), ['t_a', 't_b'])
+  assert.equal(plan.arrangements.backup_arrangements.length, 2)
+})
+
+test('changing the backup vehicles keeps backup places and drops entries with neither', () => {
+  const plan = createEmptyHouseholdPlan()
+  setBackupTransports(plan, ['t_a', 't_b'])
+  backupDestination(plan, 0).display_name = 'Hall'
+
+  setBackupTransports(plan, [])
+
+  assert.deepEqual(backupTransportIds(plan), [])
+  assert.equal(plan.arrangements.backup_arrangements.length, 1)
+  assert.equal(plan.arrangements.backup_arrangements[0].destination.display_name, 'Hall')
+})
+
+test('backup vehicles do not disturb a place that sits on a later entry', () => {
+  const plan = createEmptyHouseholdPlan()
+  backupDestination(plan, 1).display_name = 'Library'
+
+  setBackupTransports(plan, ['t_a'])
+
+  assert.deepEqual(backupTransportIds(plan), ['t_a'])
+  const names = plan.arrangements.backup_arrangements.map((entry) => entry.destination?.display_name ?? null)
+  assert.ok(names.includes('Library'))
 })
