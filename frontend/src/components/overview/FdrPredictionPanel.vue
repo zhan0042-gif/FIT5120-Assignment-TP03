@@ -40,7 +40,7 @@ async function submitPrediction() {
 </script>
 
 <template>
-  <section class="card fdr-panel">
+  <section class="card fdr-panel" data-voice-section="fire-danger-patterns">
     <div class="panel-header">
       <div>
         <h2>Historical Fire Danger Pattern</h2>

@@ -27,6 +27,21 @@ EMERGENCIES = [
     "flames at the back fence",
     "get out now",
     "I can't breath",
+    "There is a fire next to my house",
+    "there's a fire across the road",
+    "There is a bushfire behind our fence",
+    "There is smoke near my home",
+    "I can see flames from my window",
+    "I can smell smoke in the house",
+    "I smell smoke",
+    "Smoke is filling the house",
+    "smoke in my house",
+    "The fire is in my backyard",
+    "the fire was right behind our shed",
+    "A fire just started near us",
+    "the bushfire broke out down the road",
+    "fire next to my house",
+    "There is a fire  next to my house",
 ]
 
 PLANNING_QUESTIONS = [
@@ -42,6 +57,14 @@ PLANNING_QUESTIONS = [
     "What does a fire danger rating at extreme mean?",
     "We need help planning for my mother",
     "Is it safe to leave early on a catastrophic day?",
+    "Is there a fire ban near my house?",
+    "There is a fire danger rating near my house, what does it mean?",
+    "How do I keep smoke out of my house?",
+    "Can I see fire danger ratings for my area?",
+    "What is a fire break behind my house for?",
+    "How do fires start in summer?",
+    "Where does smoke from a fire in my area go?",
+    "What should I do if there is smoke in the air on a bad day?",
 ]
 
 

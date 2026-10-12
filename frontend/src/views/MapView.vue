@@ -122,7 +122,7 @@ onMounted(async () => {
 
     <div class="conditions-layout">
       <LocalContextCard />
-      <section class="conditions-grid" aria-label="Current conditions">
+      <section class="conditions-grid" aria-label="Current conditions" data-voice-section="current-conditions">
         <article class="card condition-metric"><h2>Temperature</h2><p>{{ temperature }}</p></article>
         <article class="card condition-metric"><h2>Humidity</h2><p>{{ humidity }}</p></article>
         <article class="card condition-metric"><h2>Wind</h2><p>{{ wind }}</p></article>
@@ -130,7 +130,7 @@ onMounted(async () => {
       </section>
     </div>
 
-    <section class="historical-section">
+    <section class="historical-section" data-voice-section="fire-history">
       <p v-if="store.status === 'unverified'" class="state-message">
         Add and verify your household address above to see nearby historical fire records.
       </p>

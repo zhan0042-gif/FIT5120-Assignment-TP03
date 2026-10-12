@@ -8,10 +8,12 @@ from app.core.config import (
 from app.core.database import create_database_engine
 from app.providers.data_spatial import DataSpatialProvider
 from app.providers.interfaces import (
+    ActionDecisionClient,
     AddressClient,
     ExplanationClient,
     FireDangerClient,
     GuidanceRouter,
+    LiveSessionClient,
     RoutingClient,
     RoadRouteClient,
     SpatialProvider,
@@ -87,3 +89,25 @@ _guidance_rate_limit = AskRateLimit()
 
 def get_guidance_rate_limit() -> AskRateLimit:
     return _guidance_rate_limit
+
+
+def get_action_decision_client() -> ActionDecisionClient:
+    return _external_providers.action_decision
+
+
+def get_live_session_client() -> LiveSessionClient:
+    return _external_providers.live_session
+
+
+# Separate from the safety `ask` limiter: a spoken safety question spends one `decide`
+# unit and then one `ask` unit, and starting a session is the expensive call.
+_live_session_rate_limit = AskRateLimit(per_household=3, overall=20)
+_voice_decision_rate_limit = AskRateLimit(per_household=20, overall=120)
+
+
+def get_live_session_rate_limit() -> AskRateLimit:
+    return _live_session_rate_limit
+
+
+def get_voice_decision_rate_limit() -> AskRateLimit:
+    return _voice_decision_rate_limit

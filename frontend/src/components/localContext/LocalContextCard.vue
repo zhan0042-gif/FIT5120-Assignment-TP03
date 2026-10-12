@@ -79,7 +79,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="card address-card">
+  <section class="card address-card" data-voice-section="household-address">
     <div class="card-header">
       <h2 class="card-title">Household address</h2>
       <button v-if="store.location && !editing" class="btn btn-ghost btn-sm" type="button" @click="editing = true">Edit address</button>

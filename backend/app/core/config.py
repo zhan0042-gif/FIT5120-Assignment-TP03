@@ -8,20 +8,24 @@ import os
 from app.providers.bom import BOMWeatherClient
 from app.providers.bom_fire_danger import BOMFireDangerClient
 from app.providers.interfaces import (
+    ActionDecisionClient,
     AddressClient,
     ExplanationClient,
     FireDangerClient,
     GuidanceRouter,
+    LiveSessionClient,
     RoadDisruptionClient,
     RoutingClient,
     RoadRouteClient,
     WeatherClient,
 )
 from app.providers.mock import (
+    MockActionDecisionClient,
     MockAddressClient,
     MockExplanationClient,
     MockFireDangerClient,
     MockGuidanceRouter,
+    MockLiveSessionClient,
     MockRoadDisruptionClient,
     MockRoutingClient,
     MockWeatherClient,
@@ -33,6 +37,14 @@ from app.providers.nvidia_explanation import (
 from app.providers.nvidia_guidance_router import (
     DisabledGuidanceRouter,
     NvidiaGuidanceRouter,
+)
+from app.providers.openai_decisions import (
+    DisabledActionDecisionClient,
+    OpenAIDecisionsClient,
+)
+from app.providers.openai_live import (
+    DisabledLiveSessionClient,
+    OpenAILiveSessionClient,
 )
 from app.providers.road_disruptions import (
     DisabledRoadDisruptionClient,
@@ -53,6 +65,8 @@ class ExternalProviders:
     fire_danger: FireDangerClient
     weather: WeatherClient
     guidance_router: GuidanceRouter
+    action_decision: ActionDecisionClient
+    live_session: LiveSessionClient
 
 
 def data_mode() -> str:
@@ -157,6 +171,32 @@ def _road_disruption_client(
     return DisabledRoadDisruptionClient()
 
 
+def _action_decision_client(
+    api_key: str | None,
+) -> ActionDecisionClient:
+    """Voice is optional; a missing key disables it rather than the app."""
+
+    if api_key and api_key.strip():
+        return OpenAIDecisionsClient(
+            api_key=api_key
+        )
+
+    return DisabledActionDecisionClient()
+
+
+def _live_session_client(
+    api_key: str | None,
+) -> LiveSessionClient:
+    """Voice is optional; a missing key disables it rather than the app."""
+
+    if api_key and api_key.strip():
+        return OpenAILiveSessionClient(
+            api_key=api_key
+        )
+
+    return DisabledLiveSessionClient()
+
+
 def build_external_providers(
     mode: str | None = None,
 ) -> ExternalProviders:
@@ -174,6 +214,8 @@ def build_external_providers(
             fire_danger=MockFireDangerClient(),
             weather=MockWeatherClient(),
             guidance_router=MockGuidanceRouter(),
+            action_decision=MockActionDecisionClient(),
+            live_session=MockLiveSessionClient(),
         )
 
     if selected == "live":
@@ -199,6 +241,16 @@ def build_external_providers(
             guidance_router=_guidance_router(
                 os.getenv(
                     "AI_API_KEY"
+                )
+            ),
+            action_decision=_action_decision_client(
+                os.getenv(
+                    "OPENAI_API_KEY"
+                )
+            ),
+            live_session=_live_session_client(
+                os.getenv(
+                    "OPENAI_API_KEY"
                 )
             ),
         )

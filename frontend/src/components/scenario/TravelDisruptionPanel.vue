@@ -47,7 +47,7 @@ function formatDateTime(value) {
 </script>
 
 <template>
-  <section class="card disruption-panel">
+  <section class="card disruption-panel" data-voice-section="travel-disruptions">
     <div class="panel-heading">
       <h2>Reported disruptions</h2>
 
