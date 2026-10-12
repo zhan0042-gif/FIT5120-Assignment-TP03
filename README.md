@@ -47,6 +47,8 @@ The top navigation is **My Plan | Overview | Safety Insights | Fire Map | Travel
 - **Processed GeoParquet:** reproducible Data processing, ingestion, and validation artifacts; not loaded by Backend runtime.
 - **TomTom Orbis:** address suggestions, verification/geocoding, and reverse lookup. Live mode requires `TOMTOM_API_KEY`.
 - **BOM:** current weather observations and official Fire Danger Rating data.
+- **NVIDIA hosted model:** the rendezvous explanation and the Safety Insights question box. Needs `AI_API_KEY`; without it both features are disabled and the rest of the app runs normally.
+- **OpenAI:** the voice assistant — GPT-Live session creation and the action chooser. Needs `OPENAI_API_KEY` on the same terms; without it voice produces nothing.
 - **Backend-derived:** completion, non-blocking immediate checks, preparation support, scenario evaluation, and cached household-specific static spatial context.
 
 Entered household and destination addresses can be saved without successful verification. Verified addresses may gain canonical fields and official coordinates; unverified ones retain entered text with no fabricated coordinates. A verified household location is required before spatial local context can be resolved.

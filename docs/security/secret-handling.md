@@ -28,6 +28,7 @@ Every production secret has a named owner and a way to revoke it. Record a new k
 | -------------------- | -------------------- | ----------- | --------------- | ---------------------------------- |
 | `TOMTOM_API_KEY` | TomTom (Orbis Places, Routing) | deployment lead | server `.env` | Regenerate in the TomTom dashboard → replace the value in the server `.env` → `docker compose up -d --no-deps backend` → revoke the old key |
 | `AI_API_KEY` | NVIDIA (`build.nvidia.com`) | deployment lead | server `.env` | Create a new key on the NVIDIA account → replace the value → recreate the container as above → revoke the old key |
+| `OPENAI_API_KEY` | OpenAI | AI developer | server .env | Create a new key in the OpenAI dashboard → replace the value → recreate the container as above → revoke the old key |
 | `VIC_ROAD_DISRUPTIONS_API_KEY` | Victorian DTP road disruption feed (Open Data) | deployment lead | server `.env` | Request a new key from the DTP Open Data portal → replace the value → recreate the container as above → revoke the old key |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS IAM user `github-actions-deploy` | deployment lead | GitHub Actions Secrets | Create a new access key → update the repo secret → confirm the next deploy is green → deactivate the old key |
 | `MYSQL_PASSWORD` | RDS `fit5120-db` application user | deployment lead | server `.env` | Rotate, update the server `.env`, recreate the backend container, confirm `/api/health` |
@@ -60,6 +61,7 @@ Source of truth: `.env.example` at the repo root. Marked **sensitive** where the
 | `APP_*` | Runtime adapters and timeouts (data mode, repository mode, spatial mode, cache age, open-data DB timeouts) | no | |
 | `TOMTOM_API_KEY` | TomTom address lookup and routing key | **yes** | required when `APP_DATA_MODE=live`; the app refuses to start live without it |
 | `AI_API_KEY` | NVIDIA hosted-model key for **both** model-backed features: the rendezvous explanation and the Safety Insights question box | **yes** | optional; with no key both features are disabled and the rest of the app runs normally. The two features share one key and therefore one account quota — see the rate-limit note in `threat-model.md` T22 |
+| `OPENAI_API_KEY` | OpenAI key for the voice assistant — GPT-Live session creation and the Decisions `choice` call | **yes** | optional; with no key `_live_session_client` and `_action_decision_client` return disabled clients, so the app starts normally and voice simply produces nothing. A **separate account and quota** from `AI_API_KEY` |
 | `VIC_ROAD_DISRUPTIONS_API_KEY` | Victorian road disruption feed key, sent as a `KeyID` header | **yes** | optional; with no key the provider is replaced by a disabled client, so the app starts normally and the road disruption feature reports "information unavailable" |
 
 **When you add a future key**, add it to `.env.example` with a placeholder in the same commit, and add a row to the ownership table above.
