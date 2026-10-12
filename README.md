@@ -1,6 +1,16 @@
-# FIREBREAK — Iteration 1
+# FIREBREAK
 
 FIREBREAK is a household bushfire-preparedness application. It lets a browser-owned household build and save a plan, review its completeness and local context, receive rule-based preparation guidance, and run deterministic checks against its latest saved plan.
+
+## Deployed environments
+
+| URL | Build |
+| -------------------------- | ------------------------------------------------ |
+| https://cubesix.me | Current build (Iteration 3) |
+| https://cubesix.me/i1/ | Iteration 1, frozen at commit `c194404` |
+| https://cubesix.me/i2/ | Iteration 2, frozen at commit `10fda1a` |
+
+The archives are static builds served from their own path prefixes on the same host, so a completed iteration stays viewable exactly as it was assessed while later work continues on the main site. Each carries its own asset base and router base, and each adds one `location` block to the host nginx config — see [nginx/README.md](nginx/README.md). All three paths sit behind the same shared-password gate.
 
 ## Architecture
 
@@ -12,18 +22,23 @@ Vue 3 + Vite frontend
   -> providers                -> TomTom Orbis, BOM, MySQL spatial Open Data
 ```
 
-The frontend handles interaction and presentation. FastAPI routes are the HTTP boundary; schemas define request/response structure; services own business rules; repositories persist application data; and providers obtain official or spatial information. Scenario and preparation-support logic is transparent, rule-based I1 logic, not AI or fire prediction.
+The frontend handles interaction and presentation. FastAPI routes are the HTTP boundary; schemas define request/response structure; services own business rules; repositories persist application data; and providers obtain official or spatial information. Preparedness checks, preparation support and prioritisation remain transparent, rule-based logic. Two Safety Insights features are model-backed: the historical fire-danger pattern prediction runs a model bundled with the backend, given only a district and a date, and the safety question box sends the typed question to a hosted model that returns **ids only** — every word a user reads comes from the reviewed answer catalogue, never from the model.
 
 ## Application pages
 
 | Route | Purpose |
 |---|---|
 | `/` | Welcome/entry page. A new browser starts a plan; a browser with a locally retained household ID can continue editing or view its overview. |
-| `/plan` | Build and edit household members, animals, transport/drivers, one primary arrangement, zero-to-many ordered backups, responsibilities, meeting point, and immediate plan checks. The Save Plan section is normal page flow at the bottom. |
-| `/overview` | Review derived plan completion, preparation status, household address, local bushfire context, current weather and Fire Danger information, and historical-fire context where available. |
-| `/scenarios` | Run deterministic preparedness scenario tests against the latest saved plan. |
+| `/plan` | Build and edit the plan one question at a time: household members and where they are by day, transport and backup transport, primary and backup destinations, and who does what. Each section closes with a recap, and the flow ends on a review screen. |
+| `/overview` | Read the saved plan back as a summary: household members and their daytime locations, key locations, and responsibilities. The same page exports the plan as a PDF and shares it through the device share sheet. |
+| `/safety-insights` | Explore historical fire-danger patterns for a Victorian district and date, and ask a bushfire-safety question against a catalogue of reviewed answers. |
+| `/map` | Historical fire map for the household location, with season, area and distance context for nearby recorded fires, alongside the local context card (temperature, humidity, wind and Fire Danger rating). |
+| `/travel-readiness` | Check current road disruptions near each saved evacuation destination, and rank the household's known preparedness issues into a single priority action. |
+| `/scenarios` | Run the meet-up (rendezvous) simulation against the latest saved plan. |
 
-The top navigation is **My Plan | Overview | Test My Plan**. I1 has no login or account system: `firebreak.household-id.v1` is a browser-side identifier, while saved plans and results remain in the backend database.
+`/summary` and `/review` are retained as redirects to `/overview`.
+
+The top navigation is **My Plan | Overview | Safety Insights | Fire Map | Travel Readiness | Test My Plan**. There is no login or account system: `firebreak.household-id.v1` is a browser-side identifier, while saved plans and results remain in the backend database. Site access itself is gated by a shared password at the reverse proxy (see [docs/security](docs/security/README.md)).
 
 ## Data boundaries
 

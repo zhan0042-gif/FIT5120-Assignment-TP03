@@ -1,7 +1,7 @@
-# Security & Privacy Requirements (I1–I2)
+# Security & Privacy Requirements (I1–I3)
 
-**Project:** Shielding Crisis & Community Resilience (SDG 1 & 2) — I1 "Build & Check My Preparedness" and I2 (rendezvous simulation, AI explanation, fire map).
-**Owner:** Cybersecurity & Deployment Lead. **Status:** I1–I2, updated 2026-09-14 after the I2 API contract change.
+**Project:** Shielding Crisis & Community Resilience (SDG 1 & 2) — I1 "Build & Check My Preparedness", I2 (rendezvous simulation, AI explanation, fire map) and I3 (travel disruption awareness, personalised preparedness prioritisation).
+**Owner:** Cybersecurity & Deployment Lead. **Status:** I1–I3, updated 2026-10-06 after the I3 API contract change.
 
 ## 1. Purpose
 
@@ -23,6 +23,7 @@ The app handles household preparedness data. Combined, these fields can reveal a
 | Responsibilities / household arrangements | Frontend form | Med | Who does what in a household |
 | Rendezvous simulation result | Derived server-side from the plan above | Med–High | Reveals where each member is and when they would arrive at the evacuation destination. Derived data inherits the sensitivity of its inputs: never in logs, never in the repo |
 | Written plan (PDF export) | Generated from the plan | High | Aggregates home address, destinations, member names and support needs into one document; generated on request and never stored server-side |
+| Road disruption lookup result | Derived server-side from the plan's destinations | Low | Public road disruption data filtered to a radius around a destination. Reveals a destination only inside our own infrastructure — nothing about the household is sent outbound (see §5) |
 
 **Note on device-shared coordinates.** Collected only after the user presses the button and grants permission, and the user can always type an address instead. This is **not** continuous tracking: there is no background or periodic position reporting, and no history of positions is kept.
 
@@ -51,13 +52,32 @@ The app handles household preparedness data. Combined, these fields can reveal a
 | CFA Fire Danger Rating feed | Fire danger rating by district | Low |
 | BOM weather feed | Weather context | Low |
 | BPA / Fire District open data (DS layer) | Spatial lookup | Low |
-| NVIDIA hosted model API (`integrate.api.nvidia.com`) | A summary derived from the household's plan — see the note below | High in combination |
+| Victorian road disruption feed (DTP Open Data) | **Nothing about the household** — pagination only (`page`, `limit`) plus the key in a `KeyID` header | None — see the note below |
+| NVIDIA hosted model API (`integrate.api.nvidia.com`) — rendezvous explanation | A summary derived from the household's plan — see the note below | High in combination |
+| NVIDIA hosted model API (`integrate.api.nvidia.com`) — safety question routing | The user's typed question, plus our own reviewed answer catalogue — see the note below | **Unbounded** — user-authored free text |
 
-**Note on the NVIDIA boundary.** Data sent: each member's display_name, origin kind (home / work / school / other), travel and waiting minutes, and the plan's own warning strings. **No address text and no coordinates are sent.** A member's name together with a support-needs warning identifies an individual's vulnerability, so this boundary carries High-sensitivity data in combination; it is tracked as T13 in the threat model, and anonymising the name before sending remains an open decision.
+**Note on the NVIDIA explanation boundary.** Data sent: each member's display_name, origin kind (home / work / school / other), travel and waiting minutes, and the plan's own warning strings. **No address text and no coordinates are sent.** A member's name together with a support-needs warning identifies an individual's vulnerability, so this boundary carries High-sensitivity data in combination; it is tracked as T13 in the threat model, and anonymising the name before sending remains an open decision.
+
+**Note on the NVIDIA question-routing boundary.** This is the only boundary whose payload is written by a user, so its sensitivity cannot be bounded in advance: a household can type anything into the question box, including a name or an address. What is sent is the typed question together with **our own** reviewed answer catalogue (each entry's id, question and alternative phrasings); **no household record is attached** — not `household_id`, not the saved plan, not any address or coordinate the plan holds. Controls on the boundary, all in `backend/app/providers/nvidia_guidance_router.py` and `backend/app/services/safety_guidance_ask.py`:
+
+- **The model returns ids and nothing else.** Every id is checked against the reviewed catalogue before use, and no text the model writes is ever shown to a user or stored. A model that is jailbroken, confused or replaced cannot put words in front of a household.
+- **The question cannot escape its delimiters.** `<` and `>` are replaced before the prompt is built, so the typed text cannot close the `<question>` block, and the system prompt states that the block is untrusted and any instruction inside it must be ignored.
+- **The question is length-capped** at 300 characters (`MAX_QUESTION_LENGTH`), so a household cannot paste a document into a field that is transmitted to a provider.
+- **Emergency wording never reaches the model.** It is recognised deterministically first, so a distress message is answered by our own route rather than routed.
+- **The question is never logged.** A rejection message names the reason, not the text.
+- **The endpoint is rate-limited** (`AskRateLimit`), which bounds how much user text can be pushed to the provider per window.
+
+This boundary is tracked as T22 in the threat model. It is recorded here because a boundary whose payload the user controls is the one place a privacy review cannot reason from a fixed field list.
+
+**Note on the road disruption boundary.** This is the one external boundary that receives **no household data at all**. `backend/app/providers/road_disruptions.py` fetches the public feed page by page (a `page` and a `limit` parameter, nothing more) and filters it **locally**: each record's coordinates are compared against the destination and dropped when the distance exceeds the configured radius. Destination coordinates therefore never leave our infrastructure for this feature, and no address text or household identifier is involved.
+
+An earlier draft of the threat model and of the Security Plan stated the opposite, that destination coordinates were transmitted to this service. The code does not do that; the error is corrected in the threat model (T18). It is recorded here because "what we do not send" is the part of a boundary that is easiest to get wrong and hardest to notice.
+
+This boundary is the standard the others are measured against under §3 rule 5: an external service receives the smallest payload that produces the result, and never an identifier it does not use.
 
 Rule: external live data is never merged with or stored alongside household PII without a clear purpose.
 
-**Deliberate exception:** the rendezvous explanation sends the summary above to NVIDIA for the sole purpose of producing the user-requested explanation text. There is no other purpose, no data is retained on our side, and the response is discarded if it fails the gates. Any new field added to that payload must be justified here first.
+**Deliberate exceptions:** two flows send data to NVIDIA, and both do so for the sole purpose of producing the response the household asked for. The rendezvous explanation sends the plan summary; the safety question box sends the typed question. Neither has a second purpose, neither retains anything on our side, and a response that fails its gate is discarded rather than stored or shown. Both are listed above so that the exception is a recorded decision rather than an omission — and any new field added to either payload must be justified here first.
 
 ## 6. Requirements for the team
 
