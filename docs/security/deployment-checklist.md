@@ -2,7 +2,7 @@
 
 **Purpose:** the security gate before any release. Work through every item, then sign off in the "Final sign-off" section.
 
-> Status as of **2026-09-14**: deployment is live (https://cubesix.me). `[x]` = verified done (evidence in parentheses); items left unchecked are either pending verification or deliberately deferred — reasons are noted inline next to the item.
+> Status as of **2026-10-07**: deployment is live (https://cubesix.me), with the completed Iteration 1 and Iteration 2 builds archived at https://cubesix.me/i1/ and https://cubesix.me/i2/. `[x]` = verified done (evidence in parentheses); items left unchecked are either pending verification or deliberately deferred — reasons are noted inline next to the item.
 
 ## 1. Transport security
 
@@ -13,7 +13,7 @@
 
 ## 2. Access control
 
-- [x] **Auth model (DECIDED):** shared-password site gate — Nginx basic auth on `/` and `/api` — implemented; no per-user login (see threat-model T1/T2)
+- [x] **Auth model (DECIDED):** shared-password site gate — Nginx basic auth on `/` and `/api` — implemented; no per-user login (see threat-model T1/T2). The gate is declared at **server** level, so the archive locations `/i1/` and `/i2/` inherit it without repeating the directive (see threat-model T21)
 - [x] Default passwords changed; credentials not shared in chat or repo — site gate password lives only in `/etc/nginx/.htpasswd` on the server
 - [x] Database uses a **non-root** app account — app connects as `fit5120_app` (**note:** currently `ALL PRIVILEGES`, over-privileged — F8 in the vulnerability assessment report; least-privilege grants planned, R6)
 
@@ -23,7 +23,7 @@
 - [x] `.env` not present on the server in world-readable form (`chmod 600`)
 - [x] Production secrets in AWS Secrets Manager (or equivalent), not hard-coded — **not used**: `.env` on the server remains the accepted arrangement (see deployment-plan §4); revisit if the project outlives the course
 - [x] GitHub Actions secrets set, not written in workflow files — `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` stored as repo secrets
-- [x] Every production key present on the server and **owned** — `TOMTOM_API_KEY` and `AI_API_KEY` are set in the server `.env` and recorded with an owner and a rotation path in `secret-handling.md`. Verify presence without printing the value: `docker compose exec -T backend printenv AI_API_KEY | wc -c` (prints a length, never the key)
+- [x] Every production key present on the server and **owned** — `TOMTOM_API_KEY`, `AI_API_KEY` and `VIC_ROAD_DISRUPTIONS_API_KEY` are set in the server `.env` and recorded with an owner and a rotation path in `secret-handling.md`. Verify presence without printing the value: `docker compose exec -T backend printenv AI_API_KEY | wc -c` (prints a length, never the key). Note the same trap in reverse: a **blank** key selects a disabled client rather than raising, so a present-but-empty variable passes a presence check while silently disabling the feature
 - [ ] Dedicated migration credentials configured — `MIGRATION_DB_USER` and `MIGRATION_DB_PASSWORD` belong only to the disposable migration service; Backend continues to receive only `MYSQL_USER` and `MYSQL_PASSWORD`
 - [x] Secrets written with an editor, never as a command-line argument — an SSM `send-command` command string is recorded in full, so the value must go in through `sudo nano`, not `export` or an inline argument
 
@@ -32,15 +32,18 @@
 - [x] `debug = false` / no stack traces in production error responses (threat-model T8) — uvicorn started without `--reload`/debug; all exceptions translated to sanitized `{"detail": ...}` JSON in `backend/app/main.py`
 - [x] CORS restricted to the actual frontend origin(s) — CORS middleware is **not enabled** → same-origin only (cross-origin blocked); frontend and `/api` are served same-origin by Nginx
 - [x] Input length/type validation on all endpoints; error messages sanitized — pydantic request schemas validate input; custom exception handlers emit sanitized messages
-- [x] External API calls (TomTom Orbis / TomTom Routing / CFA / BOM) have timeouts and graceful failure (T7) — TomTom autocomplete/reverse lookup use a 4s deadline and geocoding uses a 10s deadline; BOM uses 15s and CFA 10s; failures map to 503 via `ExternalDataUnavailable`
+- [x] External API calls (TomTom Orbis / TomTom Routing / CFA / BOM / road disruption feed) have timeouts and graceful failure (T7) — TomTom autocomplete/reverse lookup use a 4s deadline and geocoding uses a 10s deadline; BOM uses 15s, CFA 10s, and the road disruption client 8s; failures map to 503 via `ExternalDataUnavailable`, except the road disruption feed, whose failure surfaces as the "information unavailable" state instead (T19)
 - [ ] Every input that fans out into paid upstream calls is bounded (T12) — **open**: `backup_arrangements` has no `max_items` and `Destination.address` has no `max_length`, so one plan-save request can drive an unbounded number of TomTom verification calls
 - [x] Optional third-party features fail closed, not open (T13) — the AI explanation has no key path that raises at import: a missing or blank `AI_API_KEY` selects a disabled client, so the app starts normally and only that button produces nothing
-- [x] Every outbound service appears in `privacy-requirements.md` §5 with the data it receives — TomTom Places, TomTom Routing, CFA, BOM, BPA open data, NVIDIA
+- [ ] **Every endpoint that spends the shared hosted quota is rate-limited** — **open**: the two model-backed endpoints draw on one `AI_API_KEY` and therefore one account quota, but only `/safety-guidance/ask` carries a limit (`AskRateLimit`, 6 per household / 30 overall per 60 s). `/rendezvous-explanation` has none — eight sequential calls all reached the model (penetration test report, Test 11; threat-model T10)
+- [x] Every outbound service appears in `privacy-requirements.md` §5 with the data it receives — TomTom Places, TomTom Routing, CFA, BOM, BPA open data, NVIDIA, and the Victorian road disruption feed. The last of these is the one boundary that receives **no household data at all**: the request carries pagination and the key only, and the destination coordinates are used locally to filter the response (T18). Verified in `backend/app/providers/road_disruptions.py` `_fetch_all()` on 2026-10-06
 
 ## 5. Security headers / reverse proxy
 
 - [x] Reverse proxy config reviewed before it is used in production — config reviewed and `nginx -t` passed before reload
 - [x] Security Groups / firewall: only 80/443 exposed; management via SSM Session Manager (**no port 22**) — backend container port tightened to `127.0.0.1:8000` (2026-09-02) so it is not reachable on the public interface even if a group rule is later widened
+- [x] Archived iteration builds are behind the gate — `/i1/` and `/i2/` are static directories under `/var/www/html` served by `location` blocks in `/etc/nginx/sites-enabled/default`. `auth_basic` and `auth_basic_user_file` are set at **server** level and location blocks inherit server-level directives, so both archive paths carry the gate without repeating it (T21). Each block has its own `try_files $uri $uri/ /iN/index.html`, so a deep link such as `/i1/plan` resolves inside the archive instead of falling through to the main site's `index.html`
+- [x] Unauthenticated request to each archive path returns 401 — **verified 2026-10-07**: `curl -s -o /dev/null -w '%{http_code}'` against `https://cubesix.me/`, `https://cubesix.me/i1/` and `https://cubesix.me/i2/` returned `401`, `401` and `401` with no credentials supplied. The gate is inherited from the server-level configuration as recorded in the item above (T21); the penetration test report's Test 2 asserts the gate for all traffic but does not name either archive path, so the per-path probe is recorded here
 
 ## 6. Data
 

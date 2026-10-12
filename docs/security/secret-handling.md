@@ -17,7 +17,7 @@
    ```
    This ensures only the owner can read it.
 5. **CI/CD secrets go in GitHub Actions Secrets**, not in the repo. Anyone with collaborator access can see workflow definitions — never embed a secret there. (Repo Settings → Security → Secrets and variables.)
-6. **Production secrets live in the server's `.env`** (`chmod 600`, never committed) — the accepted arrangement for I1–I2 (see deployment-plan §4). CI credentials live in GitHub Actions Secrets. Moving to AWS Secrets Manager is a planned future improvement; secrets are never baked into images or the repo.
+6. **Production secrets live in the server's `.env`** (`chmod 600`, never committed) — the accepted arrangement for I1–I3 (see deployment-plan §4). CI credentials live in GitHub Actions Secrets. Moving to AWS Secrets Manager is a planned future improvement; secrets are never baked into images or the repo.
 7. **Write secrets into `.env` with an editor, not on a command line.** `sudo nano .env` keeps the value out of shell history and out of the AWS SSM command log, which records every command it runs. The value must be unquoted with no leading or trailing space, or it is read literally, spaces included.
 
 ## Key ownership and rotation
@@ -28,6 +28,7 @@ Every production secret has a named owner and a way to revoke it. Record a new k
 | -------------------- | -------------------- | ----------- | --------------- | ---------------------------------- |
 | `TOMTOM_API_KEY` | TomTom (Orbis Places, Routing) | deployment lead | server `.env` | Regenerate in the TomTom dashboard → replace the value in the server `.env` → `docker compose up -d --no-deps backend` → revoke the old key |
 | `AI_API_KEY` | NVIDIA (`build.nvidia.com`) | deployment lead | server `.env` | Create a new key on the NVIDIA account → replace the value → recreate the container as above → revoke the old key |
+| `VIC_ROAD_DISRUPTIONS_API_KEY` | Victorian DTP road disruption feed (Open Data) | deployment lead | server `.env` | Request a new key from the DTP Open Data portal → replace the value → recreate the container as above → revoke the old key |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | AWS IAM user `github-actions-deploy` | deployment lead | GitHub Actions Secrets | Create a new access key → update the repo secret → confirm the next deploy is green → deactivate the old key |
 | `MYSQL_PASSWORD` | RDS `fit5120-db` application user | deployment lead | server `.env` | Rotate, update the server `.env`, recreate the backend container, confirm `/api/health` |
 | RDS master password (`admin`) | RDS `fit5120-db` | deployment lead | **not held – reset on demand via the RDS console** | **Rotation still due** – see deployment-plan §8 |
@@ -58,7 +59,8 @@ Source of truth: `.env.example` at the repo root. Marked **sensitive** where the
 | `MYSQL_EXPOSED_PORT` | Exposed DB port | no | |
 | `APP_*` | Runtime adapters and timeouts (data mode, repository mode, spatial mode, cache age, open-data DB timeouts) | no | |
 | `TOMTOM_API_KEY` | TomTom address lookup and routing key | **yes** | required when `APP_DATA_MODE=live`; the app refuses to start live without it |
-| `AI_API_KEY` | NVIDIA hosted-model key for the rendezvous explanation | **yes** | optional; with no key the feature is disabled and the rest of the app runs normally |
+| `AI_API_KEY` | NVIDIA hosted-model key for **both** model-backed features: the rendezvous explanation and the Safety Insights question box | **yes** | optional; with no key both features are disabled and the rest of the app runs normally. The two features share one key and therefore one account quota — see the rate-limit note in `threat-model.md` T22 |
+| `VIC_ROAD_DISRUPTIONS_API_KEY` | Victorian road disruption feed key, sent as a `KeyID` header | **yes** | optional; with no key the provider is replaced by a disabled client, so the app starts normally and the road disruption feature reports "information unavailable" |
 
 **When you add a future key**, add it to `.env.example` with a placeholder in the same commit, and add a row to the ownership table above.
 

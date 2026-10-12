@@ -1,6 +1,6 @@
-# Deployment Plan (I1–I2)
+# Deployment Plan (I1–I3)
 
-**Project:** Shielding Crisis & Community Resilience — I1–I2.
+**Project:** Shielding Crisis & Community Resilience — I1–I3.
 **Owner:** Cybersecurity & Deployment Lead. **Status: IMPLEMENTED — live since 2026-09-02** (https://cubesix.me); deploy path rewritten 2026-09-13. This document describes the deployed system and the CI/CD path that keeps it updated.
 
 ## 1. Architecture (live)
@@ -12,7 +12,9 @@ Architecture (read top to bottom):
 1. Internet clients reach the site over HTTPS (ports 80/443).
 2. Nginx terminates HTTPS, enforces the shared-password auth gate, and:
 
-   - `/`    serves the Vue frontend (static files)
+   - `/`    serves the current Vue frontend (static files) from `/var/www/html`
+   - `/i1/` serves the frozen Iteration 1 build from `/var/www/html/i1`
+   - `/i2/` serves the frozen Iteration 2 build from `/var/www/html/i2`
    - `/api` proxies to the backend container
 3. Backend (FastAPI / uvicorn) runs in Docker, listening on `127.0.0.1:8000`.
 4. Backend reads/writes RDS (MySQL 8.4, managed), reachable only from the
@@ -34,7 +36,7 @@ Key points:
 | **Backend** | `backend/Dockerfile` (python:3.12-slim, uvicorn on :8000), run as a container via Docker Compose; health check at `/api/health` |
 | **MySQL / RDS** | **Reusing the existing `fit5120-db`** (db.t4g.micro, MySQL 8.4). Production `DATABASE_HOST` points at the RDS endpoint; the `mysql:8.4` service in `docker-compose.yml` is local dev only. Legacy migrations through 008 were applied manually; migrations 009+ and one-time data jobs are automatic and run before Backend activation. |
 | **Frontend** | Vue 3 + Vite. Production build (`npm run build`) output is copied to `/var/www/html/` |
-| **Nginx** | Production config at `/etc/nginx/sites-enabled/default`: `server_name cubesix.me www.cubesix.me`; `location /` serves the static frontend, `location /api/` proxies to `127.0.0.1:8000`; **shared-password basic auth gate** covering `/` and `/api` (see §7 auth) |
+| **Nginx** | Production config at `/etc/nginx/sites-enabled/default`: `server_name cubesix.me www.cubesix.me`; `location /` serves the current frontend, `location /i1/` and `location /i2/` serve the archived builds, `location /api/` proxies to `127.0.0.1:8000`; **shared-password basic auth gate** (see §7 auth). The gate is set at server level so every location inherits it. Each location carries its own `try_files` fallback, which is what keeps a deep link inside the right build |
 | **HTTPS** | Let's Encrypt via certbot on `cubesix.me` — temporary domain; auto-renewal active |
 
 ## 3. Networking & security groups
@@ -121,11 +123,12 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 - **Dependabot** reports 1 high + 1 moderate vulnerability on `main` (as of 2026-09-02) — to be triaged in the repo Security tab.
 - **Branch protection / rulesets on `main` are not configured.** The repo currently allows direct pushes and force-pushes — the workflow violation that broke the deploy on 2026-09-08. This one needs the repo owner.
 - **Input bounds (threat-model T12):** `backup_arrangements` needs `max_items` and `Destination.address` needs `max_length`, so that one request cannot fan out into an unbounded number of paid upstream calls.
-- **The Nginx site config is still not version-controlled** (the repo's `nginx/` holds only a README) and `nginx/**` is not in `deploy.yml`'s `paths:`, so every Nginx change is made by hand on the server — including the SPA `try_files $uri $uri/ /index.html` needed for deep links such as `/map` to survive a hard refresh.
+- **The Nginx site config is still not version-controlled** and `nginx/**` is not in `deploy.yml`'s `paths:`, so every Nginx change is made by hand on the server. `nginx/README.md` now records what the file contains and why, but the file itself lives only on the host — the archive location blocks added 2026-10-06 are hand-applied for the same reason. As a minimum this needs a backup outside the instance (`/tmp` is not a backup), and ideally the config moves into the repo as a template.
 - **CI action versions** need a bump (`actions/checkout@v4`, `actions/setup-python@v5`) — Node 20 deprecation warnings appear in the run log. Do it as its own PR, because `deploy.yml` is inside the deploy `paths:` list and editing it triggers a production deploy.
 - **RDS admin password rotation** was deferred during I1 and is now due — see `secret-handling.md`.
-- **Deployment checklist** still has open items (T12 input bounds, Dependabot triage); work through them before the next release sign-off.
-- Request rate-limiting at the reverse proxy is deferred (noted in `deployment-checklist.md` / `threat-model.md`). HSTS was added on 2026-09-02 (verified via `curl -I`).
+- **`follow_redirects=False` on the two keyed clients** (threat-model T6) — `tomtom.py` and `road_disruptions.py` both send the API key in a custom header on a client that follows redirects, so a 302 to another host would replay it. httpx strips only `Authorization`.
+- **Deployment checklist** still has open items (T12 input bounds, Dependabot triage, the T21 probes); work through them before the next release sign-off.
+- Request rate-limiting at the reverse proxy is deferred (noted in `deployment-checklist.md` / `threat-model.md`). In the meantime the only limit on the deployed surface is the in-process one on the typed-question endpoint; the rendezvous explanation draws on the same hosted quota with no limit at all (threat-model T10, found by Test 11 of the 2026-10-05 penetration test). HSTS was added on 2026-09-02 (verified via `curl -I`).
 
 ## 9. References
 
