@@ -97,7 +97,8 @@ notice points back to screen 1.
 
 ## Rules (carried over unchanged)
 
-- "Other" for a relationship, animal kind, vehicle type or job needs a description.
+- An animal kind, vehicle type or job described as "Something else" needs a description. A
+  relationship of "Other" keeps an optional description, as today.
 - A job's main and backup person must differ; choosing the same person as the main person
   clears the backup person.
 - Removing a person removes them from every driver list and job.
@@ -113,8 +114,9 @@ notice points back to screen 1.
 
 ## Saving and validation
 
-- **Save and continue** first drops any card the person added but never touched (an empty
-  person, animal, vehicle, place or job), then validates, then saves, then goes to the next
+- **Save and continue** first drops any person, job, destination or backup-place card that was
+  opened but never filled in (animal and vehicle cards hold default values and count as
+  filled; use Remove), trims typed names, then validates, then saves, then goes to the next
   screen. If the person arrived from Review, it returns to Review instead.
 - Validation only blocks the rules above (a missing description for "Other", an invalid
   animal quantity, a backup person equal to the main person). Each message appears next to
@@ -197,7 +199,8 @@ These are the cases most likely to be wrong, each to be pinned by a test:
 2. A backup place and a backup vehicle on the same entry are not lost when either side is
    edited or removed.
 3. Removing a person who is a driver or a job's main or backup person leaves no dangling id.
-4. A card left blank is not saved as an empty person, animal, vehicle, place or job.
+4. A person, job, destination or backup-place card left blank is not saved as an empty
+   record, and opening a screen is not an unsaved change.
 5. Editing from Review changes one field and saves without discarding other unsaved answers.
 
 ## Out of scope
