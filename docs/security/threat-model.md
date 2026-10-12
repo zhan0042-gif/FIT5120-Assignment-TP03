@@ -1,7 +1,7 @@
 # Threat Model / Risk List (I1–I3)
 
 **Project:** Shielding Crisis & Community Resilience — I1–I3. **Scope:** FE↔BE API, external live sources (address, routing, road disruption, AI), database, location data, the archive environment, and the CI/CD deploy path.
-**Status:** T1–T10 retained from I1; T11–T13 added 2026-09-14 in the I2 review; T14–T21 added in the I3 review; T22 added 2026-10-07, when the Safety Insights question box became a new external data boundary. Numbering is append-only — `deployment-checklist.md` and the vulnerability assessment report reference these IDs, so existing numbers are never re-used or re-ordered.
+**Status:** T1–T10 retained from I1; T11–T13 added 2026-09-14 in the I2 review; T14–T21 added in the I3 review; T22 added 2026-10-07, when the Safety Insights question box became a new external data boundary; T23 added 2026-10-12, when the voice assistant made OpenAI a second AI boundary. Numbering is append-only — `deployment-checklist.md` and the vulnerability assessment report reference these IDs, so existing numbers are never re-used or re-ordered.
 
 ## 1. Attack surface
 
@@ -15,6 +15,7 @@ Attack surface (read top to bottom):
    - DS / spatial layer: BPA lookup, fire district lookup, historical fire points
    - External live sources: TomTom Orbis Places (address lookup), TomTom Routing (travel time), CFA FDR, BOM weather, the Victorian road disruption feed (DTP Open Data)
    - External AI provider: NVIDIA (`integrate.api.nvidia.com`) — rendezvous explanation (**new in I2**)
+   - External AI provider: OpenAI (`api.openai.com`) — voice assistant: GPT-Live session creation and the Decisions action chooser (**new in I3**)
 
 4. The CI/CD path also reaches production: GitHub Actions → AWS SSM → `scripts/deploy.sh` on the EC2 host.
 5. The archive paths serve frozen iteration builds from `/i1/` and `/i2/` on the same nginx host, outside the application's routing tree.
@@ -24,8 +25,8 @@ Key properties to note:
 - Backend has **no per-user application login** (decided for I1). Site access is gated by a **shared-password** Nginx basic auth layer so only the team and teaching staff can view the app; `household_id` is an unguessable capability token (128-bit random).
 - `household_id` is user-supplied in URL paths — needs authorization checks (IDOR risk).
 - Location data (address → lat/lng) is High-sensitivity PII.
-- The app calls external services (TomTom Orbis, TomTom Routing, CFA, BOM, the Victorian road disruption feed, NVIDIA) — API keys and outbound-request behaviour matter.
-- **Data leaves our infrastructure in three flows.** Two carry household records: address text and coordinates → TomTom, and a summary derived from household data → NVIDIA (see T13). The third carries **user-authored text** instead — the question a household types into Safety Insights → NVIDIA (see T22). The road disruption lookup is **not** a flow: it sends neither location nor address (see T18). The fire-danger prediction is not a flow either: it runs a model bundled with the backend, given only a district and a date.
+- The app calls external services (TomTom Orbis, TomTom Routing, CFA, BOM, the Victorian road disruption feed, NVIDIA, OpenAI) — API keys and outbound-request behaviour matter.
+- **Data leaves our infrastructure in four flows.** Two carry household records: address text and coordinates → TomTom, and a summary derived from household data → NVIDIA (see T13). The other two carry **user-authored content**: the question a household types into Safety Insights → NVIDIA (see T22), and what a household **says** to the voice assistant → OpenAI (see T23). The road disruption lookup is **not** a flow: it sends neither location nor address (see T18). The fire-danger prediction is not a flow either: it runs a model bundled with the backend, given only a district and a date.
 
 ## 2. Risk list
 
@@ -53,12 +54,13 @@ Key properties to note:
 | T20 | False completeness implied by a single prioritised recommendation | Frontend | Medium | **Open** — see §2.1 |
 | T21 | Archived build path bypassing the site gate | Nginx / archive path | Medium | **Verified 2026-10-07** — see §2.1 |
 | T22 | User-authored question text sent to a hosted model | Backend → NVIDIA | Medium | Controls in place, residual Medium — see §2.1 |
+| T23 | Household speech sent to a third-party voice provider | Backend → OpenAI; browser → OpenAI | Medium | Controls in place, residual Medium — see §2.1 |
 
 Severity is judged for our deployed context (a course prototype behind a shared-password gate), not for an open public service.
 
 ### 2.1 Detail on the open and narrative items
 
-The table above is the index. These eleven carry a narrative that does not fit a table cell.
+The table above is the index. These twelve carry a narrative that does not fit a table cell.
 
 #### T10. DoS via unauthenticated endpoints
 
@@ -104,11 +106,13 @@ Open: decide whether member names should be anonymised before sending, and wheth
 
 #### T16. Known-vulnerable dependencies
 
-The vulnerability assessment identified geopandas 1.1.1 (HIGH) and six advisories against starlette 0.47.3 via fastapi 0.116.1, with pytest 8.4.1 also behind.
+The vulnerability assessment identified geopandas 1.1.1 (HIGH) and six advisories against starlette 0.47.3 via fastapi 0.116.1; the pytest pin has since moved from 8.4.1 to 9.0.3.
 
 **The geopandas finding no longer applies to production.** geopandas and pyarrow were moved out of the backend into `data/requirements.txt` on 2026-09-10, so they are not installed in the deployed image at all, and the pin has since moved from 1.1.1 to 1.1.2 (`dependency-scan.md`, re-checked 2026-09-14). The live finding on this boundary is `starlette`, which still arrives transitively through `fastapi` — precisely the transitive check Dependabot does not perform.
 
 None is currently reachable through the deployed surface, but the pinned versions are the fastest-moving part of the stack. Open: raise the pins and add `pip-audit` to CI so this is detected rather than re-discovered.
+
+**Updated 2026-10-12.** Dependabot reports **1 critical and 1 high** on `main`, both in `frontend/package-lock.json`: `maplibre-gl` (sanitizer bypass in `DOM.sanitize()`, patched in 6.4.1) and `source-map-js` (event-loop denial of service, patched in 1.2.2). Both are frontend runtime dependencies, so they ship to visitors as built assets. Both are dispositioned as documented exceptions, with a written reachability assessment in `dependency-scan.md`.
 
 #### T18. Location disclosure to the external road disruption service
 
@@ -161,6 +165,28 @@ Residual: Medium. The payload is user-authored and therefore unbounded in *conte
 
 Open: whether the provider's retention terms are acceptable for user-authored text, and whether the question should be screened for address-like content before it is sent.
 
+#### T23. Household speech sent to a third-party voice provider
+
+The voice assistant (added 2026-10-08) is the only feature that sends **spoken** household input to a third party, and it does so in two different shapes — both to OpenAI.
+
+**The session handshake carries no household data.** `backend/app/providers/openai_live.py` posts to `POST https://api.openai.com/v1/live/sessions` (model `gpt-live-1`) and returns the SDP answer. The body is the model name, our fixed instructions, `delegation: {type: "client"}` and the browser's **WebRTC offer** — a transport descriptor, not a household field. Nothing about the household is attached; `household_id` scopes the route and the rate limit only.
+
+**The audio does not pass through us.** The session is created with client delegation, so the browser holds the media session itself and the person's live microphone audio flows from the browser to OpenAI without transiting our backend. *Inferred* from the WebRTC plus client-delegation shape of the handshake rather than measured; confirm by watching the browser's network tab for a direct connection to `api.openai.com` during a session. The consequence is what matters: this is the one household input to a third party that we cannot inspect, minimise, filter or log.
+
+**The action chooser sends the spoken request.** `backend/app/providers/openai_decisions.py` posts to `POST https://api.openai.com/v1/decisions` (model `gpt-6-luna`). The payload is built by `services/voice_actions.py` `decision_input()` and contains three things: the last request the person made (capped at 300 characters), the name of the page they are on, and the text last read out to them (each capped at 40). It carries **no household record** — not the plan, not an address, not a coordinate — and the utterance is never logged.
+
+Controls in place (`backend/app/api/routes/live.py`, both providers, `services/voice_actions.py`):
+
+- **The model chooses from a closed list and nothing else.** It returns `choice` values for two named questions — an action and an emotion — and anything outside the list, or below `MIN_CONFIDENCE`, becomes `none`. No text the model writes is shown to a user or stored.
+- **The model is told not to speak from its own knowledge.** `LIVE_INSTRUCTIONS` requires it to delegate every safety, weather, fire-danger, plan and navigation question to the backend and never to read out or invent a figure; spoken figures are templated by code from store values.
+- **Emergency wording is handled before the provider is reached**, by a deterministic check, so a distress message is answered by our own route rather than carried to a voice model.
+- **Both endpoints are rate-limited** — `POST /live/sessions` and `POST /live/decide` each take an `AskRateLimit`.
+- **Nothing is logged.** Neither the WebRTC offer nor the utterance is written to a log; both route docstrings state this.
+
+Residual: Medium. The chooser has the same property as T22 — the payload is written by the person speaking, so its content cannot be bounded by a field list even though its length is capped. The audio is a different order of thing: a voice recording carries identity that typed text does not (tone, accent, background sound), it reaches the provider directly rather than through our backend, and our controls cannot touch it. `OPENAI_API_KEY` is also held on a **different account** from every other key in this project — the AI developer's OpenAI account, not the deployment lead's (see `secret-handling.md`) — so the provider relationship is not the deployment lead's to review on the same terms as the others.
+
+Open: whether OpenAI's retention terms are acceptable for household speech, and whether the voice feature should be opt-in per household rather than present for everyone behind the gate.
+
 ## 3. Highest-priority items
 
 1. **Auth model decided for I1** (2026-08-31): shared-password site gate (Nginx basic auth on `/` and `/api`), no per-user login; `household_id` is a capability token (T1, T2 mitigated for I1).
@@ -173,6 +199,7 @@ Open: whether the provider's retention terms are acceptable for user-authored te
 8. **Keep household data out of third-party AI calls wherever the model does not need it** (T13), and **never render model output as guidance** — the safety question box asks the model for reviewed-answer ids only, and every word a user reads comes from the reviewed catalogue (T22).
 9. **Send external services the minimum they need** — the road disruption lookup sends no household field at all, which is the standard the other boundaries are measured against (T18).
 10. **Cap every endpoint that spends a shared quota.** Both model-backed endpoints draw on one hosted key; a limit on one of them bounds nothing while the other is open (T10).
+11. **Treat voice as a boundary of its own, not as "just another API call"** (T23). The chooser can be minimised the way any payload can — it sends the spoken request and two labels, and the model returns a closed-list choice. The audio cannot: it goes from the browser to the provider without passing through us. Decide deliberately whether that is acceptable, because it is the one flow where our own controls stop applying.
 
 ## 4. Open questions
 
@@ -181,9 +208,11 @@ Open: whether the provider's retention terms are acceptable for user-authored te
 - **DECIDED (2026-09-14):** the AI explanation provider is NVIDIA, keyed by `AI_API_KEY` (see secret-handling). The feature is optional by design — with no key the app still starts and the button simply produces nothing.
 - **DECIDED (2026-10-01):** live road disruption data requires `VIC_ROAD_DISRUPTIONS_API_KEY`, supplied to the Backend through its environment only. With no key the provider is replaced by a disabled client, so the app starts normally and that feature reports "information unavailable" (T19).
 - **DECIDED (2026-10-05):** the Safety Insights question box routes through a hosted model that returns **reviewed-answer ids only**; the model's own text is never shown to a user or stored. Selected by the evaluation recorded in `docs/design/safety-qa-router-evaluation.md` (see T22).
+- **DECIDED (2026-10-08):** the voice assistant uses OpenAI (`OPENAI_API_KEY`) with client delegation. The session handshake carries only the WebRTC offer and our fixed instructions; the action chooser sends the spoken request, the current page and the last readout, and nothing about the household. Both endpoints are rate-limited and neither the offer nor the utterance is logged (T23).
 - **OPEN (2026-09-14):** whether the AI prompt should anonymise member names. The prompt currently sends `display_name` alongside a support-needs warning, which together identify a member's vulnerability. Recorded as T13.
 - **OPEN (2026-10-07):** whether the provider's retention terms are acceptable for the user-authored question text the Safety Insights box transmits, and whether that text should be screened for address-like content before it is sent. Recorded as T22.
 - **OPEN (2026-10-05):** apply the `AskRateLimit` pattern to the rendezvous explanation endpoint, which currently has no limit while drawing on the same hosted quota as the capped question endpoint. Recorded as T10.
+- **OPEN (2026-10-12):** whether OpenAI's retention terms are acceptable for household speech, which is the one input we cannot inspect before it reaches the provider, and whether the voice feature should be opt-in per household. Recorded as T23.
 
 ## 5. When to re-review
 
@@ -196,6 +225,8 @@ Re-run this model when: the API contract changes, a new external data boundary i
 **Re-reviewed 2026-10-07 (I3).** Trigger met: a new external data boundary — the Safety Insights question box transmits user-authored text to a hosted model, which is a different shape from the household-derived summary T13 already covered. Result: T1–T21 retained, **T22 added**. Same review: the T21 archive probe was run against production and `/`, `/i1/` and `/i2/` each return `401`; the control is recorded as verified rather than in place.
 
 **Recorded 2026-10-07 (I3).** The 2026-10-05 penetration test report (Test 11) found that two model-backed endpoints draw on one hosted quota and only one of them is rate-limited. The finding is recorded under **T10**, which had read "rate limiting at the reverse proxy (deferred to deployment)" since I1 and had not been updated when a partial limit was added to a single endpoint.
+
+**Re-reviewed 2026-10-12 (I3).** Trigger met: a new external data boundary — the voice assistant sends household speech to OpenAI, in two shapes that behave differently (an SDP-only session handshake through our backend, and live audio from the browser that never passes through us). Result: T1–T22 retained, **T23 added**.
 
 **Corrected 2026-10-06 (I3).** Two entries in the I3 addition were wrong on the facts and are corrected above rather than renumbered, because the IDs are referenced elsewhere:
 

@@ -41,16 +41,16 @@ Key points:
 
 ## 3. Networking & security groups
 
-- Inbound: **80 + 443 from 0.0.0.0/0** only.
+- Inbound: **80 + 443 from 0.0.0.0/0**, plus **22 from the operator's home IP only** (next line).
 - **Port 22 restricted to the operator's home IP** (`101.188.108.19/32`) — emergency fallback for when SSM Session Manager is unavailable; management is primarily via SSM (instance role `EC2-SSM-Role`, policy `AmazonSSMManagedInstanceCore`). Accepted operational risk (F5/R5 in the vulnerability assessment report).
 - **MySQL not exposed** — RDS has public access off; reachable only from the EC2 security group.
-- Outbound: apt updates, image pulls, the SSH fetch from GitHub, and external APIs (TomTom Orbis Places, TomTom Routing, CFA, BOM, NVIDIA).
+- Outbound: apt updates, image pulls, the SSH fetch from GitHub, and external APIs (TomTom Orbis Places, TomTom Routing, the Victorian road disruption feed, CFA, BOM, NVIDIA, OpenAI).
 
 ## 4. Secret flow
 
 - **Local dev** — `.env` at repo root (`chmod 600`), gitignored.
 - **CI/CD** — GitHub Actions Secrets (`AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`) — never in workflow files.
-- **Production** — `.env` on the server at the repo root, holding `TOMTOM_API_KEY` (live address lookup and routing), `AI_API_KEY` (rendezvous explanation), Backend database credentials, and separate `MIGRATION_DB_USER` / `MIGRATION_DB_PASSWORD` credentials used only by the disposable migration service. `chmod 600`, owner root — the deploy runs as root, so that ownership is harmless. Which key belongs to which account, and how each is rotated, is recorded in `secret-handling.md`.
+- **Production** — `.env` on the server at the repo root, holding `TOMTOM_API_KEY` (live address lookup and routing), `AI_API_KEY` (rendezvous explanation and typed questions), `OPENAI_API_KEY` (voice assistant: GPT-Live sessions and the Decisions API), `VIC_ROAD_DISRUPTIONS_API_KEY` (road disruption feed), Backend database credentials, and separate `MIGRATION_DB_USER` / `MIGRATION_DB_PASSWORD` credentials used only by the disposable migration service. `chmod 600`, owner root — the deploy runs as root, so that ownership is harmless. Which key belongs to which account, and how each is rotated, is recorded in `secret-handling.md`.
 - **Repo fetch** — the server pulls the repo via an SSH deploy key (`/root/.ssh/github_deploy`, read-only, added in the repo's Deploy Keys).
 - **Site gate password** — Nginx basic-auth htpasswd file on the server only, never committed.
 - **Deploy IAM** — IAM user `github-actions-deploy` (no console) with a scoped inline policy allowing only SSM `SendCommand`/invocation reads on the instance (plus `ec2:DescribeInstances`); used only by GitHub Actions.
@@ -92,7 +92,7 @@ Why detached + polled: a single long, high-output SSM command crashes the SSM do
 
 Steps 1–8 below were performed to bring this environment up; they are the rebuild path if the instance is ever re-created.
 
-1. **Done (2026-09-02):** Provision EC2 (Ubuntu 24.04, t3.micro) — this instance was reused from the earlier project; SSM role attached, security groups 80/443 only.
+1. **Done (2026-09-02):** Provision EC2 (Ubuntu 24.04, t3.micro) — this instance was reused from the earlier project; SSM role attached, security groups 80/443 open to the Internet and 22 restricted to the operator's home IP.
 2. **Done:** DNS `cubesix.me` → EC2 IP.
 3. **Done:** Docker + Docker Compose plugin installed on the server.
 4. **Done:** `.env` (real values, `DATABASE_HOST` = RDS endpoint) at repo root on the server; `chmod 600`.
@@ -117,17 +117,17 @@ Steps 1–8 below were performed to bring this environment up; they are the rebu
 - **Database** — **DECIDED (2026-09-01): reuse `fit5120-db` RDS.** Old project data removed after a safety snapshot; Docker MySQL stays local-dev-only.
 - **Images** — **DECIDED by implementation (2026-09-02): build on the server** during the deploy. (Container-registry push/pull remains a possible future optimisation.)
 - **Deploy path** — **DECIDED (2026-09-13):** the server checkout is disposable and every deploy asserts the commit it shipped (see §5, threat-model T11). Taken after a force-push to `main` left production serving five-day-old code while every deploy, and the Actions run, reported success.
+- **Branch protection** — **IN PLACE (verified 2026-10-12):** two active rulesets on `main` (`Protect main`, `protect-main`) block branch deletion and non-fast-forward pushes and require every change to arrive through a pull request, which closes the force-push that broke the deploy on 2026-09-08. `required_approving_review_count` is `0`, so a PR is required but no second approval is — raise it to 1 if a real review gate is wanted.
 
 ## 8. Known follow-ups
 
-- **Dependabot** reports 1 high + 1 moderate vulnerability on `main` (as of 2026-09-02) — to be triaged in the repo Security tab.
-- **Branch protection / rulesets on `main` are not configured.** The repo currently allows direct pushes and force-pushes — the workflow violation that broke the deploy on 2026-09-08. This one needs the repo owner.
+- **Dependabot reports 1 critical and 1 high vulnerability on `main`** — both in `frontend/package-lock.json`, verified 2026-10-12: `maplibre-gl` (sanitizer bypass in `DOM.sanitize()`, patched in 6.4.1) and `source-map-js` (event-loop denial of service, patched in 1.2.2). Both fixes are version bumps; `frontend/**` is inside the deploy `paths:` list, so the bump needs its own PR and will trigger a production deploy — schedule it deliberately.
 - **Input bounds (threat-model T12):** `backup_arrangements` needs `max_items` and `Destination.address` needs `max_length`, so that one request cannot fan out into an unbounded number of paid upstream calls.
 - **The Nginx site config is still not version-controlled** and `nginx/**` is not in `deploy.yml`'s `paths:`, so every Nginx change is made by hand on the server. `nginx/README.md` now records what the file contains and why, but the file itself lives only on the host — the archive location blocks added 2026-10-06 are hand-applied for the same reason. As a minimum this needs a backup outside the instance (`/tmp` is not a backup), and ideally the config moves into the repo as a template.
 - **CI action versions** need a bump (`actions/checkout@v4`, `actions/setup-python@v5`) — Node 20 deprecation warnings appear in the run log. Do it as its own PR, because `deploy.yml` is inside the deploy `paths:` list and editing it triggers a production deploy.
 - **RDS admin password rotation** was deferred during I1 and is now due — see `secret-handling.md`.
 - **`follow_redirects=False` on the two keyed clients** (threat-model T6) — `tomtom.py` and `road_disruptions.py` both send the API key in a custom header on a client that follows redirects, so a 302 to another host would replay it. httpx strips only `Authorization`.
-- **Deployment checklist** still has open items (T12 input bounds, Dependabot triage, the T21 probes); work through them before the next release sign-off.
+- **Deployment checklist** still has open items (T12 input bounds); work through them before the next release sign-off.
 - Request rate-limiting at the reverse proxy is deferred (noted in `deployment-checklist.md` / `threat-model.md`). In the meantime the only limit on the deployed surface is the in-process one on the typed-question endpoint; the rendezvous explanation draws on the same hosted quota with no limit at all (threat-model T10, found by Test 11 of the 2026-10-05 penetration test). HSTS was added on 2026-09-02 (verified via `curl -I`).
 
 ## 9. References
