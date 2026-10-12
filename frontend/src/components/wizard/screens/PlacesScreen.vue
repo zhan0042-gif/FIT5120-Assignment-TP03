@@ -3,6 +3,7 @@ import { addBackupPlace } from '../../../wizard/formActions.js'
 import {
   backupDestination, primaryDestination, removeBackupPlace, selectDestinationAddress, setDestinationAddress,
 } from '../../../wizard/wizardDraft.js'
+import { focusAfterRender } from '../../../wizard/focus.js'
 import AddressQuestion from '../questions/AddressQuestion.vue'
 import TextField from '../fields/TextField.vue'
 
@@ -24,7 +25,13 @@ function setMeeting(value) {
 }
 function addPlace() {
   const entry = addBackupPlace(props.plan)
-  backupDestination(props.plan, props.plan.arrangements.backup_arrangements.indexOf(entry))
+  const index = props.plan.arrangements.backup_arrangements.indexOf(entry)
+  backupDestination(props.plan, index)
+  focusAfterRender(`backupplace:${index}:name`)
+}
+function dropPlace(index) {
+  removeBackupPlace(props.plan, index)
+  focusAfterRender('add-place')
 }
 </script>
 
@@ -76,9 +83,9 @@ function addPlace() {
         @update:model-value="setDestinationAddress(entry.destination, $event)"
         @select="selectDestinationAddress(entry.destination, $event)"
       />
-      <button type="button" class="btn btn-danger btn-sm" @click="removeBackupPlace(plan, index)">Remove this place</button>
+      <button type="button" class="btn btn-danger btn-sm" @click="dropPlace(index)">Remove this place</button>
     </fieldset>
-    <button type="button" class="btn btn-ghost" @click="addPlace">Add another place</button>
+    <button id="add-place" type="button" class="btn btn-ghost" @click="addPlace">Add another place</button>
   </div>
 </template>
 

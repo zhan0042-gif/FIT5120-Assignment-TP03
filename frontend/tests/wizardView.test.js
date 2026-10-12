@@ -52,3 +52,11 @@ test('the old question flow is gone from the view', async () => {
 test('the final action label lives on the review screen', async () => {
   assert.match(await source('../src/components/wizard/ReviewScreen.vue'), /Save &amp; Review Plan/)
 })
+
+test('every save, including the one from review, finalises and validates the whole plan first', async () => {
+  const text = await view()
+  const save = text.slice(text.indexOf('async function save()'), text.indexOf('async function saveScreen'))
+  assert.ok(save.indexOf('finalisePlan(') > -1)
+  assert.ok(save.indexOf('validatePlan(') > save.indexOf('finalisePlan('))
+  assert.ok(save.indexOf('householdStore.savePlan(draft.value)') > save.indexOf('validatePlan('))
+})

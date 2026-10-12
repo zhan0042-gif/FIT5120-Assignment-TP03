@@ -3,6 +3,7 @@ import { TASK_PRESETS } from '../../../wizard/options.js'
 import { memberTitle } from '../../../wizard/labels.js'
 import { addJob, setJobMain, setTaskChoice, taskChoice } from '../../../wizard/formActions.js'
 import { removeResponsibility } from '../../../wizard/wizardDraft.js'
+import { focusAfterRender } from '../../../wizard/focus.js'
 import SelectField from '../fields/SelectField.vue'
 import TextField from '../fields/TextField.vue'
 
@@ -12,6 +13,14 @@ const props = defineProps({
 })
 const err = (field) => props.errors[field] ?? ''
 const TASK_OPTIONS = [['', 'Choose a job'], ...TASK_PRESETS.map((task) => [task, task]), ['other', 'Something else']]
+function addOneJob() {
+  addJob(props.plan)
+  focusAfterRender(`resp:${props.plan.responsibilities.length - 1}:task`)
+}
+function dropJob(index) {
+  removeResponsibility(props.plan, index)
+  focusAfterRender('add-job')
+}
 const people = () => props.plan.members.map((member, index) => [member.member_id, memberTitle(props.plan, index)])
 const backupOptions = (job) => [['', 'No one yet'], ...people().filter(([id]) => id !== job.primary_member_id)]
 </script>
@@ -54,9 +63,9 @@ const backupOptions = (job) => [['', 'No one yet'], ...people().filter(([id]) =>
           :error="err(`resp:${i}:backup`)"
           @update:model-value="job.backup_member_id = $event || null"
         />
-        <button type="button" class="btn btn-danger btn-sm" @click="removeResponsibility(plan, i)">Remove this job</button>
+        <button type="button" class="btn btn-danger btn-sm" @click="dropJob(i)">Remove this job</button>
       </fieldset>
-      <button type="button" class="btn btn-ghost" @click="addJob(plan)">Add another job</button>
+      <button id="add-job" type="button" class="btn btn-ghost" @click="addOneJob">Add another job</button>
     </template>
   </div>
 </template>

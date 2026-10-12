@@ -3,6 +3,7 @@ import { TRANSPORT_TYPES, transportLabel } from '../../../wizard/options.js'
 import { memberTitle } from '../../../wizard/labels.js'
 import { addVehicle, setFirstVehicle, setHasVehicle, setVehicleType } from '../../../wizard/formActions.js'
 import { backupTransportIds, removeTransport, setBackupTransports } from '../../../wizard/wizardDraft.js'
+import { focusAfterRender } from '../../../wizard/focus.js'
 import YesNoQuestion from '../questions/YesNoQuestion.vue'
 import CheckField from '../fields/CheckField.vue'
 import SelectField from '../fields/SelectField.vue'
@@ -13,6 +14,14 @@ const props = defineProps({
   errors: { type: Object, default: () => ({}) },
 })
 const err = (field) => props.errors[field] ?? ''
+function addOneVehicle() {
+  addVehicle(props.plan)
+  focusAfterRender(`vehicle:${props.plan.transports.length - 1}:type`)
+}
+function dropVehicle(vehicle) {
+  removeTransport(props.plan, vehicle.transport_id)
+  focusAfterRender('add-vehicle')
+}
 const driverOptions = () => props.plan.members.map((member, index) => [member.member_id, memberTitle(props.plan, index)])
 const firstOptions = () => [['', 'Not sure yet'], ...props.plan.transports.map((t) => [t.transport_id, transportLabel(t)])]
 const firstId = () => props.plan.arrangements?.primary_transport_id ?? ''
@@ -67,9 +76,9 @@ const backupCandidates = () =>
           helper="Tick everyone who could drive it."
           :options="driverOptions()"
         />
-        <button type="button" class="btn btn-danger btn-sm" @click="removeTransport(plan, vehicle.transport_id)">Remove this vehicle</button>
+        <button type="button" class="btn btn-danger btn-sm" @click="dropVehicle(vehicle)">Remove this vehicle</button>
       </fieldset>
-      <button type="button" class="btn btn-ghost" @click="addVehicle(plan)">Add another vehicle</button>
+      <button id="add-vehicle" type="button" class="btn btn-ghost" @click="addOneVehicle">Add another vehicle</button>
 
       <SelectField
         v-if="plan.transports.length"

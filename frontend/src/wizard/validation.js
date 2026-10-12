@@ -1,3 +1,6 @@
+import { SCREENS } from './screens.js'
+import { removeMember } from './wizardDraft.js'
+
 const blankText = (value) => !String(value ?? '').trim()
 
 function memberIsBlank(member) {
@@ -14,7 +17,12 @@ const jobIsBlank = (job) => blankText(job.task_name) && !job.primary_member_id &
 // people, jobs, the destination and backup places can be blank: an animal or a
 // vehicle card holds default values and counts as filled.
 export function finalisePlan(plan) {
-  plan.members = plan.members.filter((member) => !memberIsBlank(member))
+  // A blank card goes through removeMember so no driver list or job keeps its id. The
+  // first card stays while later people exist, so the second person never becomes "You".
+  const blankIds = plan.members
+    .filter((member, index) => memberIsBlank(member) && !(index === 0 && plan.members.length > 1))
+    .map((member) => member.member_id)
+  for (const id of blankIds) removeMember(plan, id)
   for (const member of plan.members) member.display_name = (member.display_name ?? '').trim()
   for (const vehicle of plan.transports) vehicle.display_name = (vehicle.display_name ?? '').trim()
   plan.responsibilities = plan.responsibilities.filter((job) => !jobIsBlank(job))
@@ -73,4 +81,10 @@ export function validateScreen(plan, screenId) {
   }
 
   return errors
+}
+
+// The same checks for every screen, for a save that can come from anywhere (the
+// Review screen, or a screen the person reached after skipping another one).
+export function validatePlan(plan) {
+  return SCREENS.flatMap((screen) => validateScreen(plan, screen.id).map((item) => ({ ...item, screen: screen.id })))
 }

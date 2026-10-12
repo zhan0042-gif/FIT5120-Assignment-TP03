@@ -14,7 +14,7 @@ import PlacesScreen from '../components/wizard/screens/PlacesScreen.vue'
 import VehiclesScreen from '../components/wizard/screens/VehiclesScreen.vue'
 import { addJob, addMember } from '../wizard/formActions'
 import { SCREENS, firstIncompleteScreen, nextScreen, previousScreen, resolveScreenParam } from '../wizard/screens'
-import { finalisePlan, finalisedClone, validateScreen } from '../wizard/validation'
+import { finalisePlan, finalisedClone, validatePlan, validateScreen } from '../wizard/validation'
 import { primaryDestination } from '../wizard/wizardDraft'
 import { saveAndReview } from '../utils/planReviewNavigation'
 
@@ -111,6 +111,19 @@ const errorMap = computed(() => Object.fromEntries(errors.value.map((item) => [i
 
 async function save() {
   if (!draft.value || saving.value) return false
+  // Every save, from any screen or from Review, drops blank cards and checks the
+  // whole plan, so nothing invalid is sent because a screen was skipped.
+  finalisePlan(draft.value)
+  const problems = validatePlan(draft.value)
+  if (problems.length) {
+    const first = problems[0]
+    goTo(first.screen)
+    errors.value = problems.filter((item) => item.screen === first.screen)
+    saveMessage.value = null
+    await nextTick()
+    document.getElementById(first.field)?.focus()
+    return false
+  }
   await householdStore.savePlan(draft.value)
   if (householdStore.saveStatus !== 'success') {
     saveMessage.value = householdStore.saveError || 'Your plan could not be saved. Please try again.'

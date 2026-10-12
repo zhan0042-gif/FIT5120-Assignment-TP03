@@ -6,6 +6,7 @@ import {
   setAnimalsAny, setMemberHelp, setMemberRelationship,
 } from '../../../wizard/formActions.js'
 import { removeAnimal, removeMember } from '../../../wizard/wizardDraft.js'
+import { focusAfterRender } from '../../../wizard/focus.js'
 import YesNoQuestion from '../questions/YesNoQuestion.vue'
 import CheckField from '../fields/CheckField.vue'
 import NumberField from '../fields/NumberField.vue'
@@ -20,6 +21,22 @@ const props = defineProps({
 const err = (field) => props.errors[field] ?? ''
 const RELATIONSHIP_OPTIONS = [['', 'Prefer not to say'], ...RELATIONSHIPS.filter(([value]) => value !== 'self')]
 const animalsAnswer = () => (props.plan.animals.length > 0 ? true : null)
+function addPerson() {
+  addMember(props.plan)
+  focusAfterRender(`member:${props.plan.members.length - 1}:name`)
+}
+function dropPerson(member) {
+  removeMember(props.plan, member.member_id)
+  focusAfterRender('add-person')
+}
+function addOneAnimal() {
+  addAnimal(props.plan)
+  focusAfterRender(`animal:${props.plan.animals.length - 1}:category`)
+}
+function dropAnimal(index) {
+  removeAnimal(props.plan, index)
+  focusAfterRender('add-animal')
+}
 const nameOf = (member) => member.display_name?.trim() || 'this person'
 </script>
 
@@ -68,9 +85,9 @@ const nameOf = (member) => member.display_name?.trim() || 'this person'
         placeholder="e.g. Needs medication prepared"
         @update:model-value="member.support_notes = $event || null"
       />
-      <button v-if="i > 0" type="button" class="btn btn-danger btn-sm" @click="removeMember(plan, member.member_id)">Remove this person</button>
+      <button v-if="i > 0" type="button" class="btn btn-danger btn-sm" @click="dropPerson(member)">Remove this person</button>
     </fieldset>
-    <button type="button" class="btn btn-ghost" @click="addMember(plan)">Add another person</button>
+    <button id="add-person" type="button" class="btn btn-ghost" @click="addPerson">Add another person</button>
 
     <section class="animals" aria-labelledby="animals-title">
       <h3 id="animals-title" class="group-title">Do any animals leave with you?</h3>
@@ -104,9 +121,9 @@ const nameOf = (member) => member.display_name?.trim() || 'this person'
           @update:model-value="animal.animal_type_other = $event || null"
         />
         <NumberField :id="`animal:${i}:quantity`" v-model="animal.quantity" label="How many?" :min="1" :error="err(`animal:${i}:quantity`)" />
-        <button type="button" class="btn btn-danger btn-sm" @click="removeAnimal(plan, i)">Remove this animal</button>
+        <button type="button" class="btn btn-danger btn-sm" @click="dropAnimal(i)">Remove this animal</button>
       </fieldset>
-      <button v-if="plan.animals.length" type="button" class="btn btn-ghost" @click="addAnimal(plan)">Add another animal</button>
+      <button v-if="plan.animals.length" id="add-animal" type="button" class="btn btn-ghost" @click="addOneAnimal">Add another animal</button>
     </section>
   </div>
 </template>
