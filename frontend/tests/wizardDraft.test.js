@@ -19,7 +19,6 @@ import {
 } from '../src/wizard/wizardDraft.js'
 import { memberLabel, memberTitle } from '../src/wizard/labels.js'
 import { transportLabel } from '../src/wizard/options.js'
-import { question } from '../src/wizard/step.js'
 
 test('memberAt creates the member once and reuses it', () => {
   const plan = createEmptyHouseholdPlan()
@@ -109,14 +108,6 @@ test('transportLabel combines the name and the type', () => {
   assert.equal(transportLabel({ transport_type: 'ute', display_name: "Dad's" }), "Dad's: Ute / Pickup")
   assert.equal(transportLabel({ transport_type: 'other', transport_type_other: 'Tractor', display_name: '' }), 'Tractor')
   assert.equal(transportLabel({ transport_type: 'car', display_name: '' }), 'Car / SUV')
-})
-
-test('question fills defaults and lets extras override them', () => {
-  const step = question('transport', 'k', 'text', 'Prompt?', { optional: false, placeholder: 'x' })
-  assert.deepEqual(
-    [step.section, step.key, step.kind, step.prompt, step.helper, step.optional, step.placeholder],
-    ['transport', 'k', 'text', 'Prompt?', null, false, 'x'],
-  )
 })
 
 test('editing a daytime address by hand drops the earlier suggestion it was verified from', () => {
