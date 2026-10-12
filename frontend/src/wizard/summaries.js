@@ -1,5 +1,6 @@
 import { transportLabel } from './options.js'
 import { memberTitle } from './labels.js'
+import { SCREENS } from './screens.js'
 
 const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`
 
@@ -46,4 +47,11 @@ export function describeSection(plan, sectionId) {
     default:
       return ''
   }
+}
+
+export function describeScreen(plan, screenId) {
+  const screen = SCREENS.find((item) => item.id === screenId)
+  if (!screen) return ''
+  if (screenId === 'vehicles' && plan.has_private_transport === false) return 'No private vehicle'
+  return screen.sections.map((id) => describeSection(plan, id)).join(' · ')
 }
