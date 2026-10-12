@@ -61,3 +61,39 @@ test('household: errors appear beside their fields', async () => {
   const html = await screen('HouseholdScreen', plan, { 'animal:0:quantity': 'Enter a whole number of at least 1.' })
   assert.match(html, /id="animal:0:quantity-error"[^>]*>Enter a whole number of at least 1\./)
 })
+
+test('daytime: one row per person, with an address field only once a place is chosen', async () => {
+  const empty = await screen('DaytimeScreen', createEmptyHouseholdPlan())
+  assert.match(empty, /Add the people in your household first/)
+
+  const plan = planWith((p) => { addMember(p).display_name = 'Maya'; addMember(p).display_name = 'Sam' })
+  plan.members[0].usual_location = { kind: 'work', address: '1 Main St', latitude: null, longitude: null, verification_status: 'unverified' }
+  const html = await screen('DaytimeScreen', plan)
+  assert.match(html, /Where are you during the day\?/)
+  assert.match(html, /Where is Sam during the day\?/)
+  assert.equal((html.match(/What is the address\?/g) ?? []).length, 1)
+})
+
+test('jobs: a job shows its custom field only for "Something else"; backup excludes the main person', async () => {
+  const empty = await screen('JobsScreen', createEmptyHouseholdPlan())
+  assert.match(empty, /Add the people in your household first/)
+
+  const plan = planWith((p) => {
+    const a = addMember(p); a.display_name = 'Maya'
+    const b = addMember(p); b.display_name = 'Sam'
+    const job = addJob(p)
+    job.task_name = ' '
+    job.primary_member_id = a.member_id
+  })
+  const html = await screen('JobsScreen', plan, { 'resp:0:task_custom': 'Please describe the task.' })
+  assert.match(html, /What is the job\?/)
+  assert.match(html, /id="resp:0:task_custom-error"[^>]*>Please describe the task\./)
+  const backup = html.slice(html.indexOf('Who covers it'))
+  assert.match(backup, /Sam/)
+  assert.doesNotMatch(backup, />Maya</)
+  assert.match(html, /Add another job/)
+  assert.match(html, /Remove this job/)
+
+  const preset = planWith((p) => { addMember(p); addJob(p).task_name = 'Drive the household' })
+  assert.doesNotMatch(await screen('JobsScreen', preset), /What is the job\?/)
+})
