@@ -1,22 +1,17 @@
 <script setup>
-import { SECTIONS } from '../../wizard/flow'
-import { describeSection } from '../../wizard/summaries'
+import { SCREENS, screenComplete } from '../../wizard/screens'
+import { describeScreen } from '../../wizard/summaries'
 import LoadingState from '../common/LoadingState.vue'
 import PlanChecks from '../completion/PlanChecks.vue'
 
-const props = defineProps({
+defineProps({
   plan: { type: Object, required: true },
   completion: { type: Object, default: null },
   completionLoading: { type: Boolean, default: false },
-  editable: { type: Array, default: () => [] },
   saving: { type: Boolean, default: false },
   error: { type: String, default: null },
 })
 const emit = defineEmits(['edit', 'finish'])
-
-function statusOf(id) {
-  return props.completion?.sections?.find((item) => item.section === id)?.status === 'complete'
-}
 </script>
 
 <template>
@@ -26,15 +21,15 @@ function statusOf(id) {
 
     <LoadingState v-if="completionLoading && !completion" message="Checking your saved plan…" />
     <ul class="rows">
-      <li v-for="section in SECTIONS" :key="section.id" class="row">
+      <li v-for="screen in SCREENS" :key="screen.id" class="row">
         <div class="row-main">
-          <h3 class="row-title">{{ section.title }}</h3>
-          <p class="row-text">{{ describeSection(plan, section.id) }}</p>
+          <h3 class="row-title">{{ screen.title }}</h3>
+          <p class="row-text">{{ describeScreen(plan, screen.id) }}</p>
         </div>
-        <span class="badge" :class="statusOf(section.id) ? 'badge-success' : 'badge-warning'">
-          {{ statusOf(section.id) ? 'Complete' : 'Needs information' }}
+        <span class="badge" :class="screenComplete(completion, screen.id) ? 'badge-success' : 'badge-warning'">
+          {{ screenComplete(completion, screen.id) ? 'Complete' : 'Needs information' }}
         </span>
-        <button v-if="editable.includes(section.id)" type="button" class="btn btn-ghost btn-sm" @click="emit('edit', section.id)">Edit</button>
+        <button type="button" class="btn btn-ghost btn-sm" @click="emit('edit', screen.id)">Edit</button>
       </li>
     </ul>
 
