@@ -1,7 +1,7 @@
 # Threat Model / Risk List (I1–I3)
 
 **Project:** Shielding Crisis & Community Resilience — I1–I3. **Scope:** FE↔BE API, external live sources (address, routing, road disruption, AI), database, location data, the archive environment, and the CI/CD deploy path.
-**Status:** T1–T10 retained from I1; T11–T13 added 2026-09-14 in the I2 review; T14–T21 added in the I3 review; T22 added 2026-10-07, when the Safety Insights question box became a new external data boundary; T23 added 2026-10-12, when the voice assistant made OpenAI a second AI boundary. Numbering is append-only — `deployment-checklist.md` and the vulnerability assessment report reference these IDs, so existing numbers are never re-used or re-ordered.
+**Status:** T1–T10 retained from I1; T11–T13 added 2026-09-14 in the I2 review; T14–T21 added in the I3 review; T22 added 2026-10-07, when the Safety Insights question box became a new external data boundary; T23 added 2026-10-12, when the voice assistant made OpenAI a second AI boundary. Numbering is append-only — `deployment-checklist.md` cites these IDs (the vulnerability assessment report uses its own F and R numbering instead), so existing numbers are never re-used or re-ordered.
 
 ## 1. Attack surface
 
@@ -36,7 +36,7 @@ Key properties to note:
 | T2 | IDOR: access another household by ID | `GET/PUT /api/v1/households/{id}` | Medium (was High) | `household_id` is a random capability token (unguessable), and plan-save rejects cross-household references (`_validate_public_id_ownership`) |
 | T3 | SQL injection via input fields | Backend / DB | High | Parameterized queries / ORM only; never build SQL by string |
 | T4 | XSS via user-entered names/roles | Frontend | Medium | Escape all output; validate input length and type |
-| T5 | Location / PII exposure (breach or leak) | Backend, logs, DB | High | Minimisation (see privacy-requirements); no PII in logs; least-privilege DB user; restricted access |
+| T5 | Location / PII exposure (breach or leak) | Backend, logs, DB | High | Minimisation (see privacy-requirements); no PII in logs; restricted access. Not least-privilege today: `fit5120_app` holds `ALL PRIVILEGES` on the application database (vulnerability assessment report, F8; remediation R6 outstanding) |
 | T6 | External API key leakage | Backend, CI/CD, repo | High | **Open** — see §2.1 |
 | T7 | External API abuse / slow downstream | Backend | Medium | Bounded timeouts on TomTom / CFA / BOM / road disruption calls; failure handled gracefully |
 | T8 | Error messages leak internals | Backend | Medium | Sanitized error responses; no stack traces in prod (FastAPI: debug off) |
@@ -92,13 +92,13 @@ One plan-save request fans out into one paid verification call per entry: `servi
 
 Measured against production 2026-10-05 (penetration test report, Test 7): a plan with 100 backup arrangements took 34.88 s against 5.17 s for 10, about 0.33 s per entry on top of roughly 1.9 s of fixed overhead, and still returned 200. At that rate the reverse proxy's 60 s timeout is reached at approximately 176 entries. The impact is bounded to latency and external API cost.
 
-Partly mitigated: `_enrich_members` short-circuits when a location is already verified.
+Partly mitigated: `_enrich_member_locations` short-circuits when a location is already verified.
 
 Open: cap `backup_arrangements` and add a `max_length` to `Destination.address`.
 
 #### T13. Household data sent to a third-party AI provider
 
-The rendezvous explanation posts a summary derived from household data to a hosted model: each member's `display_name` and origin kind, plus the warning strings, which name a member's support needs. Privacy classifies support needs as High.
+The rendezvous explanation posts a summary derived from household data to a hosted model: each member's `display_name`, origin kind and travel time in minutes, the household's total time to be together, plus the warning strings, which name a member's support needs. Privacy classifies support needs as High.
 
 Controls in place: no address or coordinates are included; the response must survive gates (invented numbers, speculation about fire, gendered language, length and shape) or it is discarded unshown; a missing or invalid key disables the feature instead of failing the app.
 
@@ -112,7 +112,7 @@ The vulnerability assessment identified geopandas 1.1.1 (HIGH) and six advisorie
 
 None is currently reachable through the deployed surface, but the pinned versions are the fastest-moving part of the stack. Open: raise the pins and add `pip-audit` to CI so this is detected rather than re-discovered.
 
-**Updated 2026-10-12.** Dependabot reports **1 critical and 1 high** on `main`, both in `frontend/package-lock.json`: `maplibre-gl` (sanitizer bypass in `DOM.sanitize()`, patched in 6.4.1) and `source-map-js` (event-loop denial of service, patched in 1.2.2). Both are frontend runtime dependencies, so they ship to visitors as built assets. Both are dispositioned as documented exceptions, with a written reachability assessment in `dependency-scan.md`.
+**Updated 2026-10-15.** Dependabot reports **1 critical and 1 high** on `main`, both in `frontend/package-lock.json`, but they do not share a reachability story. `maplibre-gl` (sanitizer bypass in `DOM.sanitize()`, installed 5.24.0, patched in 6.4.1) is a runtime dependency: it is bundled and does ship to visitors, and the fix is a major-version upgrade. `source-map-js` (event-loop denial of service, installed 1.2.1, patched in 1.2.2) is build-time only — it arrives through `@vue/compiler-sfc` and `postcss`, is imported by no runtime code, and never enters the browser bundle, so its denial of service lands on the build machine and on CI rather than on a visitor. Both are dispositioned as documented exceptions, with a written reachability assessment in `dependency-scan.md`.
 
 #### T18. Location disclosure to the external road disruption service
 
@@ -148,7 +148,7 @@ Residual: the gate is a **single shared password for everything**, so the archiv
 
 #### T22. User-authored question text sent to a hosted model
 
-The Safety Insights question box (`POST /api/v1/households/{household_id}/safety-guidance/ask`) sends what the household typed to a hosted model (`nvidia/nemotron-3-super-120b-a12b`, the same NVIDIA chat endpoint the explanation uses). This is the only outbound boundary whose payload is **written by a user**, so unlike every other boundary its content cannot be described by a field list: a household can type a name, an address or a medical detail into it.
+The Safety Insights question box (`POST /api/v1/households/{household_id}/safety-guidance/ask`) sends what the household typed to a hosted model (`nvidia/nemotron-3-super-120b-a12b`, the same NVIDIA chat endpoint the explanation uses). When it was recorded this was the only outbound boundary whose payload is **written by a user**; T23's action chooser acquired the same property on 2026-10-12. Unlike every other boundary, then, its content cannot be described by a field list: a household can type a name, an address or a medical detail into it.
 
 What is sent: the typed question, plus **our own** reviewed answer catalogue (each entry's id, question and alternative phrasings). What is not sent: `household_id`, the saved plan, and every address and coordinate the plan holds. The question is not attached to any household record — as the endpoint's own docstring puts it, "the household id only scopes the route".
 

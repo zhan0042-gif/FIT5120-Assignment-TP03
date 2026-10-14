@@ -48,7 +48,7 @@ Source of truth: `.env.example` at the repo root. Marked **sensitive** where the
 | Variable | Meaning | Sensitive | Notes |
 | -------------------------- | ------------------------------ | --------- | ----------------------------------- |
 | `MYSQL_DATABASE` | DB name | no | |
-| `MYSQL_USER` | DB user | no | least-privilege app user |
+| `MYSQL_USER` | DB user | no | not least-privilege today: the account holds `ALL PRIVILEGES` on the application database (vulnerability assessment report, F8); tightening it is tracked as Security Plan P3 |
 | `MYSQL_PASSWORD` | DB password | **yes** | dev default `change_me` — replace before sharing |
 | `MIGRATION_DB_USER` | Dedicated migration DB user | no | required by the disposable migration service only |
 | `MIGRATION_DB_PASSWORD` | Dedicated migration DB password | **yes** | required; no default and no fallback to `MYSQL_PASSWORD` |
