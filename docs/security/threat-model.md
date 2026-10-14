@@ -50,7 +50,7 @@ Key properties to note:
 | T16 | Known-vulnerable dependencies | Backend / build | Medium | **Open** — see §2.1 |
 | T17 | Service availability after host reboot or crash | EC2 / Docker | Medium | `restart: unless-stopped` on both services |
 | T18 | Location disclosure to the external road disruption service | Backend → road disruption feed | Low (was High) | **Control verified** — see §2.1 |
-| T19 | False assurance when road disruption data is unavailable | Backend → frontend | Medium | `Open` — see §2.1 |
+| T19 | False assurance when road disruption data is unavailable | Backend → frontend | Medium | **Verified 2026-10-05** — see §2.1 |
 | T20 | False completeness implied by a single prioritised recommendation | Frontend | Medium | **Open** — see §2.1 |
 | T21 | Archived build path bypassing the site gate | Nginx / archive path | Medium | **Verified 2026-10-07** — see §2.1 |
 | T22 | User-authored question text sent to a hosted model | Backend → NVIDIA | Medium | Controls in place, residual Medium — see §2.1 |
@@ -132,7 +132,11 @@ Verified 2026-10-05 (penetration test report): an evacuation destination without
 
 #### T20. False completeness implied by a single prioritised recommendation
 
-Presenting one priority issue and one next action may be read as a completeness statement about the household's preparedness rather than a ranking of known issues. Control in place: the interface states that the result ranks known issues and is not a completeness assessment.
+Presenting one priority issue and one next action may be read as a completeness statement about the household's preparedness rather than a ranking of known issues.
+
+**Open.** The control previously recorded here was that the interface states the result ranks known issues and is not a completeness assessment. **No such statement exists in the code.** Searching the frontend and the backend for that wording returns nothing, and `prepSupport` in `frontend/src/stores/localContext.js` is fetched and exposed by the store but read by no component. The preparation status card that would have presented the recommendation, `frontend/src/components/localContext/PreparationSupportBanner.vue`, was removed from the overview in `65ed2f6` on 2026-10-07, so the risk is not currently exposed in the interface.
+
+Residual: the disclaimer the control depends on is absent rather than merely removed. If preparation guidance is surfaced again, the interface must state that the result ranks known issues and is not a completeness assessment.
 
 #### T21. Archived build path bypassing the site gate
 
